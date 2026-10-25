@@ -97,7 +97,7 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
 Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
 
 ## Stato
-- **25/10 — Fase 0 completata, tranne la prova dall'icona, che spetta all'utente.**
+- **25/10 — Fase 0 completata.**
   - Repo git locale, catena di build: `tools/build.sh <arch>` compila il nucleo Rust
     e l'app Qt 6.12; `tools/pacchetto.sh <arch>` fa i due RPM in `RPMS/`.
   - **`rootgpt-qt6-runtime` 6.12.0-1**: Qt condiviso in `/home/rootgpt-qt6`
@@ -111,6 +111,9 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - POCO (aarch64): installati con `rpm -Uvh`, `rpm -V` pulito. Dal launcher
     l'app parte e mostra la home letta dal nucleo Rust, con la cmdline forgiata
     per la cover.
+  - Dall'icona (tocchi sintetici, 25/10): l'app parte, si naviga (dentro una
+    cartella e di nuovo su), lo swipe dal bordo la manda in cover, e ritoccando
+    l'icona torna avanti la stessa istanza.
   - armv7hl: RPM fatti; provati nel chroot a 32 bit del POCO in modalità
     offscreen (l'app parte, il QML si carica). Su un telefono vero a 32 bit
     non è ancora provata.
