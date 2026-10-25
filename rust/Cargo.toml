@@ -1,0 +1,20 @@
+[package]
+name = "rootree-core"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

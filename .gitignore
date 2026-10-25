@@ -1,0 +1,12 @@
+# Note di lavoro: specchio della memoria, mai su GitHub
+/memory/
+# Artefatti di build, pesanti e riproducibili
+/RPMS/
+*.rpm
+target/
+/build*/
+/scratch/
+*.log
+__pycache__/
+# Icone generate: si rigenerano con grafica/icona-vettoriale.py
+/grafica/.tmp-icona.png
