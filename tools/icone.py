@@ -26,6 +26,8 @@ PULSANTI = {
     "usb": ("brands", "usb"), "disk": ("solid", "hdd"), "cloud": ("solid", "cloud"), "ssh": ("solid", "terminal"),
     "server": ("solid", "server"), "network": ("solid", "network-wired"), "root": ("solid", "hashtag"),
     "lock": ("solid", "lock"), "link": ("solid", "link"), "folder": ("solid", "folder"),
+    "share": ("solid", "share-alt"), "openwith": ("solid", "external-link-alt"), "wrap": ("solid", "align-left"),
+    "image": ("regular", "image"),
 }
 
 

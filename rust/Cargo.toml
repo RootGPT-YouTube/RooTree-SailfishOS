@@ -1,6 +1,6 @@
 [package]
 name = "rootree-core"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
@@ -11,6 +11,8 @@ crate-type = ["staticlib"]
 [dependencies]
 cxx = "1.0"
 libc = "0.2"
+# solo i formati che le immagini Qt del runtime non leggono (WebP, TIFF, BMP)
+image = { version = "0.25", default-features = false, features = ["webp", "tiff", "bmp"] }
 
 [build-dependencies]
 cxx-build = "1.0"

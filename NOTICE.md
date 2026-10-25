@@ -9,4 +9,7 @@ Contiene o usa anche:
 | Rajdhani, © 2014 Indian Type Foundry | SIL Open Font License 1.1 | `app/qml/fonts/` (testo della licenza in `OFL-Rajdhani.txt`) |
 | `SteelDisc.qml`, `FrostCorner.qml` e lo stile grafico, da RooTundra © 2026 RootGPT | BSD (vedi il repository RooTundra) | `app/qml/` |
 | cxx (ponte Rust/C++), libc (crate) | MIT o Apache-2.0 | dipendenze di `rust/` |
+| image (crate Rust, WebP/TIFF/BMP) | MIT o Apache-2.0 | dipendenza di `rust/` |
+| GStreamer 1.x (anteprime dei video) | LGPL-2.1-or-later | non incluso: librerie di sistema di Sailfish OS, collegate dinamicamente |
+| poppler (anteprime dei PDF) | GPL-2.0-or-later | non incluso: libreria di sistema di Sailfish OS, collegata dinamicamente |
 | Qt 6.12 | LGPL-3.0 | non incluso: lo fornisce il pacchetto `rootgpt-qt6-runtime` (vedi il suo NOTICE) |

@@ -137,3 +137,26 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     dalla SD; annullamento di una copia da 400 MB senza resti; Nuova
     cartella e Rinomina con la tastiera di sistema. `rpm -V` pulito.
   - armv7hl: RPM fatti, il QML si carica nel chroot a 32 bit (offscreen).
+- **25/10 — Fase 2 completata: RooTree 0.3.0.**
+  - Anteprime (C++, `image://thumb`, 2 thread, cache freedesktop
+    `~/.cache/thumbnails` con Thumb::MTime, fallimenti in `fail/rootree`):
+    immagini con Qt (rotazione EXIF) e con il nucleo Rust per WebP/TIFF/BMP;
+    video con GStreamer di sistema (fotogramma al 10%, decodificatori droid
+    esclusi); PDF con poppler di sistema. Nella griglia: cornice d'acciaio e
+    icona del tipo nell'angolo; si spengono dal menù.
+  - Visore immagini (`image://picture`: anche WebP/TIFF), con scorrimento fra
+    le foto della cartella, zoom con due dita e doppio tocco. Visore di testo
+    (2 MB, a capo attivabile, i binari si riconoscono).
+  - Apri con: app predefinita di Sailfish (lca-tool), elenco con icone (prima
+    il tema glacier, poi sailfish-default) e nomi tradotti dai cataloghi Jolla,
+    «Usa sempre per…». Condividi con il dialogo di sistema.
+  - Sandbox: le app di Sailfish vedono solo Documents/Downloads/Music/
+    Pictures/Public/Videos e le schede; per i file altrove un collegamento
+    fisso in `~/Downloads/.rootree` (copia fino a 200 MB se non si può),
+    ripulito dopo un giorno.
+  - Collaudo sul POCO: anteprime di MP4 H.264, WebM VP9, PDF, JPEG, PNG,
+    WebP, TIFF; visore con scorrimento e zoom; testo; Condividi apre il
+    dialogo di sistema; Apri con → Note; video → mpv e PDF → Documenti
+    attraverso il collegamento fisso. armv7hl: nel chroot a 32 bit l'app
+    parte e fa le anteprime di PDF e WebP.
+  - Da chiarire: in offscreen (solo lì) Qt avvisa di larghezze NaN.

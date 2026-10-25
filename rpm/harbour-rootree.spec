@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.2.0
+Version:    0.3.0
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -21,6 +21,26 @@ URL:        https://github.com/RootGPT-YouTube/RooTree-SailfishOS
 ExclusiveArch: aarch64 armv7hl
 AutoReqProv: no
 Requires:   rootgpt-qt6-runtime >= 6.12.0
+# anteprime (GStreamer per i video, poppler per i PDF) e «Apri con»
+# (libcontentaction): pacchetti standard di Sailfish OS. AutoReqProv è spento,
+# quindi le librerie si chiedono a mano, per soname.
+Requires:   gstreamer1.0-plugins-base
+Requires:   /usr/bin/lca-tool
+%ifarch aarch64
+Requires:   libgstreamer-1.0.so.0()(64bit)
+Requires:   libgstbase-1.0.so.0()(64bit)
+Requires:   libgstapp-1.0.so.0()(64bit)
+Requires:   libgstvideo-1.0.so.0()(64bit)
+Requires:   libgobject-2.0.so.0()(64bit)
+Requires:   libpoppler-cpp.so.2()(64bit)
+%else
+Requires:   libgstreamer-1.0.so.0
+Requires:   libgstbase-1.0.so.0
+Requires:   libgstapp-1.0.so.0
+Requires:   libgstvideo-1.0.so.0
+Requires:   libgobject-2.0.so.0
+Requires:   libpoppler-cpp.so.2
+%endif
 
 %description
 RooTree is a file manager for Sailfish OS: internal memory, Android storage,
@@ -51,6 +71,15 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Oct 25 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.0-1
+- Phase 2, open and view: previews of images (also WebP and TIFF), videos
+  and PDFs, kept in the standard ~/.cache/thumbnails; built-in image viewer
+  (swipe, pinch and double tap zoom) and text viewer.
+- Open with the Sailfish apps (default app, "Open with" with the app icons,
+  "always use for this type") and share with the system share dialog.
+- Files outside the folders that sandboxed Sailfish apps can see are handed
+  over through a hard link in ~/Downloads/.rootree, removed after a day.
+
 * Sun Oct 25 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.2.0-1
 - Phase 1, local file browser in the style of Dolphin: storage drop-down
   menu (internal, Android, SD card/USB, file system, bookmarks), breadcrumb

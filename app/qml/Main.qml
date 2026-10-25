@@ -32,6 +32,7 @@ Window {
     Settings {
         id: settings
         property string view: "grid"
+        property bool thumbnails: true
         property alias showHidden: folder.showHidden
         property alias sortKey: folder.sortKey
         property alias descending: folder.descending
@@ -95,15 +96,54 @@ Window {
     }
     function goUp() { if (folder.path !== "/") go(Fs.parentOf(folder.path)) }
 
+    // toccare un file: le immagini e il testo nei visori di RooTree, il resto
+    // con l'app predefinita di Sailfish, o «Apri con» se non ce n'è una
     function activate(index) {
         var e = folder.get(index)
-        if (selecting)
+        if (selecting) {
             folder.toggleSelected(index)
-        else if (e.isDir)
+            return
+        }
+        if (e.isDir) {
             go(e.path)
-        else
-            // aprire i file arriva con la fase 2: per ora le proprietà
-            properties.openFor([e.path])
+            return
+        }
+        openFile(e)
+    }
+    function openFile(e) {
+        var mime = Opener.mimeType(e.path)
+        if (e.category === "image" && mime !== "image/svg+xml")
+            openImages(e.path)
+        else if (e.category === "text" || e.category === "code" || mime === "text/plain")
+            textViewer.openFor(e.path)
+        else if (!Opener.openDefault(e.path)) {
+            if (mime.indexOf("text/") === 0)
+                textViewer.openFor(e.path)
+            else
+                openWith.openFor(e.path)
+        } else if (Opener.lastError())
+            win.showSandboxError()
+    }
+    // le app di Sailfish (nella sandbox) vedono solo Documenti, Download, Musica,
+    // Immagini, Pubblica, Video e le schede: un file grande altrove non lo si può
+    // passare loro senza copiarlo
+    function showSandboxError() {
+        toast.show(Style.t("Il file è troppo grande per passarlo da qui alle app di Sailfish: spostalo in Documenti, Download, Musica, Immagini o Video.",
+                           "The file is too big to hand over to Sailfish apps from here: move it to Documents, Downloads, Music, Pictures or Videos."), true)
+    }
+    // tutte le immagini della cartella, nell'ordine della vista, per scorrerle
+    function openImages(path) {
+        var list = []
+        var at = 0
+        for (var i = 0; i < folder.count; ++i) {
+            var e = folder.get(i)
+            if (e.category !== "image")
+                continue
+            if (e.path === path)
+                at = list.length
+            list.push({ path: e.path, name: e.name, size: e.size, mtime: e.mtime })
+        }
+        imageViewer.openAt(list, at)
     }
 
     function deleteSelected() {
@@ -201,15 +241,15 @@ Window {
                     border.color: selected ? Style.accent : "transparent"
                     border.width: 2 * Style.dp
                 }
-                Image {
+                FileIcon {
                     id: gi
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: 6 * Style.dp
                     width: grid.cellWidth * 0.72
                     height: width
-                    source: "icons/tipi/" + category + ".png"
-                    sourceSize: Qt.size(width, height)
-                    smooth: true
+                    path: model.path
+                    category: model.category
+                    thumbnails: settings.thumbnails
                     opacity: hidden ? 0.5 : 1
                     scale: gridArea.pressed ? 0.94 : 1
                     Behavior on scale { NumberAnimation { duration: 80 } }
@@ -249,14 +289,15 @@ Window {
                 width: list.width
                 height: Style.row
                 color: selected ? Style.selected : (listArea.pressed ? Style.pressed : "transparent")
-                Image {
+                FileIcon {
                     id: li
                     anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter }
                     width: 44 * Style.dp
                     height: width
-                    source: "icons/tipi/" + category + ".png"
-                    sourceSize: Qt.size(width, height)
-                    smooth: true
+                    small: true
+                    path: model.path
+                    category: model.category
+                    thumbnails: settings.thumbnails
                     opacity: hidden ? 0.5 : 1
                 }
                 Icon {
@@ -422,21 +463,19 @@ Window {
             readonly property real w: width / 5
             IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
             IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
+            IconButton {
+                width: parent.w; height: parent.height
+                icon: "share"; label: Style.t("Condividi", "Share")
+                // si condividono i file, non le cartelle
+                enabled: folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
+                onClicked: { if (!Opener.share(folder.selectedPaths()) && Opener.lastError()) win.showSandboxError(); folder.clearSelection() }
+            }
             IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); onClicked: win.deleteSelected() }
             IconButton {
                 width: parent.w; height: parent.height
-                icon: "rename"; label: Style.t("Rinomina", "Rename")
-                enabled: folder.selectedCount === 1
-                onClicked: {
-                    var p = folder.selectedPaths()[0]
-                    nameDialog.ask(Style.t("Rinomina", "Rename"), p.split("/").pop(), function (name) {
-                        var err = Fs.rename(p, name)
-                        if (!err) folder.clearSelection()
-                        return err
-                    })
-                }
+                icon: "menu"; label: Style.t("Altro", "More")
+                onClicked: moreMenu.open()
             }
-            IconButton { width: parent.w; height: parent.height; icon: "info"; label: Style.t("Proprietà", "Properties"); onClicked: properties.openFor(folder.selectedPaths()) }
         }
     }
 
@@ -455,6 +494,7 @@ Window {
         MenuRow { icon: "grid"; text: Style.t("Icone", "Icons"); checkable: true; checked: settings.view === "grid"; onClicked: { settings.view = "grid"; mainMenu.close() } }
         MenuRow { icon: "list"; text: Style.t("Dettagli", "Details"); checkable: true; checked: settings.view === "list"; onClicked: { settings.view = "list"; mainMenu.close() } }
         MenuRow { icon: folder.showHidden ? "shown" : "hidden"; text: Style.t("Mostra i file nascosti", "Show hidden files"); checkable: true; checked: folder.showHidden; onClicked: folder.showHidden = !folder.showHidden }
+        MenuRow { icon: "image"; text: Style.t("Mostra le anteprime", "Show previews"); checkable: true; checked: settings.thumbnails; onClicked: settings.thumbnails = !settings.thumbnails }
         MenuSection { text: Style.t("Ordina per", "Sort by") }
         Repeater {
             model: [Style.t("Nome", "Name"), Style.t("Dimensione", "Size"), Style.t("Data di modifica", "Modified"), Style.t("Tipo", "Type")]
@@ -488,6 +528,45 @@ Window {
     }
 
     JobsSheet { id: jobsSheet }
+
+    // le altre azioni sulla selezione, come il menù contestuale di Dolphin
+    Sheet {
+        id: moreMenu
+        readonly property var one: folder.selectedCount === 1 ? Fs.info(folder.selectedPaths()[0]) : ({})
+        MenuRow {
+            icon: "openwith"
+            text: Style.t("Apri con…", "Open with…")
+            enabled: folder.selectedCount === 1 && !moreMenu.one.isDir
+            onClicked: { moreMenu.close(); openWith.openFor(folder.selectedPaths()[0]) }
+        }
+        MenuRow {
+            icon: "rename"
+            text: Style.t("Rinomina", "Rename")
+            enabled: folder.selectedCount === 1
+            onClicked: {
+                moreMenu.close()
+                var p = folder.selectedPaths()[0]
+                nameDialog.ask(Style.t("Rinomina", "Rename"), p.split("/").pop(), function (name) {
+                    var err = Fs.rename(p, name)
+                    if (!err) folder.clearSelection()
+                    return err
+                })
+            }
+        }
+        MenuRow { icon: "info"; text: Style.t("Proprietà", "Properties"); onClicked: { moreMenu.close(); properties.openFor(folder.selectedPaths()) } }
+        MenuRow { icon: "selectall"; text: Style.t("Seleziona tutto", "Select all"); onClicked: { moreMenu.close(); folder.selectAll() } }
+    }
+
+    OpenWithSheet { id: openWith }
+    ImageViewer {
+        id: imageViewer
+        onOpenWithRequested: function (p) { openWith.openFor(p) }
+        onPropertiesRequested: function (p) { properties.openFor([p]) }
+    }
+    TextViewer {
+        id: textViewer
+        onOpenWithRequested: function (p) { openWith.openFor(p) }
+    }
     PropertiesSheet { id: properties }
 
     // Nuova cartella / Rinomina: `apply(name)` rende "" se è andata, o l'errore

@@ -272,3 +272,26 @@ fn rinomina_non_sovrascrive() {
     assert!(fsops::make_dir(&s(&root), "nuova").is_ok());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn testo_e_binario() {
+    let root = tmp(false);
+    fs::write(root.join("t.txt"), "città è già\n".repeat(10)).unwrap();
+    fs::write(root.join("b.bin"), [1u8, 0, 2, 3]).unwrap();
+    let t = crate::thumbs::read_text(&s(&root.join("t.txt")), 13).unwrap();
+    // il limite cade dentro una «à»: niente carattere spezzato
+    assert_eq!(t, "città è gi");
+    assert!(crate::thumbs::read_text(&s(&root.join("b.bin")), 100).is_err());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn immagine_bmp_ridotta() {
+    let root = tmp(false);
+    let img = image::RgbaImage::from_pixel(800, 400, image::Rgba([10, 20, 30, 255]));
+    img.save(root.join("x.bmp")).unwrap();
+    let p = crate::thumbs::decode_picture(&s(&root.join("x.bmp")), 256).unwrap();
+    assert_eq!((p.width, p.height), (256, 128));
+    assert_eq!(&p.rgba[..4], &[10, 20, 30, 255]);
+    let _ = fs::remove_dir_all(root);
+}

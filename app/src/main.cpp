@@ -9,6 +9,8 @@
 #include "filesystem.h"
 #include "foldermodel.h"
 #include "jobmanager.h"
+#include "opener.h"
+#include "thumbnailer.h"
 
 int main(int argc, char *argv[])
 {
@@ -32,8 +34,12 @@ int main(int argc, char *argv[])
     JobManager jobs;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Fs", &fs);
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Jobs", &jobs);
+    Opener opener;
+    qmlRegisterSingletonInstance("RooTree", 1, 0, "Opener", &opener);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("thumb"), new ThumbProvider(false));
+    engine.addImageProvider(QStringLiteral("picture"), new ThumbProvider(true));
     // come «dolphin <cartella>»: si apre lì, altrimenti nella home
     const QStringList args = app.arguments();
     const QString start = args.size() > 1 && QDir(args.at(1)).exists() ? QDir(args.at(1)).absolutePath()

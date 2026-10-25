@@ -4,6 +4,7 @@
 
 mod fsops;
 mod jobs;
+mod thumbs;
 #[cfg(test)]
 mod tests;
 
@@ -58,8 +59,20 @@ mod ffi {
         sources: u64,
     }
 
+    /// Un'immagine decodificata e rimpicciolita, RGBA a 8 bit.
+    struct Picture {
+        width: u32,
+        height: u32,
+        rgba: Vec<u8>,
+    }
+
     extern "Rust" {
         fn version() -> String;
+
+        /// Decodifica `path` (WebP, TIFF, BMP) e la riduce entro `max` px di lato.
+        fn decode_picture(path: &str, max: u32) -> Result<Picture>;
+        /// Il testo di un file, al più `max_bytes`; errore se sembra binario.
+        fn read_text(path: &str, max_bytes: u64) -> Result<String>;
 
         fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, dirs_first: bool) -> Result<Vec<Entry>>;
         fn stat_path(path: &str) -> Result<Entry>;
@@ -85,6 +98,14 @@ use fsops::*;
 
 fn version() -> String {
     format!("{} ({})", env!("CARGO_PKG_VERSION"), std::env::consts::ARCH)
+}
+
+fn decode_picture(path: &str, max: u32) -> Result<ffi::Picture, String> {
+    thumbs::decode_picture(path, max)
+}
+
+fn read_text(path: &str, max_bytes: u64) -> Result<String, String> {
+    thumbs::read_text(path, max_bytes)
 }
 
 fn job_copy(sources: Vec<String>, dest: &str) -> u64 {
