@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(harbour-rootree VERSION 0.1.0 LANGUAGES CXX)
+project(harbour-rootree VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,9 @@ endif()
 qt_add_executable(harbour-rootree
     src/main.cpp
     src/foldermodel.cpp src/foldermodel.h
+    src/filesystem.cpp src/filesystem.h
+    src/jobmanager.cpp src/jobmanager.h
+    src/qtrust.h
 )
 target_include_directories(harbour-rootree PRIVATE "${RUST_LIB_DIR}/cxxbridge")
 target_link_libraries(harbour-rootree PRIVATE

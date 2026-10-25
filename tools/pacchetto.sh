@@ -44,7 +44,7 @@ QTCONF
 sb2 -t "$RT" gcc -O2 -Wall -DAPP_EXEC='"/usr/share/harbour-rootree/harbour-rootree"' -DAPP_ID='"rootree"' \
     -o "$S/launcher" "$R/packaging/rootgpt-qt6-runtime/rootgpt-qt6-launch.c"
 sb2 -t "$RT" strip "$S/launcher"
-cp "$R/rpm/harbour-rootree.desktop" "$R/LICENSE" "$S/"
+cp "$R/rpm/harbour-rootree.desktop" "$R/LICENSE" "$R/NOTICE.md" "$S/"
 for s in 86 108 128 172 256; do
     mkdir -p "$S/icons/${s}x${s}"
     cp "$R/grafica/${s}x${s}/harbour-rootree.png" "$S/icons/${s}x${s}/"

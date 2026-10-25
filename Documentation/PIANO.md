@@ -16,6 +16,8 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
 | Costi | **costo zero per l'autore**: app gratuita, nessun servizio a suo carico; le chiavi cloud che servono le inserisce l'utente (25/10) |
 | Licenza / repo | GPL-3.0; GitHub `RootGPT-YouTube/RooTree-SailfishOS` **privato fino al rilascio** (25/10) |
 | Archivi | comprimere e decomprimere **file e cartelle** (25/10) |
+| Navigazione | **a cartelle, come Dolphin**, non ad albero: percorso a briciole, indietro/avanti/su, vista a icone o a dettagli (25/10) |
+| Stile | quello di **RooTundra**: pannelli e pulsanti d'acciaio, LED blu elettrico, ghiaccio e brina, font Rajdhani. Icone dei file: **le sagome classiche di Dolphin, ma d'acciaio** (non dischi rotondi) (25/10) |
 | Qt | stack Qt 6.12 di RooTitanium, in un **pacchetto runtime condiviso** fra le app Qt6 di RootGPT (25/10) |
 
 ## Architettura proposta
@@ -117,3 +119,21 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - armv7hl: RPM fatti; provati nel chroot a 32 bit del POCO in modalità
     offscreen (l'app parte, il QML si carica). Su un telefono vero a 32 bit
     non è ancora provata.
+- **25/10 — Fase 1 completata: RooTree 0.2.0.**
+  - Nucleo Rust: elenco con ordinamento naturale, memorie (interna, Android,
+    SD/USB da /proc/mounts, radice), nuova cartella, rinomina che non
+    sovrascrive, permessi. Motore delle operazioni in coda (copia, sposta,
+    elimina, dimensione) con avanzamento, Annulla, domande su conflitti ed
+    errori, copia via file `.rootree-part` e sync ogni 8 MB. 14 test
+    (`cargo test` nel motore).
+  - Interfaccia: menù a tendina delle memorie (lastra di ghiaccio) con
+    segnalibri, briciole, indietro/avanti/su, icone/dettagli, ordina per
+    nome/dimensione/data/tipo, file nascosti, selezione con pressione lunga,
+    Copia/Taglia/Incolla qui, Elimina con conferma, Rinomina, Proprietà con
+    i permessi modificabili, pannello delle operazioni, avvisi.
+  - Collaudo sul POCO con i tocchi sintetici: copia di una cartella con hash
+    identici; spostamento sulla SD exFAT (filesystem diverso) con hash
+    identici e sorgente cancellata; conflitto «Tieni entrambi»; eliminazione
+    dalla SD; annullamento di una copia da 400 MB senza resti; Nuova
+    cartella e Rinomina con la tastiera di sistema. `rpm -V` pulito.
+  - armv7hl: RPM fatti, il QML si carica nel chroot a 32 bit (offscreen).

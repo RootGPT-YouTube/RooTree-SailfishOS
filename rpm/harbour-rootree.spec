@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.1.0
+Version:    0.2.0
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -39,15 +39,27 @@ for s in 86 108 128 172 256; do
     %{buildroot}%{_datadir}/icons/hicolor/${s}x${s}/apps/%{name}.png
 done
 install -D -m0644 %{stagingdir}/LICENSE %{buildroot}%{_defaultlicensedir}/%{name}/LICENSE
+install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{name}/NOTICE.md
 
 %files
 %defattr(-,root,root,-)
 %license %{_defaultlicensedir}/%{name}/LICENSE
+%license %{_defaultlicensedir}/%{name}/NOTICE.md
 %{_bindir}/%{name}
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Oct 25 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.2.0-1
+- Phase 1, local file browser in the style of Dolphin: storage drop-down
+  menu (internal, Android, SD card/USB, file system, bookmarks), breadcrumb
+  path, back/forward/up, icon and details views, sorting, hidden files.
+- New folder, rename, delete, properties with permissions, multiple
+  selection, copy/cut/paste with a queue, progress, cancel, conflict and
+  error questions.
+- RooTundra look: steel panels and buttons, electric blue LEDs, ice and
+  frost, steel file icons, Rajdhani font.
+
 * Sun Oct 25 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.1.0-1
 - First build (phase 0): lists a local folder through the Rust core.

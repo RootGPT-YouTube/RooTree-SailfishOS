@@ -98,8 +98,9 @@ def glifo(g, colour, size):
     return out
 
 
-def icona(g, scala, D):
-    """launcher.icona() con ogni misura assoluta moltiplicata per k."""
+def icona(g, scala, D, led=(0, 115, 255)):
+    """launcher.icona() con ogni misura assoluta moltiplicata per k.
+    `led`: il colore dell'arco in basso (RooTree: uno per tipo di file)."""
     k = D / 256.0
     img = QImage(D, D, QImage.Format_ARGB32_Premultiplied)
     img.fill(Qt.transparent)
@@ -118,7 +119,7 @@ def icona(g, scala, D):
     rr = (r + ri) / 2
     rect = QRectF(c - rr, c - rr, 2 * rr, 2 * rr)
     for w, a in ((r - ri + 6 * k, 60), (r - ri - 2 * k, 130), (max(3 * k, (r - ri) * 0.35), 255)):
-        p.setPen(QPen(QColor(0, 115, 255, a), w, Qt.SolidLine, Qt.RoundCap))
+        p.setPen(QPen(QColor(*led, a), w, Qt.SolidLine, Qt.RoundCap))
         p.drawArc(rect, -60 * 16, -60 * 16)
         p.drawArc(rect, -120 * 16, 60 * 16)
     p.setPen(Qt.NoPen)
