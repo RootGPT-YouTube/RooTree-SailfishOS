@@ -97,9 +97,20 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
 Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
 
 ## Stato
-- **25/10 — Fase 0 avviata.** Repo git creato (solo locale). Catena di build
-  provata: `tools/build.sh aarch64|armv7hl` compila nucleo Rust e app Qt 6.12.
-  L'hello world che elenca una cartella **gira sul POCO** (aarch64, con il Qt del
-  bundle di RooTitanium). armv7hl compila, ma non è ancora provato su un telefono.
-  Restano: pacchetto Qt condiviso, launcher ELF, `.desktop`, spec RPM, icona
-  installata.
+- **25/10 — Fase 0 completata, tranne la prova dall'icona, che spetta all'utente.**
+  - Repo git locale, catena di build: `tools/build.sh <arch>` compila il nucleo Rust
+    e l'app Qt 6.12; `tools/pacchetto.sh <arch>` fa i due RPM in `RPMS/`.
+  - **`rootgpt-qt6-runtime` 6.12.0-1**: Qt condiviso in `/home/rootgpt-qt6`
+    (118 MB installato, RPM da 33 MB). Lo assembla
+    `packaging/rootgpt-qt6-runtime/assembla.py` partendo dal target `-qt612`.
+    Contiene anche il launcher generico (`rootgpt-qt6-launch.c`) che ogni app
+    compila per sé.
+  - **`harbour-rootree` 0.1.0-1** (312 KB): launcher ELF in `/usr/bin`, app in
+    `/usr/share/harbour-rootree`, `.desktop` con `Sandboxing=Disabled`, icona in
+    5 misure.
+  - POCO (aarch64): installati con `rpm -Uvh`, `rpm -V` pulito. Dal launcher
+    l'app parte e mostra la home letta dal nucleo Rust, con la cmdline forgiata
+    per la cover.
+  - armv7hl: RPM fatti; provati nel chroot a 32 bit del POCO in modalità
+    offscreen (l'app parte, il QML si carica). Su un telefono vero a 32 bit
+    non è ancora provata.

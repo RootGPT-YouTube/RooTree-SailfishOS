@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+# generic = nessun booster Silica/Qt5: è un'app Qt6
+X-Nemo-Application-Type=generic
+Name=RooTree
+Comment=File manager
+# Exec semplice, senza invoker: lipstick riconosce la finestra solo se la
+# cmdline del processo combacia con questa riga (il launcher forgia argv[0])
+Exec=harbour-rootree
+Icon=harbour-rootree
+Categories=System;FileManager;Utility;
+
+[X-Sailjail]
+# Un file manager deve vedere tutto il filesystem: niente firejail.
+# Senza questa sezione sailjaild rifiuta il lancio dall'icona.
+OrganizationName=com.github.RootGPT_YouTube
+ApplicationName=rootree
+Sandboxing=Disabled

@@ -1,5 +1,4 @@
 #include <QDir>
-#include <QFileInfo>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -18,9 +17,9 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("homePath"), QDir::homePath());
-    // il QML sta in qml/ accanto al binario (vedi CMakeLists.txt)
-    const QString qml = QFileInfo(QString::fromLocal8Bit(argv[0])).absolutePath()
-                        + QStringLiteral("/qml/Main.qml");
+    // il QML sta in qml/ accanto al binario vero (vedi CMakeLists.txt): non
+    // accanto ad argv[0], che il launcher forgia = /usr/bin/harbour-rootree
+    const QString qml = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/Main.qml");
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(255); }, Qt::QueuedConnection);
     engine.load(QUrl::fromLocalFile(qml));
