@@ -16,15 +16,19 @@ Item {
         height: width
         radius: 5 * Style.dp
         // una casella d'acciaio; spuntata, il LED blu si accende dentro
-        gradient: Gradient {
+        readonly property Gradient steel: Gradient {
             GradientStop { position: 0; color: c.checked ? "#3b8cff" : "#5b6673" }
             GradientStop { position: 1; color: c.checked ? "#0a55d0" : "#20262d" }
         }
-        border.color: c.checked ? "#9fd0ff" : Style.steelBorder
+        // Sailfish: piena del colore di evidenziazione quando è spuntata
+        gradient: Style.sailfish ? null : steel
+        color: c.checked ? Style.alpha(Style.sfHighlight, 0.6) : "transparent"
+        border.color: Style.sailfish ? Style.sfHighlight : (c.checked ? "#9fd0ff" : Style.steelBorder)
         border.width: 1.5 * Style.dp
         Icon { anchors.centerIn: parent; visible: c.checked; name: "check"; size: 14 * Style.dp }
     }
     Text {
+        font.family: Style.fontFamily
         anchors.left: box.right
         anchors.leftMargin: 10 * Style.dp
         anchors.right: parent.right

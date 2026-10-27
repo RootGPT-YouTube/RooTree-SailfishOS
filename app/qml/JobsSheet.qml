@@ -39,6 +39,7 @@ Sheet {
     }
 
     Text {
+        font.family: Style.fontFamily
         visible: rep.count === 0
         x: Style.margin
         width: parent.width - 2 * Style.margin
@@ -86,7 +87,7 @@ Sheet {
                 anchors.right: action.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4 * Style.dp
-                Text { width: parent.width; text: sheet.describe(modelData); color: Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
+                Text { font.family: Style.fontFamily; width: parent.width; text: sheet.describe(modelData); color: Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
                 Rectangle {
                     width: parent.width
                     height: 4 * Style.dp
@@ -100,6 +101,7 @@ Sheet {
                     }
                 }
                 Text {
+                    font.family: Style.fontFamily
                     width: parent.width
                     text: sheet.stateText(modelData)
                     color: modelData.state === 6 ? Style.danger : Style.dim
@@ -107,6 +109,7 @@ Sheet {
                     wrapMode: Text.Wrap
                 }
                 Text {
+                    font.family: Style.fontFamily
                     visible: modelData.state === 2 && modelData.current !== ""
                     width: parent.width
                     text: modelData.current.split("/").pop()

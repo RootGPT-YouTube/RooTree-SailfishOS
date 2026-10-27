@@ -32,6 +32,7 @@ Popup {
     background: Item {
         clip: true
         SteelPanel {
+            overlay: true
             anchors.fill: parent
             anchors.bottomMargin: -radius
             radius: 22 * Style.dp
@@ -45,6 +46,7 @@ Popup {
             width: parent.width
             height: sheet.title ? 44 * Style.dp : 18 * Style.dp
             Text {
+                font.family: Style.fontFamily
                 visible: sheet.title !== ""
                 anchors.left: parent.left
                 anchors.leftMargin: Style.margin

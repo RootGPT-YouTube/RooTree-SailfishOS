@@ -5,14 +5,16 @@ import "."
 // cornice di vetro smerigliato con i riflessi in diagonale, la brina negli
 // angoli, e dentro vetro scuro dove va il contenuto (`content`). Il vetro
 // interno qui è quasi pieno: sotto non c'è lo sfondo sfocato ma l'app.
+// Nel tema Sailfish resta solo un pannello scuro velato, senza cornice.
 Item {
     id: ice
     default property alias content: holder.data
-    property real frame: 12 * Style.dp
-    property real radius: 18 * Style.dp
+    property real frame: Style.sailfish ? 0 : 12 * Style.dp
+    property real radius: (Style.sailfish ? 10 : 18) * Style.dp
 
     Canvas {
         id: glass
+        visible: !Style.sailfish
         anchors.fill: parent
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
@@ -37,6 +39,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Math.round(ice.frame * 0.2)
         radius: ice.radius - ice.frame * 0.2
+        visible: !Style.sailfish
         color: "transparent"
         border.width: Math.round(ice.frame * 0.25)
         border.color: "#59FFFFFF"
@@ -45,6 +48,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Math.round(ice.frame * 0.62)
         radius: ice.radius - ice.frame * 0.5
+        visible: !Style.sailfish
         color: "transparent"
         border.width: Math.round(ice.frame * 0.3)
         border.color: "#334A7FA3"
@@ -52,12 +56,14 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: ice.radius
+        visible: !Style.sailfish
         color: "transparent"
         border.width: Math.max(1, Math.round(1.2 * Style.dp))
         border.color: "#F0FFFFFF"
     }
     FrostCorner {
         id: frostTop
+        visible: !Style.sailfish
         x: parent.width - width
         anchors.top: parent.top
         outerRadius: ice.radius
@@ -66,6 +72,7 @@ Item {
     }
     FrostCorner {
         id: frostLeft
+        visible: !Style.sailfish
         x: 0
         anchors.bottom: parent.bottom
         outerRadius: ice.radius
@@ -81,21 +88,25 @@ Item {
         anchors.margins: ice.frame
         radius: ice.radius - ice.frame * 0.6
         border.width: 1
-        border.color: "#8CFFFFFF"
-        gradient: Gradient {
+        border.color: Style.sailfish ? Style.alpha(Style.sfHighlight, 0.3) : "#8CFFFFFF"
+        readonly property Gradient iceGradient: Gradient {
             GradientStop { position: 0.0; color: "#F2183A50" }
             GradientStop { position: 1.0; color: "#F70B2233" }
         }
+        gradient: Style.sailfish ? null : iceGradient
+        color: Style.sfOverlay
         Rectangle {
             anchors.fill: parent
             anchors.margins: 1
             radius: parent.radius - 1
+            visible: !Style.sailfish
             color: "transparent"
             border.width: Math.max(1, Math.round(1.5 * Style.dp))
             border.color: "#40001424"
         }
         Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 2 }
+            visible: !Style.sailfish
             height: Math.min(parent.height * 0.18, 60 * Style.dp)
             radius: parent.radius
             gradient: Gradient {

@@ -67,6 +67,7 @@ Sheet {
         width: parent.width
         height: Math.max(36 * Style.dp, v.implicitHeight + 12 * Style.dp)
         Text {
+            font.family: Style.fontFamily
             id: l
             x: Style.margin
             width: 110 * Style.dp
@@ -77,6 +78,7 @@ Sheet {
             font.pixelSize: Style.fontS
         }
         Text {
+            font.family: Style.fontFamily
             id: v
             anchors.left: l.right
             anchors.right: parent.right
@@ -111,7 +113,7 @@ Sheet {
         columnSpacing: 6 * Style.dp
         Repeater {
             model: [Style.t("", ""), Style.t("Lettura", "Read"), Style.t("Scrittura", "Write"), Style.t("Esecuzione", "Exec")]
-            delegate: Text { width: index === 0 ? 92 * Style.dp : 76 * Style.dp; text: modelData; color: Style.dim; font.pixelSize: Style.fontS }
+            delegate: Text { font.family: Style.fontFamily; width: index === 0 ? 92 * Style.dp : 76 * Style.dp; text: modelData; color: Style.dim; font.pixelSize: Style.fontS }
         }
         Repeater {
             model: 12
@@ -122,6 +124,7 @@ Sheet {
                 width: what < 0 ? 92 * Style.dp : 76 * Style.dp
                 height: 38 * Style.dp
                 Text {
+                    font.family: Style.fontFamily
                     visible: parent.what < 0
                     anchors.verticalCenter: parent.verticalCenter
                     text: [Style.t("Proprietario", "Owner"), Style.t("Gruppo", "Group"), Style.t("Altri", "Others")][parent.who]
@@ -139,6 +142,7 @@ Sheet {
         }
     }
     Text {
+        font.family: Style.fontFamily
         visible: sheet.single && sheet.info.mine === false
         x: Style.margin
         width: parent.width - 2 * Style.margin
@@ -149,6 +153,7 @@ Sheet {
         font.pixelSize: Style.fontS
     }
     Text {
+        font.family: Style.fontFamily
         visible: sheet.error !== ""
         x: Style.margin
         width: parent.width - 2 * Style.margin

@@ -11,6 +11,8 @@ Item {
     property string label
     property bool checked: false
     property real discScale: 0.8
+    // spostamento orizzontale del disco (per far posto a qualcosa accanto)
+    property real discShift: 0
     signal clicked()
     signal pressAndHold()
 
@@ -27,25 +29,37 @@ Item {
         width: b.disc
         height: b.disc
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenterOffset: b.discShift
         y: (b.height - b.labelRoom - b.disc) / 2
         scale: area.pressed ? 0.94 : 1
         Behavior on scale { NumberAnimation { duration: 80 } }
-        SteelDisc { anchors.fill: parent }
-        LedRing { anchors.fill: parent; opacity: b.lit ? 1 : 0; visible: opacity > 0; Behavior on opacity { NumberAnimation { duration: 160 } } }
+        SteelDisc { anchors.fill: parent; visible: !Style.sailfish }
+        LedRing { anchors.fill: parent; opacity: b.lit && !Style.sailfish ? 1 : 0; visible: opacity > 0; Behavior on opacity { NumberAnimation { duration: 160 } } }
         Icon {
             anchors.centerIn: parent
             anchors.verticalCenterOffset: Math.max(1, 0.8 * Style.dp)
-            visible: !b.lit
+            visible: !b.lit && !Style.sailfish
             name: b.icon ? "luce/" + b.icon : ""
             size: b.disc * 0.44
         }
         Icon {
             anchors.centerIn: parent
+            visible: !Style.sailfish
             name: b.icon ? (b.lit ? "acceso/" : "inciso/") + b.icon : ""
             size: b.disc * 0.44
         }
+        // Sailfish: niente disco, solo il simbolo piatto, che si accende del
+        // colore di evidenziazione quando è premuto o attivo
+        Icon {
+            anchors.centerIn: parent
+            visible: Style.sailfish
+            name: b.icon
+            size: b.disc * 0.5
+            tint: b.lit ? Style.sfHighlight : Style.sfPrimary
+        }
     }
     Text {
+        font.family: Style.fontFamily
         visible: b.label !== ""
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom

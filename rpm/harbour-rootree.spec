@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.3.0
+Version:    0.3.1
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -71,6 +71,14 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Oct 27 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.1-1
+- New theme choice in the menu: RooTundra (steel, default) or classic
+  SailfishOS (flat, colours and font of the current ambience).
+- Every storage in the places menu can be expanded to its standard folders
+  (Documents, Downloads, Pictures, Music, Videos); the menu always opens
+  collapsed.
+- The drop-down arrow next to the storage button is no longer covered.
+
 * Sun Oct 25 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.0-1
 - Phase 2, open and view: previews of images (also WebP and TIFF), videos
   and PDFs, kept in the standard ~/.cache/thumbnails; built-in image viewer

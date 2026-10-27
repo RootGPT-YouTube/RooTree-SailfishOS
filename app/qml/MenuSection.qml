@@ -7,6 +7,7 @@ Item {
     width: parent ? parent.width : 0
     height: 34 * Style.dp
     Text {
+        font.family: Style.fontFamily
         anchors.left: parent.left
         anchors.leftMargin: Style.margin
         anchors.bottom: parent.bottom

@@ -2,6 +2,9 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QFontDatabase>
+#include <QProcess>
+#include <QRegularExpression>
 
 #include <unistd.h>
 
@@ -143,4 +146,52 @@ void FileSystem::removeBookmark(const QString &path)
         return;
     m_settings.setValue(QStringLiteral("bookmarks"), m_bookmarks);
     emit bookmarksChanged();
+}
+
+namespace {
+// `dconf dump` di una cartella: chiave → valore senza apici
+QVariantMap dconfDump(const QString &dir)
+{
+    QProcess p;
+    p.start(QStringLiteral("dconf"), {QStringLiteral("dump"), dir});
+    QVariantMap out;
+    if (!p.waitForFinished(2000))
+        return out;
+    QString section;
+    const auto lines = QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (line.startsWith(QLatin1Char('['))) {
+            section = line.mid(1, line.size() - 2);
+            continue;
+        }
+        const int eq = line.indexOf(QLatin1Char('='));
+        if (eq <= 0)
+            continue;
+        QString v = line.mid(eq + 1).trimmed();
+        if (v.size() >= 2 && v.startsWith(QLatin1Char('\'')) && v.endsWith(QLatin1Char('\'')))
+            v = v.mid(1, v.size() - 2);
+        const QString key = (section == QLatin1String("/") ? QString() : section + QLatin1Char('/')) + line.left(eq);
+        out.insert(key, v);
+    }
+    return out;
+}
+}
+
+QVariantMap FileSystem::ambience() const
+{
+    const QVariantMap theme = dconfDump(QStringLiteral("/desktop/jolla/theme/"));
+    QVariantMap out;
+    for (const char *k : {"highlight", "primary", "secondary", "secondaryHighlight"}) {
+        const QString v = theme.value(QStringLiteral("color/") + QLatin1String(k)).toString();
+        if (QRegularExpression(QStringLiteral("^#[0-9a-fA-F]{6,8}$")).match(v).hasMatch())
+            out.insert(QLatin1String(k), v);
+    }
+    // color_scheme 1 = ambience chiara (testo scuro)
+    out.insert(QStringLiteral("lightScheme"), theme.value(QStringLiteral("color_scheme")).toString() == QLatin1String("1"));
+    static QString font = [] {
+        const int id = QFontDatabase::addApplicationFont(QStringLiteral("/usr/share/fonts/sail-sans-pro/SailSansPro-Light.ttf"));
+        return id < 0 ? QString() : QFontDatabase::applicationFontFamilies(id).value(0);
+    }();
+    out.insert(QStringLiteral("font"), font);
+    return out;
 }

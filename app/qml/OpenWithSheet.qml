@@ -20,6 +20,7 @@ Sheet {
     }
 
     Text {
+        font.family: Style.fontFamily
         x: Style.margin
         width: parent.width - 2 * Style.margin
         text: path.split("/").pop() + " · " + mime
@@ -29,6 +30,7 @@ Sheet {
         bottomPadding: 6 * Style.dp
     }
     Text {
+        font.family: Style.fontFamily
         visible: sheet.apps.length === 0
         x: Style.margin
         width: parent.width - 2 * Style.margin
@@ -55,6 +57,7 @@ Sheet {
                 visible: modelData.icon !== ""
             }
             Text {
+                font.family: Style.fontFamily
                 anchors { left: icon.right; leftMargin: Style.margin; right: def.left; verticalCenter: parent.verticalCenter }
                 text: modelData.name
                 color: Style.text
@@ -62,6 +65,7 @@ Sheet {
                 elide: Text.ElideRight
             }
             Text {
+                font.family: Style.fontFamily
                 id: def
                 anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
                 text: modelData.isDefault ? Style.t("predefinita", "default") : ""

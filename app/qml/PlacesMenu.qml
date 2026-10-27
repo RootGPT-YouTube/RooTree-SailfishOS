@@ -6,11 +6,15 @@ import "."
 // Il menù a tendina delle memorie (al posto del pannello «Risorse» di
 // Dolphin): Memoria interna, Memoria Android, Altre memorie (scheda SD, USB,
 // file system e, più avanti, cloud e server remoti), poi i segnalibri.
+// Ogni memoria si apre con la sua freccia sulle cartelle predefinite che ha
+// (Documents, Downloads, Pictures, Music, Videos).
 Popup {
     id: menu
     property string currentPath
     property var places: []
     property bool otherOpen: false
+    // le memorie aperte sulle loro cartelle, per percorso
+    property var openPlaces: ({})
     signal navigate(string path)
 
     parent: Overlay.overlay
@@ -27,12 +31,38 @@ Popup {
 
     onAboutToShow: {
         places = Fs.places()
-        // con una scheda SD o una chiavetta inserita, «Altre memorie» si apre da sé
-        otherOpen = places.some(function (p) { return p.kind === 2 || p.kind === 3 })
+        // si apre sempre tutto chiuso: le memorie e i segnalibri, il resto a richiesta
+        otherOpen = false
+        openPlaces = ({})
     }
 
     function go(path) { close(); navigate(path) }
     function freeText(p) { return p.total > 0 ? Style.t(Style.size(p.free) + " liberi", Style.size(p.free) + " free") : "" }
+    // le cartelle predefinite che ci sono davvero; su Android e sulle schede
+    // si chiamano anche Download e Movies
+    readonly property var standardDirs: [
+        { names: ["Documents"], image: "tipi/folder-documents.png" },
+        { names: ["Downloads", "Download"], image: "tipi/folder-download.png" },
+        { names: ["Pictures"], image: "tipi/folder-pictures.png" },
+        { names: ["Music"], image: "tipi/folder-music.png" },
+        { names: ["Videos", "Movies"], image: "tipi/folder-videos.png" }
+    ]
+    function dirsOf(base) {
+        var out = []
+        if (!base || base === "/")
+            return out
+        for (var i = 0; i < standardDirs.length; ++i) {
+            var d = standardDirs[i]
+            for (var j = 0; j < d.names.length; ++j) {
+                var path = Fs.join(base, d.names[j])
+                if (Fs.exists(path)) { out.push({ name: d.names[j], path: path, image: d.image }); break }
+            }
+        }
+        return out
+    }
+    function isOpen(path) { return openPlaces[path] === true }
+    function toggle(path) { var o = Object.assign({}, openPlaces); o[path] = !o[path]; openPlaces = o }
+
     function placeOf(kind) { for (var i = 0; i < places.length; ++i) if (places[i].kind === kind) return places[i]; return null }
 
     contentItem: Flickable {
@@ -46,39 +76,37 @@ Popup {
             width: parent.width
 
             MenuSection { text: Style.t("Memorie", "Storage") }
-            MenuRow {
-                readonly property var p: menu.placeOf(0)
-                visible: p !== null
+            PlaceRow {
+                owner: menu
+                place: menu.placeOf(0)
                 icon: "internal"
                 text: Style.t("Memoria interna", "Internal storage")
-                detail: p ? menu.freeText(p) : ""
-                onClicked: menu.go(p.path)
             }
-            MenuRow {
-                readonly property var p: menu.placeOf(1)
-                visible: p !== null
+            PlaceRow {
+                owner: menu
+                place: menu.placeOf(1)
                 icon: "android"
                 text: Style.t("Memoria Android", "Android storage")
-                detail: p ? menu.freeText(p) : ""
-                onClicked: menu.go(p.path)
             }
             MenuRow {
                 icon: "disk"
                 text: Style.t("Altre memorie", "Other storage")
-                detail: menu.otherOpen ? "▴" : "▾"
+                expandable: true
+                expanded: menu.otherOpen
                 onClicked: menu.otherOpen = !menu.otherOpen
+                onToggled: menu.otherOpen = !menu.otherOpen
             }
             Column {
                 width: parent.width
                 visible: menu.otherOpen
                 Repeater {
                     model: menu.places.filter(function (p) { return p.kind === 2 || p.kind === 3 })
-                    delegate: MenuRow {
-                        indent: true
+                    delegate: PlaceRow {
+                        owner: menu
+                        depth: 1
+                        place: modelData
                         icon: modelData.kind === 2 ? "sdcard" : "usb"
                         text: (modelData.kind === 2 ? Style.t("Scheda SD", "SD card") : "USB") + (modelData.label ? " · " + modelData.label : "")
-                        detail: menu.freeText(modelData)
-                        onClicked: menu.go(modelData.path)
                     }
                 }
                 MenuRow {

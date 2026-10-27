@@ -19,8 +19,8 @@ SteelPanel {
     }
     Column {
         anchors { left: closeButton.right; right: actionsRow.left; verticalCenter: parent.verticalCenter; rightMargin: 6 * Style.dp }
-        Text { width: parent.width; text: bar.title; color: Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
-        Text { width: parent.width; visible: text !== ""; text: bar.subtitle; color: Style.dim; font.pixelSize: Style.fontS; elide: Text.ElideRight }
+        Text { font.family: Style.fontFamily; width: parent.width; text: bar.title; color: Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
+        Text { font.family: Style.fontFamily; width: parent.width; visible: text !== ""; text: bar.subtitle; color: Style.dim; font.pixelSize: Style.fontS; elide: Text.ElideRight }
     }
     Row {
         id: actionsRow

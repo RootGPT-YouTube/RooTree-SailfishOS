@@ -74,6 +74,7 @@ Popup {
                     source: Math.abs(index - pages.currentIndex) <= 1 ? "image://picture/" + encodeURIComponent(modelData.path) : ""
                     BusyIndicator { anchors.centerIn: parent; running: parent.status === Image.Loading }
                     Text {
+                        font.family: Style.fontFamily
                         anchors.centerIn: parent
                         visible: parent.status === Image.Error
                         text: Style.t("Immagine non leggibile", "Cannot read the image")

@@ -5,6 +5,7 @@ import "."
 SteelPanel {
     id: toast
     led: ""
+    overlay: true
     property bool error: false
     function show(text, isError) {
         label.text = text
@@ -22,6 +23,7 @@ SteelPanel {
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 180 } }
     Text {
+        font.family: Style.fontFamily
         id: label
         anchors.centerIn: parent
         width: Math.min(implicitWidth, toast.parent.width - 4 * Style.margin)

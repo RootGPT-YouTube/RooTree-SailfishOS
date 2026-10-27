@@ -69,6 +69,7 @@ Popup {
             width: parent.width * 0.8
             spacing: 12 * Style.dp
             Text {
+                font.family: Style.fontFamily
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap

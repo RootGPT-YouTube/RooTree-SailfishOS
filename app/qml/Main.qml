@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls.Basic
 import QtCore
+import QtQuick.Effects
 import RooTree
 import "."
 
@@ -17,15 +18,18 @@ Window {
 
     Rectangle {
         anchors.fill: parent
+        visible: !Style.sailfish
         gradient: Gradient {
             GradientStop { position: 0; color: Style.bg2 }
             GradientStop { position: 1; color: Style.bg }
         }
     }
+    // tema Sailfish: fondo pieno (l'immagine dell'ambience no, scelta
+    // dell'utente del 27/10), è il colore della finestra
 
     // mai 0: una finestra che parte larga 0 (offscreen) darebbe divisioni per zero
     function updateDp() { if (width > 0 && height > 0) Style.dp = Math.min(width, height) / 400 }
-    Component.onCompleted: updateDp()
+    Component.onCompleted: { updateDp(); loadAmbience() }
     onWidthChanged: updateDp()
     onHeightChanged: updateDp()
 
@@ -37,6 +41,19 @@ Window {
         property alias sortKey: folder.sortKey
         property alias descending: folder.descending
         property alias dirsFirst: folder.dirsFirst
+        property string theme: "rootundra"
+    }
+    // il tema e i colori dell'ambience; l'ambience si rilegge anche quando
+    // l'app torna in primo piano (potrebbe essere cambiata nel frattempo)
+    Binding { target: Style; property: "theme"; value: settings.theme }
+    function loadAmbience() { if (Style.sailfish) Style.amb = Fs.ambience() }
+    Connections {
+        target: Style
+        function onThemeChanged() { win.loadAmbience() }
+    }
+    Connections {
+        target: Qt.application
+        function onStateChanged() { if (Qt.application.state === Qt.ApplicationActive) win.loadAmbience() }
     }
 
     FolderModel {
@@ -170,9 +187,10 @@ Window {
         IconButton {
             id: placeButton
             anchors { left: parent.left; leftMargin: 2 * Style.dp; verticalCenter: parent.verticalCenter }
-            width: Style.bar + 6 * Style.dp
+            width: Style.bar + 14 * Style.dp
             height: Style.bar
             discScale: 0.86
+            discShift: -7 * Style.dp
             visible: !win.selecting
             icon: win.placeIcon(win.place)
             checked: placesMenu.opened
@@ -197,6 +215,7 @@ Window {
             onClicked: folder.clearSelection()
         }
         Text {
+            font.family: Style.fontFamily
             visible: win.selecting
             anchors { left: endSelection.right; verticalCenter: parent.verticalCenter }
             text: Style.t(folder.selectedCount === 1 ? "1 selezionato" : folder.selectedCount + " selezionati",
@@ -261,6 +280,7 @@ Window {
                     size: gi.size * 0.32
                 }
                 Text {
+                    font.family: Style.fontFamily
                     anchors { top: gi.bottom; topMargin: 4 * Style.dp; left: parent.left; right: parent.right; margins: 4 * Style.dp }
                     horizontalAlignment: Text.AlignHCenter
                     text: name
@@ -308,10 +328,11 @@ Window {
                 }
                 Column {
                     anchors { left: li.right; leftMargin: Style.margin; right: sizeText.left; rightMargin: 8 * Style.dp; verticalCenter: parent.verticalCenter }
-                    Text { width: parent.width; text: name; color: hidden ? Style.dim : Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
-                    Text { width: parent.width; text: Style.date(mtime); color: Style.dim; font.pixelSize: Style.fontS }
+                    Text { font.family: Style.fontFamily; width: parent.width; text: name; color: hidden ? Style.dim : Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
+                    Text { font.family: Style.fontFamily; width: parent.width; text: Style.date(mtime); color: Style.dim; font.pixelSize: Style.fontS }
                 }
                 Text {
+                    font.family: Style.fontFamily
                     id: sizeText
                     anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
                     text: isDir ? "" : Style.size(size)
@@ -340,9 +361,12 @@ Window {
                 source: folder.error ? "" : "icons/tipi/folder.png"
                 sourceSize: Qt.size(width, height)
                 opacity: 0.45
+                layer.enabled: Style.sailfish
+                layer.effect: MultiEffect { colorization: 1; colorizationColor: Style.sfHighlight }
                 Icon { visible: folder.error !== ""; anchors.centerIn: parent; name: "lock"; size: 48 * Style.dp }
             }
             Text {
+                font.family: Style.fontFamily
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
@@ -351,6 +375,7 @@ Window {
                 font.pixelSize: Style.fontL
             }
             Text {
+                font.family: Style.fontFamily
                 visible: folder.error !== ""
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
@@ -365,6 +390,7 @@ Window {
 
     // ── riga di stato, come la barra di stato di Dolphin ────────────────────
     Text {
+        font.family: Style.fontFamily
         id: status
         anchors { left: parent.left; right: parent.right; bottom: pasteBar.visible ? pasteBar.top : bottomBar.top; leftMargin: Style.margin; rightMargin: Style.margin }
         height: 24 * Style.dp
@@ -392,6 +418,7 @@ Window {
         ledWidth: width
         Icon { id: pi; anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter } name: Jobs.clipboardCut ? "cut" : "copy"; size: 20 * Style.dp }
         Text {
+            font.family: Style.fontFamily
             anchors { left: pi.right; leftMargin: Style.margin; right: pasteButton.left; verticalCenter: parent.verticalCenter }
             text: (Jobs.clipboardCut ? Style.t("Da spostare: ", "To move: ") : Style.t("Da copiare: ", "To copy: "))
                   + (Jobs.clipboard.length === 1 ? Jobs.clipboard[0].split("/").pop() : Style.count(Jobs.clipboard.length, Style.t("elemento", "item"), Style.t("elementi", "items")))
@@ -449,7 +476,7 @@ Window {
                     y: 8 * Style.dp
                     width: 17 * Style.dp; height: width; radius: width / 2
                     color: Style.accent
-                    Text { anchors.centerIn: parent; text: Jobs.activeCount; color: Style.text; font.pixelSize: 10 * Style.dp; font.bold: true }
+                    Text { font.family: Style.fontFamily; anchors.centerIn: parent; text: Jobs.activeCount; color: Style.text; font.pixelSize: 10 * Style.dp; font.bold: true }
                 }
             }
             IconButton { width: parent.w; height: parent.height; icon: "menu"; onClicked: mainMenu.open() }
@@ -502,6 +529,9 @@ Window {
         }
         MenuRow { icon: "sort"; text: Style.t("Ordine inverso", "Descending"); checkable: true; checked: folder.descending; onClicked: folder.descending = !folder.descending }
         MenuRow { icon: "folder"; text: Style.t("Cartelle prima", "Folders first"); checkable: true; checked: folder.dirsFirst; onClicked: folder.dirsFirst = !folder.dirsFirst }
+        MenuSection { text: Style.t("Tema", "Theme") }
+        MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
+        MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
         MenuSection { text: Style.t("Cartella", "Folder") }
         MenuRow {
             icon: "newfolder"
@@ -518,6 +548,7 @@ Window {
         MenuRow { icon: "info"; text: Style.t("Proprietà di questa cartella", "Folder properties"); onClicked: { mainMenu.close(); properties.openFor([folder.path]) } }
         MenuRow { icon: "refresh"; text: Style.t("Aggiorna", "Refresh"); onClicked: { mainMenu.close(); folder.refresh() } }
         Text {
+            font.family: Style.fontFamily
             x: Style.margin
             height: 30 * Style.dp
             verticalAlignment: Text.AlignVCenter
@@ -597,6 +628,7 @@ Window {
             }
         }
         TextField {
+            font.family: Style.fontFamily
             id: field
             width: parent.width
             color: Style.text
@@ -606,7 +638,7 @@ Window {
             background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: field.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
             onAccepted: { nameDialog.close(); nameDialog.chosen("accept") }
         }
-        Text { visible: nameDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: nameDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
+        Text { font.family: Style.fontFamily; visible: nameDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: nameDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
     }
 
     AppDialog {
@@ -643,6 +675,7 @@ Window {
             Jobs.resolve(q.id, a, applyAll.checked)
         }
         Text {
+            font.family: Style.fontFamily
             visible: question.conflict
             width: parent.width
             wrapMode: Text.Wrap

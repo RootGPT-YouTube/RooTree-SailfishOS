@@ -23,12 +23,13 @@ Popup {
     padding: Style.margin
 
     Overlay.modal: Rectangle { color: "#99000000" }
-    background: SteelPanel { radius: 18 * Style.dp; ledWidth: 110 * Style.dp }
+    background: SteelPanel { overlay: true; radius: 18 * Style.dp; ledWidth: 110 * Style.dp }
 
     contentItem: Column {
         spacing: 10 * Style.dp
         topPadding: 10 * Style.dp
         Text {
+            font.family: Style.fontFamily
             width: parent.width
             visible: d.title !== ""
             text: d.title
@@ -38,6 +39,7 @@ Popup {
             wrapMode: Text.Wrap
         }
         Text {
+            font.family: Style.fontFamily
             width: parent.width
             visible: d.message !== ""
             text: d.message

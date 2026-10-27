@@ -32,6 +32,12 @@ public:
     Q_INVOKABLE QString parentOf(const QString &path) const;
     Q_INVOKABLE QString join(const QString &dir, const QString &name) const;
 
+    // per il tema «SailfishOS classico»: i colori dell'ambience attiva e il
+    // carattere Sail Sans Pro (del sistema, non lo si copia)
+    // {highlight, primary, secondary, secondaryHighlight, lightScheme, font};
+    // i campi che mancano restano vuoti
+    Q_INVOKABLE QVariantMap ambience() const;
+
     Q_INVOKABLE bool isBookmarked(const QString &path) const;
     Q_INVOKABLE void addBookmark(const QString &path);
     Q_INVOKABLE void removeBookmark(const QString &path);

@@ -160,3 +160,16 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     attraverso il collegamento fisso. armv7hl: nel chroot a 32 bit l'app
     parte e fa le anteprime di PDF e WebP.
   - Da chiarire: in offscreen (solo lì) Qt avvisa di larghezze NaN.
+- **27/10 — RooTree 0.3.1: ritocchi chiesti dall'utente prima della Fase 3.**
+  - Menù delle memorie: ogni memoria (interna, Android, SD, USB) si apre con
+    la sua freccia sulle cartelle predefinite che ha davvero (Documents,
+    Downloads, Pictures, Music, Videos; anche Download e Movies). Il menù si
+    apre sempre tutto chiuso. La freccia accanto al disco della memoria non
+    finisce più sotto il disco.
+  - Temi, dal menù ⋮: RooTundra (predefinito) o «SailfishOS classico». Il
+    secondo è piatto, con i colori dell'ambience letti da dconf, Sail Sans Pro
+    del sistema e le icone dell'app ricolorate. Niente icone di Jolla e
+    niente immagine di sfondo, per scelta dell'utente. Il cambio è immediato.
+  - Collaudo sul POCO: griglia, menù ⋮, menù delle memorie con le cartelle
+    (anche della SD) e cambio di tema dal vivo nei due versi. Ancora da
+    guardare col tema Sailfish: Proprietà, dialoghi, visori.

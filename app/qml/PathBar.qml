@@ -64,6 +64,7 @@ Flickable {
                         color: Style.accent
                     }
                     Text {
+                        font.family: Style.fontFamily
                         id: label
                         anchors.centerIn: parent
                         text: modelData.label
