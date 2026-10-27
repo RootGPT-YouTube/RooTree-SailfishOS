@@ -19,6 +19,7 @@ QtObject {
     readonly property color sfHighlight: amb.highlight || "#ff80f3ff"
     readonly property color sfPrimary: amb.primary || (lightScheme ? "#ff000000" : "#ffffffff")
     readonly property color sfSecondary: amb.secondary || (lightScheme ? "#99000000" : "#b3ffffff")
+    readonly property color sfSecondaryHighlight: amb.secondaryHighlight || Qt.darker(sfHighlight, 1.3)
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     // i colori di RooTundra (tastierino della schermata di blocco): acciaio

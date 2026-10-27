@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.3.1
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -71,6 +71,10 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Oct 27 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.1-2
+- Classic SailfishOS theme: file icons are tinted too, in the secondary
+  highlight colour of the ambience.
+
 * Tue Oct 27 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.1-1
 - New theme choice in the menu: RooTundra (steel, default) or classic
   SailfishOS (flat, colours and font of the current ambience).

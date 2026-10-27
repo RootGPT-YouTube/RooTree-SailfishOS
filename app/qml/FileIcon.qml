@@ -5,8 +5,8 @@ import "."
 // L'icona di un elemento: la sagoma d'acciaio del tipo e, per immagini, video
 // e PDF, l'anteprima vera (quando c'è) in una cornice d'acciaio, con la piccola
 // icona del tipo nell'angolo, come gli overlay di Dolphin. Nel tema Sailfish
-// le sagome si ricolorano (cartelle del colore di evidenziazione, file del
-// colore del testo) e la cornice è un filo sottile.
+// le sagome si ricolorano (cartelle del colore di evidenziazione, file di
+// quello secondario, per distinguerli) e la cornice è un filo sottile.
 Item {
     id: fi
     property string path
@@ -16,7 +16,7 @@ Item {
 
     readonly property bool wantsThumb: thumbnails && (category === "image" || category === "video" || category === "pdf")
     readonly property bool hasThumb: thumb.status === Image.Ready
-    readonly property color tint: category.indexOf("folder") === 0 ? Style.sfHighlight : Style.sfPrimary
+    readonly property color tint: category.indexOf("folder") === 0 ? Style.sfHighlight : Style.sfSecondaryHighlight
     component Tinted: MultiEffect { colorization: 1 }
 
     Image {
