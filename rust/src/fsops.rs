@@ -264,6 +264,7 @@ pub fn make_dir(parent: &str, name: &str) -> io::Result<String> {
     valid_name(name)?;
     let p = Path::new(parent).join(name);
     fs::create_dir(&p)?;
+    adopt_tree(&p);
     Ok(p.to_string_lossy().into_owned())
 }
 
@@ -305,4 +306,129 @@ pub fn user_name(uid: u32) -> String {
 
 pub fn group_name(gid: u32) -> String {
     name_of(gid, "/etc/group")
+}
+
+// ------------------------------------------------------------------ Fase 4: root
+
+use std::sync::atomic::{AtomicBool, Ordering as AtOrd};
+
+/// Acceso nell'helper root: quello che crea in una cartella che non è di root
+/// (la home, la scheda SD) prende il proprietario di quella cartella, invece
+/// di restare di root e diventare intoccabile per l'utente.
+pub static INHERIT_OWNER: AtomicBool = AtomicBool::new(false);
+
+fn lchown(path: &Path, uid: u32, gid: u32) -> io::Result<()> {
+    let c = CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+    if unsafe { libc::lchown(c.as_ptr(), uid, gid) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Vedi INHERIT_OWNER: `path` (e tutto quello che contiene) al proprietario
+/// della cartella che lo contiene, se quella non è di root.
+pub fn adopt_tree(path: &Path) {
+    if !INHERIT_OWNER.load(AtOrd::Relaxed) {
+        return;
+    }
+    let Some(parent) = path.parent() else { return };
+    let Ok(pm) = fs::metadata(parent) else { return };
+    if pm.uid() == 0 {
+        return;
+    }
+    fn rec(p: &Path, uid: u32, gid: u32) {
+        let _ = lchown(p, uid, gid);
+        if fs::symlink_metadata(p).map(|m| m.is_dir()).unwrap_or(false)
+            && let Ok(rd) = fs::read_dir(p)
+        {
+            for e in rd.flatten() {
+                rec(&e.path(), uid, gid);
+            }
+        }
+    }
+    rec(path, pm.uid(), pm.gid());
+}
+
+fn id_of(name: &str, file: &str) -> io::Result<u32> {
+    if let Ok(n) = name.parse::<u32>() {
+        return Ok(n);
+    }
+    fs::read_to_string(file)?
+        .lines()
+        .find_map(|l| {
+            let f: Vec<&str> = l.split(':').collect();
+            (f.len() > 2 && f[0] == name).then(|| f[2].parse().ok()).flatten()
+        })
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("«{name}» non esiste")))
+}
+
+/// Proprietario e gruppo, per nome o numero; vuoto = non cambiare.
+pub fn set_owner(path: &str, user: &str, group: &str) -> io::Result<()> {
+    let m = fs::symlink_metadata(path)?;
+    let uid = if user.is_empty() { m.uid() } else { id_of(user, "/etc/passwd")? };
+    let gid = if group.is_empty() { m.gid() } else { id_of(group, "/etc/group")? };
+    lchown(Path::new(path), uid, gid)
+}
+
+/// Dove l'helper root mette le copie di sicurezza dei file che salva: fuori
+/// dalla home (regola dell'utente del 26/10), di root e 700 (possono essere
+/// file sensibili, come /etc/shadow). Una sola copia per file, la più recente.
+pub const BACKUP_DIR: &str = "/home/debugging/harbour-rootree/copie-di-sicurezza";
+
+#[cfg(test)]
+pub static TEST_BACKUP_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+fn backup_dir() -> PathBuf {
+    #[cfg(test)]
+    if let Some(d) = TEST_BACKUP_DIR.lock().unwrap().clone() {
+        return d;
+    }
+    PathBuf::from(BACKUP_DIR)
+}
+
+/// Salva il testo in `path` senza mai lasciarlo a metà: scrive accanto e
+/// rinomina, tenendo permessi e proprietario dell'originale. Con `backup`,
+/// prima copia l'originale in BACKUP_DIR. Rende il percorso della copia ("" se
+/// non fatta).
+pub fn write_text(path: &str, text: &str, backup: bool) -> io::Result<String> {
+    use std::io::Write;
+    let p = Path::new(path);
+    let name = p.file_name().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?.to_string_lossy().into_owned();
+    let old = fs::metadata(p).ok();
+    if old.as_ref().is_some_and(|m| !m.is_file()) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "non è un file normale"));
+    }
+    let mut copy = String::new();
+    if backup && old.is_some() {
+        let dir_buf = backup_dir();
+        let dir = dir_buf.as_path();
+        fs::create_dir_all(dir)?;
+        let _ = fs::set_permissions(dir.parent().unwrap(), fs::Permissions::from_mode(0o700));
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+        let real = fs::canonicalize(p).unwrap_or(p.to_path_buf());
+        let b = dir.join(real.to_string_lossy().trim_start_matches('/').replace('/', "%"));
+        fs::copy(p, &b)?;
+        copy = b.to_string_lossy().into_owned();
+    }
+    // un link si salva sul file vero, non al suo posto
+    let target = fs::canonicalize(p).unwrap_or(p.to_path_buf());
+    let tmp = target.with_file_name(format!(".{name}.rootree-part"));
+    let r = (|| -> io::Result<()> {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        if let Some(m) = &old {
+            f.set_permissions(fs::Permissions::from_mode(m.mode() & 0o7777))?;
+            let _ = lchown(&tmp, m.uid(), m.gid());
+        }
+        f.sync_all()?;
+        fs::rename(&tmp, &target)
+    })();
+    if r.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    r?;
+    if old.is_none() {
+        adopt_tree(&target);
+    }
+    Ok(copy)
 }

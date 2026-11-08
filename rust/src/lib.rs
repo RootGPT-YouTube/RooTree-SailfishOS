@@ -2,19 +2,27 @@
 //! immediate) e il motore delle operazioni lunghe. Il C++ lo usa attraverso
 //! il ponte `ffi` qui sotto.
 
-mod archive;
-mod fsops;
-mod jobs;
-mod search;
-mod thumbs;
+pub mod archive;
+pub mod fsops;
+pub mod helper;
+pub mod jobs;
+pub mod proto;
+pub mod root;
+pub mod search;
+pub mod thumbs;
 #[cfg(test)]
 mod tests;
+
+// i derive di serde dentro il ponte cxx usano questi nomi
+#[allow(unused_imports)]
+use serde::{Deserialize, Serialize};
 
 #[cxx::bridge(namespace = "rootree")]
 mod ffi {
     /// Un elemento di una cartella. `kind`: 0 file, 1 cartella, 2 altro
     /// (fifo, socket, dispositivo). Per un link, i dati sono quelli di ciò a
     /// cui punta (se non è rotto).
+    #[derive(Serialize, Deserialize)]
     struct Entry {
         name: String,
         path: String,
@@ -41,7 +49,7 @@ mod ffi {
     }
 
     /// Lo stato di un'operazione (vedi le costanti in jobs.rs).
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     struct JobStatus {
         id: u64,
         kind: u8,
@@ -100,6 +108,15 @@ mod ffi {
         fn make_dir(parent: &str, name: &str) -> Result<String>;
         fn rename_entry(path: &str, new_name: &str) -> Result<String>;
         fn set_mode(path: &str, mode: u32) -> Result<()>;
+        /// Proprietario e gruppo (nome o numero; vuoto = non cambiare): serve root.
+        fn set_owner(path: &str, user: &str, group: &str) -> Result<()>;
+        /// Salva un file di testo (atomico); da root con copia di sicurezza,
+        /// di cui rende il percorso.
+        fn write_text(path: &str, text: &str) -> Result<String>;
+        /// Modalità root: avvia l'helper con devel-su (errori: vedi root.rs).
+        fn root_start(password: &str) -> Result<()>;
+        fn root_stop();
+        fn root_active() -> bool;
         fn user_name(uid: u32) -> String;
         fn group_name(gid: u32) -> String;
 
@@ -144,49 +161,16 @@ fn decode_picture(path: &str, max: u32) -> Result<ffi::Picture, String> {
     thumbs::decode_picture(path, max)
 }
 
-fn read_text(path: &str, max_bytes: u64) -> Result<String, String> {
-    thumbs::read_text(path, max_bytes)
-}
 
-fn job_copy(sources: Vec<String>, dest: &str) -> u64 {
-    jobs::copy(sources, dest)
-}
 
-fn job_move(sources: Vec<String>, dest: &str) -> u64 {
-    jobs::move_to(sources, dest)
-}
 
-fn job_delete(paths: Vec<String>) -> u64 {
-    jobs::delete(paths)
-}
 
-fn job_size(paths: Vec<String>) -> u64 {
-    jobs::size(paths)
-}
 
-fn job_statuses() -> Vec<ffi::JobStatus> {
-    jobs::statuses()
-}
 
-fn job_cancel(id: u64) {
-    jobs::cancel(id)
-}
 
-fn job_resolve(id: u64, action: u8, apply_all: bool) {
-    jobs::resolve(id, action, apply_all)
-}
 
-fn job_forget(id: u64) {
-    jobs::forget(id)
-}
 
-fn job_extract(archive: &str, dest: &str) -> u64 {
-    jobs::extract(archive, dest)
-}
 
-fn job_compress(sources: Vec<String>, dest: &str) -> u64 {
-    jobs::compress(sources, dest)
-}
 
 fn archive_of(path: &str) -> String {
     archive::split(path).map(|(a, _)| a.to_string_lossy().into_owned()).unwrap_or_default()
@@ -221,4 +205,155 @@ fn search_take(id: u64) -> ffi::SearchBatch {
 
 fn search_stop(id: u64) {
     search::stop(id)
+}
+
+// ------------------------------------------------------------------ instradamento
+// Con la modalità root accesa le operazioni sul filesystem le fa l'helper;
+// i lavori dell'helper hanno l'id col bit REMOTE, così si distinguono da
+// quelli locali nello stesso elenco.
+
+use proto::Request;
+
+// ⛔ dentro i 31 bit: il C++ passa gli id al QML come int (con 1 << 40 il bit
+//    si perdeva e Annulla su un lavoro root finiva su quello locale, 08/11)
+const REMOTE: u64 = 1 << 30;
+
+fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, dirs_first: bool) -> Result<Vec<ffi::Entry>, String> {
+    if root::active() {
+        return root::call_as(&Request::ListDir { path: path.into(), hidden: show_hidden, key: sort_key, desc: descending, dirs_first });
+    }
+    fsops::list_dir(path, show_hidden, sort_key, descending, dirs_first).map_err(|e| e.to_string())
+}
+
+fn stat_path(path: &str) -> Result<ffi::Entry, String> {
+    if root::active() {
+        return root::call_as(&Request::Stat { path: path.into() });
+    }
+    fsops::stat_path(path).map_err(|e| e.to_string())
+}
+
+fn read_text(path: &str, max_bytes: u64) -> Result<String, String> {
+    if root::active() {
+        return root::call_as(&Request::ReadText { path: path.into(), max: max_bytes });
+    }
+    thumbs::read_text(path, max_bytes)
+}
+
+fn write_text(path: &str, text: &str) -> Result<String, String> {
+    if root::active() {
+        return root::call_as(&Request::WriteText { path: path.into(), text: text.into() });
+    }
+    fsops::write_text(path, text, false).map_err(|e| e.to_string())
+}
+
+fn make_dir(parent: &str, name: &str) -> Result<String, String> {
+    if root::active() {
+        return root::call_as(&Request::MakeDir { parent: parent.into(), name: name.into() });
+    }
+    fsops::make_dir(parent, name).map_err(|e| e.to_string())
+}
+
+fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
+    if root::active() {
+        return root::call_as(&Request::Rename { path: path.into(), name: new_name.into() });
+    }
+    fsops::rename_entry(path, new_name).map_err(|e| e.to_string())
+}
+
+fn set_mode(path: &str, mode: u32) -> Result<(), String> {
+    if root::active() {
+        return root::call_as(&Request::SetMode { path: path.into(), mode });
+    }
+    fsops::set_mode(path, mode).map_err(|e| e.to_string())
+}
+
+fn set_owner(path: &str, user: &str, group: &str) -> Result<(), String> {
+    if root::active() {
+        return root::call_as(&Request::SetOwner { path: path.into(), user: user.into(), group: group.into() });
+    }
+    fsops::set_owner(path, user, group).map_err(|e| e.to_string())
+}
+
+fn root_start(password: &str) -> Result<(), String> {
+    root::start(password)
+}
+
+fn root_stop() {
+    root::stop()
+}
+
+fn root_active() -> bool {
+    root::active()
+}
+
+/// Un lavoro dall'helper se la modalità root è accesa (con ripiego locale se
+/// l'helper non risponde), altrimenti locale.
+fn job_via(req: Request, local: impl FnOnce() -> u64) -> u64 {
+    if root::active()
+        && let Ok(id) = root::call_as::<u64>(&req)
+    {
+        return id | REMOTE;
+    }
+    local()
+}
+
+fn job_copy(sources: Vec<String>, dest: &str) -> u64 {
+    job_via(Request::JobCopy { sources: sources.clone(), dest: dest.into() }, || jobs::copy(sources, dest))
+}
+
+fn job_move(sources: Vec<String>, dest: &str) -> u64 {
+    job_via(Request::JobMove { sources: sources.clone(), dest: dest.into() }, || jobs::move_to(sources, dest))
+}
+
+fn job_delete(paths: Vec<String>) -> u64 {
+    job_via(Request::JobDelete { paths: paths.clone() }, || jobs::delete(paths))
+}
+
+fn job_size(paths: Vec<String>) -> u64 {
+    job_via(Request::JobSize { paths: paths.clone() }, || jobs::size(paths))
+}
+
+fn job_extract(archive: &str, dest: &str) -> u64 {
+    job_via(Request::JobExtract { archive: archive.into(), dest: dest.into() }, || jobs::extract(archive, dest))
+}
+
+fn job_compress(sources: Vec<String>, dest: &str) -> u64 {
+    job_via(Request::JobCompress { sources: sources.clone(), dest: dest.into() }, || jobs::compress(sources, dest))
+}
+
+fn job_statuses() -> Vec<ffi::JobStatus> {
+    let mut v = jobs::statuses();
+    if root::active()
+        && let Ok(remote) = root::call_as::<Vec<ffi::JobStatus>>(&Request::JobStatuses)
+    {
+        v.extend(remote.into_iter().map(|mut j| {
+            j.id |= REMOTE;
+            j
+        }));
+    }
+    v
+}
+
+fn job_cancel(id: u64) {
+    if id & REMOTE != 0 {
+        let _ = root::call(&Request::JobCancel { id: id & !REMOTE });
+    } else {
+        jobs::cancel(id)
+    }
+}
+
+fn job_resolve(id: u64, action: u8, apply_all: bool) {
+    if id & REMOTE != 0 {
+        let _ = root::call(&Request::JobResolve { id: id & !REMOTE, action, all: apply_all });
+    } else {
+        jobs::resolve(id, action, apply_all)
+    }
+}
+
+fn job_forget(id: u64) {
+    if id & REMOTE != 0 {
+        let _ = root::call(&Request::JobForget { id: id & !REMOTE });
+    } else {
+        jobs::forget(id)
+    }
 }

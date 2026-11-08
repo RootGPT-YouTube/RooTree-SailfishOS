@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.4.0
-Release:    3
+Version:    0.5.0
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -45,6 +45,17 @@ Requires:   libgobject-2.0.so.0
 Requires:   libpoppler-cpp.so.2
 %endif
 
+%package root
+Summary:    Root mode for RooTree
+Requires:   %{name} = %{version}-%{release}
+# devel-su: la modalità sviluppatore (la sua password apre la modalità root)
+Requires:   /usr/bin/devel-su
+
+%description root
+The helper that RooTree starts with devel-su when root mode is turned on:
+it performs the file operations as root and talks only to the app over a
+private socket. The app itself never runs as root.
+
 %description
 RooTree is a file manager for Sailfish OS: internal memory, Android storage,
 SD card, cloud and remote storage, archives, and an optional root mode.
@@ -63,6 +74,8 @@ for s in 86 108 128 172 256; do
 done
 install -D -m0644 %{stagingdir}/LICENSE %{buildroot}%{_defaultlicensedir}/%{name}/LICENSE
 install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{name}/NOTICE.md
+# non setuid: lo avvia devel-su, dopo la password di sviluppatore
+install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name}/rootree-helper
 
 %files
 %defattr(-,root,root,-)
@@ -73,7 +86,24 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
+%files root
+%defattr(-,root,root,-)
+%dir %{_libexecdir}/%{name}
+%{_libexecdir}/%{name}/rootree-helper
+
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.5.0-1
+- Root mode (new harbour-rootree-root package): turned on from the menu with
+  the developer password, it starts a separate helper through devel-su; the
+  app never runs as root. A red band shows while it is on; it stops when
+  turned off or when RooTree closes.
+- In root mode: browse, copy, move, delete, rename and create anywhere;
+  change permissions, owner and group. Files created as root inside a folder
+  owned by the user stay the user's.
+- The text viewer becomes an editor ("Edit"): saving never leaves a file
+  half written, and as root the original is kept in
+  /home/debugging/harbour-rootree (root only, latest copy per file).
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.4.0-3
 - Rename / New folder: two selection handles to pick with a finger which
   part of the name to select (double tap selects a word).

@@ -4,10 +4,13 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QProcess>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QPointer>
+#include <thread>
 
 #include <unistd.h>
 
@@ -104,7 +107,81 @@ bool FileSystem::exists(const QString &path) const
 
 bool FileSystem::isWritable(const QString &path) const
 {
+    // da root si scrive dappertutto (tranne dentro un archivio)
+    if (rootActive())
+        return QFileInfo::exists(path) && rootree::archive_of(qtrust::str(path)).empty();
     return ::access(QFile::encodeName(path).constData(), W_OK) == 0;
+}
+
+bool FileSystem::rootActive() const
+{
+    return rootree::root_active();
+}
+
+bool FileSystem::developerMode() const
+{
+    return QFileInfo::exists(QStringLiteral("/usr/bin/devel-su"));
+}
+
+bool FileSystem::rootHelperInstalled() const
+{
+    return QFileInfo::exists(QStringLiteral("/usr/libexec/harbour-rootree/rootree-helper"));
+}
+
+void FileSystem::rootStart(const QString &password)
+{
+    if (m_rootStarting || rootActive())
+        return;
+    m_rootStarting = true;
+    emit rootChanged();
+    // devel-su e PAM chiedono un momento: su un thread, l'interfaccia non si ferma
+    QPointer<FileSystem> self(this);
+    std::thread([self, pw = password.toUtf8()]() mutable {
+        QString code, message;
+        try {
+            rootree::root_start(rust::Str(pw.constData(), size_t(pw.size())));
+        } catch (const rust::Error &e) {
+            message = QString::fromUtf8(e.what());
+            const int colon = message.indexOf(QLatin1Char(':'));
+            code = colon > 0 && message.left(colon).toUpper() == message.left(colon) ? message.left(colon) : QStringLiteral("ERR");
+            if (code != QStringLiteral("ERR"))
+                message = message.mid(colon + 1);
+        }
+        pw.fill('\0'); // la copia della password non resta in memoria
+        QMetaObject::invokeMethod(qApp, [self, code, message] {
+            if (!self)
+                return;
+            self->m_rootStarting = false;
+            emit self->rootChanged();
+            emit self->rootFinished(code, message);
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+void FileSystem::rootStop()
+{
+    rootree::root_stop();
+    emit rootChanged();
+}
+
+QVariantMap FileSystem::writeText(const QString &path, const QString &text) const
+{
+    try {
+        return {{QStringLiteral("error"), QString()},
+                {QStringLiteral("backup"), qtrust::qs(rootree::write_text(qtrust::str(path), qtrust::str(text)))}};
+    } catch (const rust::Error &e) {
+        return {{QStringLiteral("error"), QString::fromUtf8(e.what())}, {QStringLiteral("backup"), QString()}};
+    }
+}
+
+QString FileSystem::setOwner(const QString &path, const QString &user, const QString &group) const
+{
+    try {
+        rootree::set_owner(qtrust::str(path), qtrust::str(user), qtrust::str(group));
+        return {};
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
 }
 
 QString FileSystem::parentOf(const QString &path) const
@@ -122,6 +199,11 @@ QString FileSystem::join(const QString &dir, const QString &name) const
 bool FileSystem::isArchive(const QString &name) const
 {
     return rootree::is_archive(qtrust::str(name));
+}
+
+QString FileSystem::archiveOf(const QString &path) const
+{
+    return qtrust::qs(rootree::archive_of(qtrust::str(path)));
 }
 
 bool FileSystem::canCreateArchive(const QString &name) const

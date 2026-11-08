@@ -297,10 +297,61 @@ Window {
         }
     }
 
+    // ── modalità root: una fascia rossa che non si può non vedere ───────────
+    Rectangle {
+        id: rootBand
+        visible: Fs.rootActive
+        anchors { left: parent.left; right: parent.right; top: header.bottom }
+        height: visible ? 30 * Style.dp : 0
+        color: "#c62828"
+        z: 1
+        Icon { id: rootIcon; anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter } name: "root"; size: 16 * Style.dp; tint: "white" }
+        Text {
+            font.family: Style.fontFamily
+            anchors { left: rootIcon.right; leftMargin: 8 * Style.dp; right: rootOff.left; verticalCenter: parent.verticalCenter }
+            text: Style.t("MODALITÀ ROOT: le modifiche toccano il sistema", "ROOT MODE: changes affect the system")
+            color: "white"
+            font.pixelSize: Style.fontS
+            font.bold: true
+            elide: Text.ElideRight
+        }
+        Text {
+            id: rootOff
+            font.family: Style.fontFamily
+            anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
+            text: Style.t("Spegni", "Turn off")
+            color: "white"
+            font.pixelSize: Style.fontS
+            font.underline: true
+        }
+        MouseArea { anchors.fill: parent; onClicked: win.rootOff() }
+    }
+    function rootOff() {
+        Fs.rootStop()
+        folder.refresh()
+        toast.show(Style.t("Modalità root spenta", "Root mode off"))
+    }
+    Connections {
+        target: Fs
+        function onRootFinished(code, message) {
+            if (code === "") {
+                rootDialog.close()
+                folder.refresh()
+                toast.show(Style.t("Modalità root accesa", "Root mode on"))
+            } else {
+                rootDialog.error = code === "AUTH"
+                    ? Style.t("Password rifiutata. È quella di Impostazioni → Strumenti per sviluppatori.",
+                              "Password rejected. It is the one in Settings → Developer tools.")
+                    : message
+                rootDialog.open()
+            }
+        }
+    }
+
     // ── la cartella ─────────────────────────────────────────────────────────
     Item {
         id: content
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: status.top }
+        anchors { left: parent.left; right: parent.right; top: rootBand.bottom; bottom: status.top }
         clip: true
 
         GridView {
@@ -447,7 +498,7 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 text: folder.error + (folder.error.indexOf("ermission") >= 0
-                      ? "\n" + Style.t("Per le cartelle di sistema servirà la modalità root.", "System folders will need root mode.") : "")
+                      ? "\n" + Style.t("Per le cartelle di sistema c'è la modalità root, nel menù ⋮.", "For system folders there is root mode, in the ⋮ menu.") : "")
                 color: Style.dim
                 font.pixelSize: Style.fontS
             }
@@ -608,6 +659,18 @@ Window {
             checkable: true; checked: settings.sortPerFolder
             onClicked: win.setSortPerFolder(!settings.sortPerFolder)
         }
+        MenuSection { text: Style.t("Sistema", "System") }
+        MenuRow {
+            icon: "root"
+            text: Fs.rootStarting ? Style.t("Modalità root: avvio…", "Root mode: starting…") : Style.t("Modalità root", "Root mode")
+            checkable: true
+            checked: Fs.rootActive
+            onClicked: {
+                mainMenu.close()
+                if (Fs.rootActive) win.rootOff()
+                else rootDialog.ask()
+            }
+        }
         MenuSection { text: Style.t("Tema", "Theme") }
         MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
         MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
@@ -678,6 +741,52 @@ Window {
         }
         MenuRow { icon: "info"; text: Style.t("Proprietà", "Properties"); onClicked: { moreMenu.close(); properties.openFor(folder.selectedPaths()) } }
         MenuRow { icon: "selectall"; text: Style.t("Seleziona tutto", "Select all"); onClicked: { moreMenu.close(); folder.selectAll() } }
+    }
+
+    // Modalità root: la password di sviluppatore va a devel-su e non resta da
+    // nessuna parte; se la modalità sviluppatore è spenta si spiega come accenderla
+    AppDialog {
+        id: rootDialog
+        property string error
+        readonly property bool ready: Fs.developerMode && Fs.rootHelperInstalled
+        function ask() {
+            error = ""
+            rootPassword.text = ""
+            open()
+            if (ready) rootPassword.forceActiveFocus()
+        }
+        title: Style.t("Modalità root", "Root mode")
+        message: !Fs.developerMode
+            ? Style.t("Serve la modalità sviluppatore: Impostazioni → Strumenti per sviluppatori → Modalità sviluppatore, poi imposta lì una password. Torna qui e accendi la modalità root con quella password.",
+                      "Developer mode is needed: Settings → Developer tools → Developer mode, then set a password there. Come back and turn on root mode with that password.")
+            : !Fs.rootHelperInstalled
+            ? Style.t("Manca il pacchetto «harbour-rootree-root», che contiene la parte che lavora da root. Installalo e riprova.",
+                      "The “harbour-rootree-root” package, which holds the part that works as root, is missing. Install it and try again.")
+            : Style.t("RooTree potrà leggere e modificare tutto il sistema. L'app resta un'app normale: le operazioni da root le fa un aiutante separato, che si spegne con la modalità o chiudendo RooTree. Quando salvi un file da root, l'originale va in /home/debugging/harbour-rootree.",
+                      "RooTree will be able to read and change the whole system. The app stays a normal app: root operations are done by a separate helper, which stops with the mode or when RooTree closes. When you save a file as root, the original goes to /home/debugging/harbour-rootree.")
+        buttons: ready ? [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Accendi", "Turn on"), role: "accept" }]
+                       : [{ text: "OK", role: "reject" }]
+        onChosen: function (role) {
+            if (role === "accept" && rootPassword.text !== "") {
+                Fs.rootStart(rootPassword.text)
+                rootPassword.text = ""
+            }
+        }
+        TextField {
+            id: rootPassword
+            visible: rootDialog.ready
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            echoMode: TextInput.Password
+            placeholderText: Style.t("Password di sviluppatore", "Developer password")
+            placeholderTextColor: Style.dim
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: rootPassword.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+            onAccepted: { rootDialog.close(); rootDialog.chosen("accept") }
+        }
+        Text { font.family: Style.fontFamily; visible: rootDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: rootDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
     }
 
     // Comprimi: nome e formato; l'archivio nasce nella cartella corrente
@@ -766,6 +875,8 @@ Window {
     TextViewer {
         id: textViewer
         onOpenWithRequested: function (p) { openWith.openFor(p) }
+        onMessage: function (text, isError) { toast.show(text, isError) }
+        onSaved: folder.refresh()
     }
     PropertiesSheet { id: properties }
 

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import RooTree
 import "."
 
@@ -14,6 +15,9 @@ Sheet {
     property int mode: 0
     property string error
     readonly property bool single: paths.length === 1
+    // i permessi si cambiano se l'elemento è tuo, o da root; il proprietario solo da root
+    readonly property bool inArchive: single && info.path !== undefined && Fs.archiveOf(info.path) !== ""
+    readonly property bool canEdit: single && !inArchive && (info.mine === true || Fs.rootActive)
 
     title: single ? (info.name || "") : Style.count(paths.length, Style.t("elemento", "item"), Style.t("elementi", "items"))
 
@@ -21,6 +25,8 @@ Sheet {
         paths = list
         info = single ? Fs.info(list[0]) : ({})
         mode = single ? (info.mode & 4095) : 0
+        ownerUser.text = info.user || ""
+        ownerGroup.text = info.group || ""
         error = ""
         sizeStatus = ({})
         sizeJob = (!single || info.isDir) ? Jobs.size(list) : 0
@@ -106,7 +112,7 @@ Sheet {
 
     // la griglia dei permessi: proprietario, gruppo, altri × lettura, scrittura, esecuzione
     Grid {
-        visible: sheet.single && sheet.info.mine === true
+        visible: sheet.canEdit
         x: Style.margin
         columns: 4
         rowSpacing: 0
@@ -143,12 +149,12 @@ Sheet {
     }
     Text {
         font.family: Style.fontFamily
-        visible: sheet.single && sheet.info.mine === false
+        visible: sheet.single && !sheet.canEdit && !sheet.inArchive
         x: Style.margin
         width: parent.width - 2 * Style.margin
         wrapMode: Text.Wrap
-        text: Style.t("Non è tuo: per cambiarne i permessi servirà la modalità root.",
-                      "Not yours: changing its permissions will need root mode.")
+        text: Style.t("Non è tuo: per cambiarne i permessi accendi la modalità root (menù ⋮).",
+                      "Not yours: to change its permissions turn on root mode (⋮ menu).")
         color: Style.dim
         font.pixelSize: Style.fontS
     }
@@ -163,13 +169,45 @@ Sheet {
         font.pixelSize: Style.fontS
     }
     MenuRow {
-        visible: sheet.single && sheet.info.mine === true && sheet.mode !== (sheet.info.mode & 4095)
+        visible: sheet.canEdit && sheet.mode !== (sheet.info.mode & 4095)
         icon: "check"
         text: Style.t("Applica i permessi", "Apply permissions")
         onClicked: {
             sheet.error = Fs.setMode(sheet.info.path, sheet.mode)
             if (sheet.error === "")
                 sheet.info = Fs.info(sheet.info.path)
+        }
+    }
+
+    // il proprietario, solo da root (nomi o numeri)
+    Row {
+        visible: sheet.single && Fs.rootActive && !sheet.inArchive
+        x: Style.margin
+        spacing: 8 * Style.dp
+        component OwnerField: TextField {
+            font.family: Style.fontFamily
+            width: (sheet.width - 2 * Style.margin - 8 * Style.dp) / 2
+            color: Style.text
+            font.pixelSize: Style.fontM
+            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+            placeholderTextColor: Style.dim
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: parent && parent.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+        }
+        OwnerField { id: ownerUser; placeholderText: Style.t("Proprietario", "Owner") }
+        OwnerField { id: ownerGroup; placeholderText: Style.t("Gruppo", "Group") }
+    }
+    MenuRow {
+        visible: sheet.single && Fs.rootActive && !sheet.inArchive
+                 && (ownerUser.text !== (sheet.info.user || "") || ownerGroup.text !== (sheet.info.group || ""))
+        icon: "check"
+        text: Style.t("Applica il proprietario", "Apply owner")
+        onClicked: {
+            sheet.error = Fs.setOwner(sheet.info.path, ownerUser.text.trim(), ownerGroup.text.trim())
+            if (sheet.error === "") {
+                sheet.info = Fs.info(sheet.info.path)
+                ownerUser.text = sheet.info.user || ""
+                ownerGroup.text = sheet.info.group || ""
+            }
         }
     }
 }

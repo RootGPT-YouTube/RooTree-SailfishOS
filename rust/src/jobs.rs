@@ -449,6 +449,7 @@ impl Run {
                 continue;
             }
             let copied = self.copy_entry(src, &target)?;
+            fsops::adopt_tree(&target);
             if is_move && copied {
                 self.remove_source(src)?;
             }
@@ -545,6 +546,7 @@ impl Run {
                 } else {
                     let target = free_name(&dest.join(&stem));
                     fs::rename(&tmp, &target).map_err(|e| Stop::Failed(e.to_string()))?;
+                    fsops::adopt_tree(&target);
                     return Ok(());
                 }
             } else {
@@ -568,6 +570,7 @@ impl Run {
                     }
                 }
                 fs::rename(&src, &target).map_err(|e| Stop::Failed(e.to_string()))?;
+                fsops::adopt_tree(&target);
             }
             Ok(())
         })();
@@ -602,7 +605,9 @@ impl Run {
                 if let Ok(f) = File::open(&part) {
                     let _ = f.sync_all();
                 }
-                fs::rename(&part, &dest).map_err(|e| Stop::Failed(e.to_string()))
+                fs::rename(&part, &dest).map_err(|e| Stop::Failed(e.to_string()))?;
+                fsops::adopt_tree(&dest);
+                Ok(())
             });
         if r.is_err() {
             let _ = fs::remove_file(&part);
@@ -914,4 +919,17 @@ pub fn archive_stem(name: &str) -> String {
         }
     }
     format!("{name}.estratto")
+}
+
+/// Annulla tutto e aspetta che i lavori si chiudano (ripulendo i file a
+/// metà), al più `limit`: l'helper root lo fa prima di uscire.
+pub fn cancel_all_and_wait(limit: std::time::Duration) {
+    let ids: Vec<u64> = statuses().iter().filter(|s| s.state < ST_DONE).map(|s| s.id).collect();
+    for id in ids {
+        cancel(id);
+    }
+    let end = std::time::Instant::now() + limit;
+    while std::time::Instant::now() < end && statuses().iter().any(|s| s.state < ST_DONE && s.state != ST_QUEUED) {
+        thread::sleep(std::time::Duration::from_millis(50));
+    }
 }

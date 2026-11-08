@@ -205,3 +205,39 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     fuori schermo, che ha trovato un errore poi corretto). Prove col dito
     dell'utente: archivi di esempio in
     `/home/debugging/2026-11-08-rootree-fase3/archivi-di-prova`.
+- **08/11 — RooTree 0.4.0-2 e -3** (chieste dall'utente dopo la Fase 3):
+  nella finestra Rinomina/Nuova cartella «Tutto», «Senza estensione»,
+  «Copia», «Incolla», e due maniglie per scegliere col dito la parte del
+  nome da selezionare (su touch il trascinamento sul TextField non
+  seleziona). Provate dall'utente.
+- **08/11 — Fase 4 completata: RooTree 0.5.0** (+ sottopacchetto
+  `harbour-rootree-root`).
+  - L'interfaccia non gira mai da root. «Modalità root» nel menù ⋮ chiede la
+    password di sviluppatore e lancia `devel-su rootree-helper --fd 3` in una
+    pty (forkpty); la password va solo al terminale di devel-su. L'helper
+    (Rust, stesso nucleo) parla solo sul socket ereditato come fd 3, una riga
+    JSON per messaggio (`proto.rs`); chiuso il socket annulla i lavori ed
+    esce. Senza modalità sviluppatore o senza il pacchetto -root il dialogo
+    spiega cosa fare; password sbagliata → messaggio.
+  - Accesa: fascia rossa sotto l'intestazione (tocco = spegni); elenco,
+    copia/sposta/elimina, rinomina, nuova cartella, archivi, permessi,
+    **proprietario e gruppo** (Proprietà) passano dall'helper. I lavori
+    dell'helper hanno l'id col bit 1<<30 (dentro un int, per il QML).
+    Quello che root crea in una cartella non di root prende il proprietario
+    della cartella (la home resta dell'utente).
+  - Il visore di testo diventa editor («Modifica»): salvataggio atomico
+    (accanto + rename, permessi e proprietario tenuti, un link si salva sul
+    file vero), domanda sulle modifiche non salvate; da root l'originale va
+    in `/home/debugging/harbour-rootree/copie-di-sicurezza/` (root, 700),
+    una copia per file, la più recente.
+  - Verifica: 25 test (protocollo e instradamento con l'helper vero su un
+    socket, copie di sicurezza, salvataggio atomico, più i 23 di prima). Sul
+    POCO con devel-su vero (`rust/examples/prova-root.rs` e
+    `tools/collaudo-root`): helper pronto in 51 ms, /root letto,
+    **`/etc/rootree-prova.conf` modificato con la copia di sicurezza**
+    (proprietario e 640 tenuti), gruppo cambiato, copia da root nella home
+    rimasta di defaultuser, password sbagliata riconosciuta, nessun processo
+    rimasto dopo lo spegnimento. File di prova tolti.
+  - Note: in una cartella leggibile solo da root l'aggiornamento automatico
+    (QFileSystemWatcher dell'app) non c'è: si aggiorna dal menù. La ricerca
+    gira ancora come utente.

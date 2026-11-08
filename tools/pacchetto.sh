@@ -29,6 +29,10 @@ S=$R/scratch/pkg-$ARCH
 rm -rf "$S"
 mkdir -p "$S/app/qml" "$S/icons"
 cp "$R/build-$ARCH/harbour-rootree" "$S/app/"
+# l'helper della modalità root (sottopacchetto -root), compilato da build.sh con il nucleo
+. "$R/tools/env-rust.sh" "$ARCH" >/dev/null
+cp "$R/rust/target/$RUST_TARGET/release/rootree-helper" "$S/rootree-helper"
+sb2 -t "$SFOS_TARGET" strip "$S/rootree-helper"
 cp -r "$R/app/qml/." "$S/app/qml/"
 # qt.conf accanto al binario: SOSTITUISCE i percorsi Qt compilati (/usr) invece
 # di aggiungersi come QT_PLUGIN_PATH; senza, chi ha Qt Runner si ritroverebbe

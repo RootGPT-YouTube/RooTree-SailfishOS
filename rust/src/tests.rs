@@ -549,3 +549,86 @@ fn confronto_con_bsdtar() {
     assert!(esito.iter().all(|(_, ok)| *ok));
     let _ = fs::remove_dir_all(root);
 }
+
+// ------------------------------------------------------------------ Fase 4: modalità root
+
+#[test]
+fn modalita_root_inoltra_all_helper() {
+    use std::os::unix::net::UnixStream;
+    // l'helper vero (senza root: qui conta il protocollo e l'instradamento)
+    let (app, helper) = UnixStream::pair().unwrap();
+    let t = std::thread::spawn(move || crate::helper::serve_lines(helper));
+    crate::root::attach_for_test(app);
+    assert!(crate::root::active());
+
+    let root = tmp(false);
+    let a = albero(&root);
+    *fsops::TEST_BACKUP_DIR.lock().unwrap() = Some(root.join("copie/di-sicurezza"));
+    // elenco, informazioni, nuova cartella, rinomina, permessi: dall'helper
+    let v = crate::list_dir(&s(&a), false, 0, false, true).unwrap();
+    assert!(v.iter().any(|e| e.name == "sotto"));
+    assert_eq!(crate::stat_path(&s(&a.join("uno.txt"))).unwrap().size, 3);
+    let nuova = crate::make_dir(&s(&root), "nuova").unwrap();
+    assert!(Path::new(&nuova).is_dir());
+    assert!(crate::rename_entry(&nuova, "uno").is_ok());
+    crate::set_mode(&s(&a.join("uno.txt")), 0o600).unwrap();
+    assert_eq!(fs::metadata(a.join("uno.txt")).unwrap().permissions().mode() & 0o777, 0o600);
+    assert!(crate::list_dir("/non/esiste", false, 0, false, true).is_err());
+
+    // un lavoro dell'helper: id col bit REMOTE, stato e fine come i locali
+    let dest = root.join("dest");
+    fs::create_dir(&dest).unwrap();
+    let id = crate::job_copy(vec![s(&a)], &s(&dest));
+    assert!(id & super::REMOTE != 0);
+    let st = loop {
+        let st = crate::job_statuses().into_iter().find(|j| j.id == id).unwrap();
+        if st.state >= ST_DONE {
+            break st;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    assert_eq!(st.state, ST_DONE, "{}", st.error);
+    assert_eq!(impronta(&a), impronta(&dest.join("albero")));
+    crate::job_forget(id);
+    assert!(!crate::job_statuses().iter().any(|j| j.id == id));
+
+    // salvataggio dall'helper: atomico, permessi tenuti
+    crate::write_text(&s(&a.join("uno.txt")), "nuovo testo").unwrap();
+    assert_eq!(fs::read_to_string(a.join("uno.txt")).unwrap(), "nuovo testo");
+    assert_eq!(fs::metadata(a.join("uno.txt")).unwrap().permissions().mode() & 0o777, 0o600);
+    assert!(!a.join(".uno.txt.rootree-part").exists());
+    // e la copia di sicurezza: l'originale, una sola per file, cartella 700
+    let copie = root.join("copie/di-sicurezza");
+    let nome = fs::canonicalize(a.join("uno.txt")).unwrap().to_string_lossy().trim_start_matches('/').replace('/', "%");
+    assert_eq!(fs::read_to_string(copie.join(&nome)).unwrap(), "uno");
+    crate::write_text(&s(&a.join("uno.txt")), "terzo").unwrap();
+    assert_eq!(fs::read_to_string(copie.join(&nome)).unwrap(), "nuovo testo");
+    assert_eq!(fs::read_dir(&copie).unwrap().count(), 1);
+    assert_eq!(fs::metadata(&copie).unwrap().permissions().mode() & 0o777, 0o700);
+
+    // spenta la modalità, l'helper finisce e tutto torna locale
+    crate::root::stop();
+    t.join().unwrap();
+    assert!(!crate::root::active());
+    assert!(crate::list_dir(&s(&a), false, 0, false, true).is_ok());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn salvataggio_con_copia_di_sicurezza() {
+    let root = tmp(false);
+    let f = root.join("conf");
+    fs::write(&f, "vecchio").unwrap();
+    fs::set_permissions(&f, fs::Permissions::from_mode(0o640)).unwrap();
+    // un file nuovo: niente copia
+    assert_eq!(fsops::write_text(&s(&root.join("nuovo")), "x", false).unwrap(), "");
+    fsops::write_text(&s(&f), "nuovo", false).unwrap();
+    assert_eq!(fs::read_to_string(&f).unwrap(), "nuovo");
+    assert_eq!(fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o640);
+    // un link si salva sul file vero, e il link resta link
+    symlink("conf", root.join("collegamento")).unwrap();
+    fsops::write_text(&s(&root.join("collegamento")), "dal link", false).unwrap();
+    assert_eq!(fs::read_to_string(&f).unwrap(), "dal link");
+    assert!(fs::symlink_metadata(root.join("collegamento")).unwrap().file_type().is_symlink());
+    let _ = fs::remove_dir_all(root);
+}
