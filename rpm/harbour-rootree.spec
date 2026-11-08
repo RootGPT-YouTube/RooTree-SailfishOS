@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.1
-Release:    5
+Release:    6
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,11 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-6
+- Editing an open connection now takes effect: a new start folder is used
+  at once, and a changed address, port, user, key or sign-in method closes
+  the connection so the next tap reconnects with the new data.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-5
 - The connections file is reloaded when it changes on disk, instead of
   being overwritten later with the stale copy kept in memory.

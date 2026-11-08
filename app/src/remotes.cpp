@@ -261,9 +261,30 @@ QString Remotes::save(const QVariantMap &profile)
         p.insert(QStringLiteral("id"), id);
         m_list.append(p);
     } else {
+        const QVariantMap old = get(id);
         for (QVariant &v : m_list)
             if (v.toMap().value(QStringLiteral("id")).toString() == id)
                 v = p;
+        // ⛔ una connessione aperta non deve restare coi dati vecchi (08/11:
+        //    la cartella iniziale cambiata da «Modifica» veniva ignorata,
+        //    si rientrava dalla cartella d'ingresso del collegamento)
+        static const char *const how[] = {"type", "host", "port", "user", "auth", "keyPath", "secure", "share", "domain", "bucket", "region"};
+        bool reconnect = false;
+        for (const char *k : how)
+            reconnect |= old.value(QLatin1String(k)) != p.value(QLatin1String(k));
+        if (reconnect) {
+            if (isConnected(id))
+                rootree::remote_disconnect(qtrust::str(id));
+            m_entry.remove(id);
+        } else if (m_entry.contains(id)) {
+            const QString path = p.value(QStringLiteral("path")).toString().trimmed();
+            m_entry.insert(id, QStringLiteral("/@remote/") + id + (path.isEmpty() || path == QStringLiteral("/") ? QString() : path));
+            // vuota = la home sul server, che si sa solo collegandosi: si ricollega
+            if (path.isEmpty()) {
+                rootree::remote_disconnect(qtrust::str(id));
+                m_entry.remove(id);
+            }
+        }
     }
     if (!secret.isEmpty())
         m_secrets.insert(id, secret);
