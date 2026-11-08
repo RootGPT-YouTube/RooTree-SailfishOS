@@ -803,9 +803,32 @@ Window {
             color: Style.text
             font.pixelSize: Style.fontM
             selectByMouse: true
+            // la selezione resta mentre si toccano i pulsanti qui sotto
+            persistentSelection: true
             selectionColor: Style.accent
             background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: field.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
             onAccepted: { nameDialog.close(); nameDialog.chosen("accept") }
+        }
+        // selezionare e copiare il nome (o una parte: trascinando o col doppio
+        // tocco su una parola), richiesta dell'utente dell'08/11
+        Flow {
+            width: parent.width
+            spacing: 6 * Style.dp
+            SteelPill { text: Style.t("Tutto", "All"); onClicked: { field.forceActiveFocus(); field.selectAll() } }
+            SteelPill {
+                text: Style.t("Senza estensione", "Without extension")
+                visible: field.text.lastIndexOf(".") > 0
+                onClicked: { field.forceActiveFocus(); field.select(0, field.text.lastIndexOf(".")) }
+            }
+            SteelPill {
+                text: Style.t("Copia", "Copy")
+                onClicked: {
+                    if (field.selectedText === "") field.selectAll()
+                    field.copy()
+                    toast.show(Style.t("Copiato: ", "Copied: ") + field.selectedText)
+                }
+            }
+            SteelPill { text: Style.t("Incolla", "Paste"); enabled: field.canPaste; onClicked: { field.forceActiveFocus(); field.paste() } }
         }
         Text { font.family: Style.fontFamily; visible: nameDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: nameDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
     }
