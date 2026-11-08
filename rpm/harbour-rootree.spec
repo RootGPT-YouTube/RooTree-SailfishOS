@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.2
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-2
+- A progress card appears as soon as an operation starts: what it is doing,
+  the current file, a thick progress bar (a moving wave while preparing),
+  percentage, speed and time left, Cancel; tapping it opens the operations
+  list.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-1
 - Phase 5, step 3: files move between the phone and SFTP servers with the
   same queue as local operations (progress, Cancel, conflicts): copy, cut

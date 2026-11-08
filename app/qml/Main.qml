@@ -557,6 +557,13 @@ Window {
         }
     }
 
+    // ── la scheda d'avanzamento: un'operazione è partita e si vede ──────────
+    ProgressCard {
+        anchors { left: parent.left; right: parent.right; bottom: status.top; leftMargin: 8 * Style.dp; rightMargin: 8 * Style.dp; bottomMargin: 4 * Style.dp }
+        z: 3
+        onOpenJobs: jobsSheet.open()
+    }
+
     // ── riga di stato, come la barra di stato di Dolphin ────────────────────
     Text {
         font.family: Style.fontFamily
