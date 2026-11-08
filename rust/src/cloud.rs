@@ -34,7 +34,7 @@ pub trait Drive: Send + Sync {
 }
 
 pub fn is_cloud_type(kind: &str) -> bool {
-    matches!(kind, "dropbox" | "onedrive")
+    matches!(kind, "dropbox")
 }
 
 pub fn sink(d: Arc<dyn Drive>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
@@ -66,11 +66,6 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, Strin
             // prova subito: token valido e account raggiungibile
             d.rpc("users/get_current_account", Value::Null).map_err(|e| e.to_string())?;
             let _ = p.id;
-            Ok(Arc::new(d))
-        }
-        "onedrive" => {
-            let d = OneDrive { auth };
-            d.get_json(&format!("{GRAPH}/me/drive")).map_err(|e| e.to_string())?;
             Ok(Arc::new(d))
         }
         k => Err(format!("UNSUPPORTED:«{k}» arriva più avanti")),
@@ -325,233 +320,10 @@ impl crate::vfs::Sink for DropboxSink {
     }
 }
 
-// ------------------------------------------------------------------ OneDrive
-// Microsoft Graph v1.0, indirizzi per percorso:
-// https://learn.microsoft.com/graph/onedrive-addressing-driveitems
-// Caricamento: fino a 4 MB un PUT …:/content; sopra, una sessione
-// (createUploadSession) e pezzi multipli di 320 KiB sull'uploadUrl, che è già
-// autorizzato (senza Bearer), con Content-Range che vuole il TOTALE.
-
-const GRAPH: &str = "https://graph.microsoft.com/v1.0";
-const OD_SIMPLE_MAX: u64 = 4 << 20;
-/// 32 × 320 KiB = 10 MiB: multiplo di 320 KiB, sotto i 60 MiB massimi
-const OD_CHUNK: usize = 32 * 320 * 1024;
-
-pub struct OneDrive {
-    auth: Auth,
-}
-
-/// L'elemento per percorso: «/me/drive/root» o «/me/drive/root:/a/b:» (con
-/// i «:» per poterci attaccare /children, /content…).
-fn od_item(path: &str) -> String {
-    let p = path.trim_end_matches('/');
-    if p.is_empty() { format!("{GRAPH}/me/drive/root") } else { format!("{GRAPH}/me/drive/root:{}:", http::pct(p, true)) }
-}
-
-/// Per i PATCH di spostamento: il genitore come «/drive/root:/a» (radice «/drive/root:»).
-fn od_parent_ref(parent: &str) -> String {
-    let p = parent.trim_end_matches('/');
-    format!("/drive/root:{p}")
-}
-
-fn od_stat(e: &Value) -> RStat {
-    let dir = !e["folder"].is_null();
-    RStat {
-        is_dir: dir,
-        is_file: !dir,
-        is_link: false,
-        size: if dir { 0 } else { e["size"].as_u64().unwrap_or(0) },
-        mode: if dir { 0o755 } else { 0o644 },
-        mtime: e["lastModifiedDateTime"].as_str().map(http::rfc3339).unwrap_or(0),
-    }
-}
-
-fn split_parent(path: &str) -> (String, String) {
-    let p = path.trim_end_matches('/');
-    match p.rsplit_once('/') {
-        Some((dir, name)) => (if dir.is_empty() { "/".into() } else { dir.into() }, name.into()),
-        None => ("/".into(), p.into()),
-    }
-}
-
-impl OneDrive {
-    fn get_json(&self, url: &str) -> io::Result<Value> {
-        let r = self.auth.send(&|bearer| http::agent().get(url).header("Authorization", bearer).call())?;
-        ok_json(r)
-    }
-
-    fn send_json(&self, method: &str, url: &str, body: Value) -> io::Result<Value> {
-        let b = body.to_string();
-        let r = self.auth.send(&|bearer| {
-            let req = match method {
-                "PATCH" => http::agent().patch(url),
-                _ => http::agent().post(url),
-            };
-            req.header("Authorization", bearer).header("Content-Type", "application/json").send(b.as_str())
-        })?;
-        ok_json(r)
-    }
-}
-
-impl Drive for OneDrive {
-    fn stat(&self, path: &str) -> io::Result<RStat> {
-        let p = path.trim_end_matches('/');
-        let url = if p.is_empty() { format!("{GRAPH}/me/drive/root") } else { format!("{GRAPH}/me/drive/root:{}", http::pct(p, true)) };
-        Ok(od_stat(&self.get_json(&url)?))
-    }
-
-    fn list(&self, path: &str) -> io::Result<Vec<(String, RStat)>> {
-        let mut out = Vec::new();
-        let mut url = format!("{}/children?$top=200&$select=name,size,folder,file,lastModifiedDateTime", od_item(path));
-        loop {
-            let v = self.get_json(&url)?;
-            for e in v["value"].as_array().into_iter().flatten() {
-                out.push((e["name"].as_str().unwrap_or("").to_string(), od_stat(e)));
-            }
-            match v["@odata.nextLink"].as_str() {
-                Some(next) => url = next.to_string(),
-                None => break,
-            }
-        }
-        Ok(out)
-    }
-
-    fn read(&self, path: &str) -> io::Result<Box<dyn Read + Send>> {
-        // …/content risponde con un rinvio a un indirizzo già autorizzato; ureq lo segue
-        let url = format!("{}/content", od_item(path));
-        let mut r = self.auth.send(&|bearer| http::agent().get(&url).header("Authorization", bearer).call())?;
-        let status = r.status().as_u16();
-        if status != 200 {
-            let body = body_string(&mut r);
-            return Err(http::status_error(status, &body));
-        }
-        Ok(Box::new(r.into_body().into_reader()))
-    }
-
-    fn writer(self: Arc<Self>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
-        Ok(Box::new(OneDriveSink { drive: self, path: path.trim_end_matches('/').to_string(), size, buf: Vec::new(), upload_url: None, offset: 0, done: false }))
-    }
-
-    fn mkdir(&self, path: &str) -> io::Result<()> {
-        let (parent, name) = split_parent(path);
-        let body = json!({ "name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "fail" });
-        self.send_json("POST", &format!("{}/children", od_item(&parent)), body).map(|_| ())
-    }
-
-    fn delete(&self, path: &str) -> io::Result<()> {
-        let p = path.trim_end_matches('/');
-        let url = format!("{GRAPH}/me/drive/root:{}", http::pct(p, true));
-        let r = self.auth.send(&|bearer| http::agent().delete(&url).header("Authorization", bearer).call())?;
-        ok_json(r).map(|_| ())
-    }
-
-    fn rename(&self, from: &str, to: &str) -> io::Result<()> {
-        let f = from.trim_end_matches('/');
-        let (parent, name) = split_parent(to);
-        let body = json!({ "name": name, "parentReference": { "path": od_parent_ref(&parent) }, "@microsoft.graph.conflictBehavior": "fail" });
-        self.send_json("PATCH", &format!("{GRAPH}/me/drive/root:{}", http::pct(f, true)), body).map(|_| ())
-    }
-}
-
-/// Fino a 4 MB tutto in memoria e un PUT a flush; sopra (dimensione nota) una
-/// sessione, con i pezzi che partono mentre si scrive.
-struct OneDriveSink {
-    drive: Arc<OneDrive>,
-    path: String,
-    size: Option<u64>,
-    buf: Vec<u8>,
-    upload_url: Option<String>,
-    offset: u64,
-    done: bool,
-}
-
-impl OneDriveSink {
-    fn big(&self) -> bool {
-        self.size.is_some_and(|s| s > OD_SIMPLE_MAX)
-    }
-
-    fn session(&mut self) -> io::Result<String> {
-        if let Some(u) = &self.upload_url {
-            return Ok(u.clone());
-        }
-        let url = format!("{GRAPH}/me/drive/root:{}:/createUploadSession", http::pct(&self.path, true));
-        let v = self.drive.send_json("POST", &url, json!({ "item": { "@microsoft.graph.conflictBehavior": "replace" } }))?;
-        let u = v["uploadUrl"].as_str().ok_or_else(|| io::Error::other("OneDrive: sessione di caricamento senza indirizzo"))?.to_string();
-        self.upload_url = Some(u.clone());
-        Ok(u)
-    }
-
-    fn push(&mut self, data: &[u8]) -> io::Result<()> {
-        let total = self.size.unwrap_or(0);
-        let url = self.session()?;
-        let end = self.offset + data.len() as u64 - 1;
-        // ⛔ l'uploadUrl è già autorizzato: niente intestazione Authorization
-        let mut r = http::agent()
-            .put(&url)
-            .header("Content-Range", format!("bytes {}-{end}/{total}", self.offset))
-            .send(data)
-            .map_err(http::net)?;
-        let status = r.status().as_u16();
-        if !(200..300).contains(&status) {
-            let body = body_string(&mut r);
-            return Err(http::status_error(status, &body));
-        }
-        self.offset += data.len() as u64;
-        Ok(())
-    }
-}
-
-impl Write for OneDriveSink {
-    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        self.buf.extend_from_slice(data);
-        if self.big() && self.buf.len() >= OD_CHUNK {
-            let chunk: Vec<u8> = self.buf.drain(..OD_CHUNK).collect();
-            self.push(&chunk)?;
-        }
-        Ok(data.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        if self.done {
-            return Ok(());
-        }
-        if self.big() {
-            let rest = std::mem::take(&mut self.buf);
-            if !rest.is_empty() {
-                self.push(&rest)?;
-            }
-            if Some(self.offset) != self.size {
-                return Err(io::Error::other(format!("OneDrive: caricati {} byte su {:?}", self.offset, self.size)));
-            }
-        } else {
-            let data = std::mem::take(&mut self.buf);
-            let url = format!("{GRAPH}/me/drive/root:{}:/content", http::pct(&self.path, true));
-            let r = self.drive.auth.send(&|bearer| {
-                http::agent().put(&url).header("Authorization", bearer).header("Content-Type", "application/octet-stream").send(&data[..])
-            })?;
-            ok_json(r)?;
-        }
-        self.done = true;
-        Ok(())
-    }
-}
-
-impl crate::vfs::Sink for OneDriveSink {
-    fn sync(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod prove {
     #[test]
-    fn indirizzi_onedrive() {
-        assert_eq!(super::od_item("/"), "https://graph.microsoft.com/v1.0/me/drive/root");
-        assert_eq!(super::od_item("/Foto mare/è"), "https://graph.microsoft.com/v1.0/me/drive/root:/Foto%20mare/%C3%A8:");
-        assert_eq!(super::od_parent_ref("/"), "/drive/root:");
-        assert_eq!(super::od_parent_ref("/Documenti"), "/drive/root:/Documenti");
-        assert_eq!(super::split_parent("/a/b.txt"), ("/a".to_string(), "b.txt".to_string()));
-        assert_eq!(super::split_parent("/b.txt"), ("/".to_string(), "b.txt".to_string()));
+    fn indirizzi_dropbox() {
         assert_eq!(super::dbx_path("/"), "");
         assert_eq!(super::dbx_path("/x/"), "/x");
     }

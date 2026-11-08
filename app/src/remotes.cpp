@@ -255,7 +255,6 @@ QVariantList Remotes::types() const
         type("s3", QStringLiteral("S3 / compatibile"), "server", "s3", 443, pw, true, false),
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
         // un cloud alla volta (scelta dell'utente, 08/11): questi arrivano dopo Dropbox
-        type("onedrive", QStringLiteral("OneDrive"), "cloud", "onedrive", 0, {QStringLiteral("oauth")}, false, true),
         soon(type("gdrive", QStringLiteral("Google Drive"), "cloud", "gdrive", 0, {QStringLiteral("oauth")}, false, true)),
         soon(type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false)),
     };

@@ -1,6 +1,6 @@
 //! Prova a mano: HTTPS dal telefono con l'OpenSSL di sistema (non va nel pacchetto).
 fn main() {
-    for url in ["https://api.dropboxapi.com/2/users/get_current_account", "https://graph.microsoft.com/v1.0/me", "https://www.googleapis.com/drive/v3/about"] {
+    for url in ["https://api.dropboxapi.com/2/users/get_current_account", "https://www.googleapis.com/drive/v3/about"] {
         let r = rootree_core::http::agent().post(url).header("Content-Type", "application/json").send("null");
         match r {
             Ok(mut resp) => {

@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.4
-Release:    2
+Version:    0.6.5
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,13 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.5-1
+- OneDrive removed: registering an app on the Microsoft portal is too
+  complicated to ask of every user.
+- Dropbox instructions: they now list exactly which permission boxes to tick
+  and warn against the team permissions, which make Dropbox answer "Sign in
+  with a work account".
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.4-2
 - Connection wizard: the developer sites in the instructions (Dropbox App
   Console, Microsoft Entra / Azure portal) are tappable links that open the

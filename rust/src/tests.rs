@@ -777,13 +777,3 @@ fn accesso_dal_browser_ascolta_e_controlla_lo_state() {
     assert!(crate::oauth::begin("t2", "dropbox", "  ").unwrap_err().starts_with("CLIENTID:"));
 }
 
-#[test]
-fn onedrive_indirizzi_e_accesso() {
-    let url = crate::oauth::begin("od", "onedrive", "id-app-di-prova").unwrap();
-    assert!(url.starts_with("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"));
-    assert!(url.contains("scope=Files.ReadWrite%20offline_access%20User.Read"));
-    let redirect = url.split("redirect_uri=").nth(1).unwrap().split('&').next().unwrap().replace("%3A", ":").replace("%2F", "/");
-    // registrato «http://localhost» senza percorso: la porta cambia, la barra finale no
-    assert!(redirect.starts_with("http://localhost:") && !redirect.ends_with('/'), "{redirect}");
-    crate::oauth::cancel("od");
-}

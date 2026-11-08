@@ -358,3 +358,8 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   «http://localhost», porta ignorata), ascolto anche su ::1. 32 test; col
   binario vero: indirizzo d'accesso, scope, Annulla. ⏳ Prova con account
   vero: serve l'ID dell'app dell'utente.
+- **08/11 — OneDrive TOLTO (0.6.5-1, decisione dell'utente):** seguire il
+  portale Microsoft è troppo complicato. Via codice, icone e voce nella
+  procedura; il parametro `size` di `vfs::create` resta. **Dropbox provato
+  con account vero: funziona.** «Accedi con un account di lavoro» = app con
+  permessi di team: la procedura ora elenca le caselle esatte.

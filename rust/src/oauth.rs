@@ -7,8 +7,6 @@
 //! - Google: client «Desktop app», ritorno su loopback con porta qualsiasi,
 //!   PKCE sempre; il client_secret delle app desktop non è segreto ed è
 //!   facoltativo nello scambio (developers.google.com/identity/protocols/oauth2/native-app);
-//! - Microsoft: `http://localhost` ammesso per le app desktop, porta ignorata
-//!   nel confronto (learn.microsoft.com/entra/identity-platform/reply-url);
 //! - Dropbox: PKCE senza segreto, `token_access_type=offline` per il rinnovo,
 //!   indirizzo di ritorno registrato ESATTO (quindi porta fissa)
 //!   (docs.dropboxapi.com/dropbox-api/docs/oauth).
@@ -49,14 +47,6 @@ pub fn provider(kind: &str) -> Option<Provider> {
             scope: "https://www.googleapis.com/auth/drive",
             extra: &[("access_type", "offline"), ("prompt", "consent")],
             host: "127.0.0.1",
-            port: 0,
-        },
-        "onedrive" => Provider {
-            auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-            token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-            scope: "Files.ReadWrite offline_access User.Read",
-            extra: &[],
-            host: "localhost",
             port: 0,
         },
         "dropbox" => Provider {
