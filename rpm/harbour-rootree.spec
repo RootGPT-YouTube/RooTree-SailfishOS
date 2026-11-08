@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.2
-Release:    2
+Release:    3
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-3
+- Copying a folder where a folder with the same name exists now asks, like
+  Dolphin: Merge, Keep both, Skip or Cancel, with "Do this for all folders"
+  (separate from the files' choice). Subfolders of a merged folder are
+  merged without asking again.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-2
 - A progress card appears as soon as an operation starts: what it is doing,
   the current file, a thick progress bar (a moving wave while preparing),

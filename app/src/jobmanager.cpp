@@ -97,6 +97,7 @@ void JobManager::poll()
             {QStringLiteral("askSrc"), qtrust::qs(s.ask_src)},
             {QStringLiteral("askDst"), qtrust::qs(s.ask_dst)},
             {QStringLiteral("askDstIsDir"), s.ask_dst_is_dir},
+            {QStringLiteral("askSrcIsDir"), s.ask_src_is_dir},
             {QStringLiteral("dest"), qtrust::qs(s.dest)},
             {QStringLiteral("firstSource"), qtrust::qs(s.first_source)},
             {QStringLiteral("sources"), qint64(s.sources)},

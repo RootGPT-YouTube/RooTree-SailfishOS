@@ -1398,17 +1398,26 @@ Window {
         property var src: ({})
         property var dst: ({})
         readonly property bool conflict: q.state === 3
-        title: conflict ? Style.t("Esiste già", "Already exists") : Style.t("Errore", "Error")
-        message: conflict
+        // cartella su cartella: «unire?», come Dolphin (richiesta dell'utente, 08/11)
+        readonly property bool dirConflict: conflict && q.askSrcIsDir === true && q.askDstIsDir === true
+        title: dirConflict ? Style.t("La cartella esiste già", "Folder already exists")
+             : conflict ? Style.t("Esiste già", "Already exists") : Style.t("Errore", "Error")
+        message: dirConflict
+            ? Style.t("In «" + (q.askDst || "").split("/").slice(-2, -1)[0] + "» c'è già una cartella «" + (q.askDst || "").split("/").pop() + "». Vuoi unire il contenuto? I file con lo stesso nome verranno chiesti uno per uno.",
+                      "“" + (q.askDst || "").split("/").slice(-2, -1)[0] + "” already has a folder “" + (q.askDst || "").split("/").pop() + "”. Merge the contents? Files with the same name will be asked one by one.")
+            : conflict
             ? Style.t("In «" + (q.askDst || "").split("/").slice(-2, -1)[0] + "» c'è già «" + (q.askDst || "").split("/").pop() + "».",
                       "“" + (q.askDst || "").split("/").pop() + "” already exists in “" + (q.askDst || "").split("/").slice(-2, -1)[0] + "”.")
             : "«" + (q.askSrc || "").split("/").pop() + "»: " + (q.error || "")
-        buttons: conflict
+        buttons: dirConflict
+            ? [{ text: Style.t("Unisci", "Merge"), role: "merge" }, { text: Style.t("Tieni entrambe", "Keep both"), role: "keep" },
+               { text: Style.t("Salta", "Skip"), role: "skip" }, { text: Style.t("Annulla", "Cancel"), role: "cancel" }]
+            : conflict
             ? (q.askDstIsDir ? [] : [{ text: Style.t("Sovrascrivi", "Overwrite"), role: "overwrite" }])
                 .concat([{ text: Style.t("Tieni entrambi", "Keep both"), role: "keep" }, { text: Style.t("Salta", "Skip"), role: "skip" }, { text: Style.t("Annulla", "Cancel"), role: "cancel" }])
             : [{ text: Style.t("Riprova", "Retry"), role: "retry" }, { text: Style.t("Salta", "Skip"), role: "skip" }, { text: Style.t("Annulla", "Cancel"), role: "cancel" }]
         onChosen: function (role) {
-            var a = { overwrite: 0, skip: 1, keep: 2, cancel: 3, retry: 4 }[role]
+            var a = { overwrite: 0, skip: 1, keep: 2, cancel: 3, retry: 4, merge: 5 }[role]
             Jobs.resolve(q.id, a, applyAll.checked)
         }
         Text {
@@ -1418,10 +1427,14 @@ Window {
             wrapMode: Text.Wrap
             color: Style.dim
             font.pixelSize: Style.fontS
-            text: Style.t("Nuovo: ", "New: ") + Style.size(question.src.size || 0) + ", " + Style.date(question.src.mtime) + "\n"
+            text: Style.t("Nuovo: ", "New: ") + (question.src.isDir ? Style.t("cartella", "folder") : Style.size(question.src.size || 0)) + ", " + Style.date(question.src.mtime) + "\n"
                   + Style.t("Esistente: ", "Existing: ") + (question.dst.isDir ? Style.t("cartella", "folder") : Style.size(question.dst.size || 0)) + ", " + Style.date(question.dst.mtime)
         }
-        CheckRow { id: applyAll; text: question.conflict ? Style.t("Fai così per tutti", "Do this for all") : Style.t("Salta tutti gli errori", "Skip all errors") }
+        CheckRow {
+            id: applyAll
+            text: question.dirConflict ? Style.t("Fai così per tutte le cartelle", "Do this for all folders")
+                : question.conflict ? Style.t("Fai così per tutti i file", "Do this for all files") : Style.t("Salta tutti gli errori", "Skip all errors")
+        }
     }
     Connections {
         target: Jobs

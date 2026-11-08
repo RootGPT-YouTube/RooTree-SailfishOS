@@ -202,7 +202,15 @@ fn spostamento_con_conflitto_saltato_tiene_la_sorgente() {
     fs::write(root.join("src/b"), b"bi").unwrap();
     fs::write(root.join("dst/src/a"), b"vecchio").unwrap();
     let id = jobs::move_to(vec![s(&root.join("src"))], &s(&root.join("dst")));
-    assert_eq!(wait(id).state, ST_ASK_CONFLICT);
+    // prima la cartella (dall'08/11 si chiede, come in Dolphin): unire
+    let st = wait(id);
+    assert_eq!(st.state, ST_ASK_CONFLICT);
+    assert!(st.ask_src_is_dir && st.ask_dst_is_dir);
+    jobs::resolve(id, ANS_MERGE, false);
+    // poi il file dentro
+    let st = wait(id);
+    assert_eq!(st.state, ST_ASK_CONFLICT);
+    assert!(!st.ask_src_is_dir);
     jobs::resolve(id, ANS_SKIP, false);
     assert_eq!(wait(id).state, ST_DONE);
     // b spostato, a saltato: la sorgente di a non si tocca
@@ -677,4 +685,49 @@ fn percorsi_remoti() {
     assert_eq!(split("/@remote/"), None);
     // la lista di una cartella remota senza connessione: errore chiaro, niente panico
     assert!(crate::list_dir("/@remote/nessuna/x", false, 0, false, true).err().unwrap_or_default().contains("NOTCONNECTED"));
+}
+
+#[test]
+fn cartella_su_cartella_si_chiede_come_dolphin() {
+    let root = tmp(false);
+    // due cartelle da copiare, entrambe già presenti nella destinazione; la
+    // prima ha una sottocartella che c'è già anche lei
+    for d in ["foto/viaggio", "musica"] {
+        fs::create_dir_all(root.join("src").join(d)).unwrap();
+        fs::create_dir_all(root.join("dst").join(d)).unwrap();
+    }
+    fs::write(root.join("src/foto/viaggio/nuova.jpg"), b"n").unwrap();
+    fs::write(root.join("dst/foto/viaggio/vecchia.jpg"), b"v").unwrap();
+    fs::write(root.join("src/musica/brano.mp3"), b"m").unwrap();
+    let srcs = vec![s(&root.join("src/foto")), s(&root.join("src/musica"))];
+
+    // «Unisci» per tutte le cartelle: una domanda sola, la sottocartella
+    // «viaggio» (già presente) si unisce senza richiedere
+    let id = jobs::copy(srcs.clone(), &s(&root.join("dst")));
+    let st = wait(id);
+    assert_eq!(st.state, ST_ASK_CONFLICT);
+    assert!(st.ask_src_is_dir && st.ask_dst_is_dir);
+    assert!(st.ask_dst.ends_with("dst/foto"));
+    jobs::resolve(id, ANS_MERGE, true);
+    assert_eq!(wait(id).state, ST_DONE);
+    assert!(root.join("dst/foto/viaggio/nuova.jpg").exists() && root.join("dst/foto/viaggio/vecchia.jpg").exists());
+    assert!(root.join("dst/musica/brano.mp3").exists());
+    jobs::forget(id);
+
+    // «Tieni entrambi»: la nuova arriva come «foto (1)», la vecchia non si tocca
+    let id = jobs::copy(vec![srcs[0].clone()], &s(&root.join("dst")));
+    assert_eq!(wait(id).state, ST_ASK_CONFLICT);
+    jobs::resolve(id, ANS_KEEP_BOTH, false);
+    assert_eq!(wait(id).state, ST_DONE);
+    assert!(root.join("dst/foto (1)/viaggio/nuova.jpg").exists());
+    assert!(!root.join("dst/foto (1)/viaggio/vecchia.jpg").exists());
+    jobs::forget(id);
+
+    // «Salta»: niente cambia
+    let id = jobs::copy(vec![srcs[1].clone()], &s(&root.join("dst")));
+    assert_eq!(wait(id).state, ST_ASK_CONFLICT);
+    jobs::resolve(id, ANS_SKIP, false);
+    assert_eq!(wait(id).state, ST_DONE);
+    assert!(!root.join("dst/musica (1)").exists());
+    let _ = fs::remove_dir_all(root);
 }

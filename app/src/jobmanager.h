@@ -23,7 +23,7 @@ public:
     // come in jobs.rs
     enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5 };
     enum State { Queued = 0, Scanning, Running, AskConflict, AskError, Done, Failed, Cancelled };
-    enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry };
+    enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry, Merge };
     Q_ENUM(Kind)
     Q_ENUM(State)
     Q_ENUM(Answer)

@@ -77,6 +77,8 @@ mod ffi {
         ask_src: String,
         ask_dst: String,
         ask_dst_is_dir: bool,
+        /// conflitto fra due cartelle (la domanda è «unire?», come in Dolphin)
+        ask_src_is_dir: bool,
         dest: String,
         first_source: String,
         sources: u64,

@@ -45,6 +45,8 @@ pub const ANS_SKIP: u8 = 1;
 pub const ANS_KEEP_BOTH: u8 = 2;
 pub const ANS_CANCEL: u8 = 3;
 pub const ANS_RETRY: u8 = 4;
+/// cartella su cartella: il contenuto va dentro quella che c'è già
+pub const ANS_MERGE: u8 = 5;
 
 const CHUNK: usize = 1 << 20;
 const SYNC_EVERY: usize = 8 << 20;
@@ -112,6 +114,7 @@ fn new_job(kind: u8, sources: &[String], dest: &str) -> Arc<Job> {
         ask_src: String::new(),
         ask_dst: String::new(),
         ask_dst_is_dir: false,
+        ask_src_is_dir: false,
         dest: dest.into(),
         first_source: sources.first().cloned().unwrap_or_default(),
         sources: sources.len() as u64,
@@ -288,12 +291,14 @@ type Res<T> = Result<T, Stop>;
 struct Run {
     job: Arc<Job>,
     conflict_all: Option<u8>,
+    /// la risposta «per tutte le cartelle» (separata da quella dei file, come in Dolphin)
+    dir_conflict_all: Option<u8>,
     skip_errors: bool,
 }
 
 impl Run {
     fn new(job: Arc<Job>) -> Self {
-        Run { job, conflict_all: None, skip_errors: false }
+        Run { job, conflict_all: None, dir_conflict_all: None, skip_errors: false }
     }
 
     fn set(&self, f: impl FnOnce(&mut JobStatus)) {
@@ -380,9 +385,29 @@ impl Run {
             s.ask_src = src.to_string_lossy().into_owned();
             s.ask_dst = dst.to_string_lossy().into_owned();
             s.ask_dst_is_dir = dst_is_dir;
+            s.ask_src_is_dir = false;
         })?;
         if all {
             self.conflict_all = Some(action);
+        }
+        Ok(action)
+    }
+
+    /// Una cartella dove c'è già una cartella con lo stesso nome: unire,
+    /// tenere entrambe, saltare (o annullare). Chiesto come in Dolphin
+    /// (richiesta dell'utente dell'08/11: prima si univa senza chiedere).
+    fn on_dir_conflict(&mut self, src: &Path, dst: &Path) -> Res<u8> {
+        if let Some(a) = self.dir_conflict_all {
+            return Ok(a);
+        }
+        let (action, all) = self.ask(ST_ASK_CONFLICT, |s| {
+            s.ask_src = src.to_string_lossy().into_owned();
+            s.ask_dst = dst.to_string_lossy().into_owned();
+            s.ask_dst_is_dir = true;
+            s.ask_src_is_dir = true;
+        })?;
+        if all {
+            self.dir_conflict_all = Some(action);
         }
         Ok(action)
     }
@@ -448,7 +473,7 @@ impl Run {
             if is_move && self.try_rename(src, &target)? {
                 continue;
             }
-            let copied = self.copy_entry(src, &target)?;
+            let copied = self.copy_entry(src, &target, false)?;
             fsops::adopt_tree(&target);
             if is_move && copied {
                 self.remove_source(src)?;
@@ -649,7 +674,9 @@ impl Run {
 
     /// Copia ricorsiva. `Ok(true)` = copiato per intero (nello spostamento la
     /// sorgente si può cancellare); `Ok(false)` = qualcosa è stato saltato.
-    fn copy_entry(&mut self, src: &Path, target: &Path) -> Res<bool> {
+    /// `merging`: si è dentro una cartella che l'utente ha scelto di unire:
+    /// le sottocartelle che ci sono già si uniscono senza richiedere.
+    fn copy_entry(&mut self, src: &Path, target: &Path, merging: bool) -> Res<bool> {
         self.check()?;
         self.set(|s| s.current = src.to_string_lossy().into_owned());
         let meta = loop {
@@ -667,7 +694,17 @@ impl Run {
 
         if meta.is_dir {
             match exists {
-                // cartella su cartella: si fondono, i conflitti si vedono file per file
+                // cartella su cartella: si chiede (dentro un'unione si unisce)
+                Some(m) if m.is_dir && !merging => match self.on_dir_conflict(src, &target)? {
+                    ANS_SKIP => {
+                        let mut n = Totals::default();
+                        scan(src, &mut n, &self.job.cancel);
+                        self.progress(n.files + n.dirs, n.bytes);
+                        return Ok(false);
+                    }
+                    ANS_KEEP_BOTH => target = unique_name(&target),
+                    _ => {} // unisci
+                },
                 Some(m) if m.is_dir => {}
                 Some(_) => match self.on_conflict(src, &target)? {
                     ANS_SKIP => {
@@ -706,7 +743,8 @@ impl Run {
             };
             for child in children {
                 let name = child.file_name().unwrap().to_owned();
-                all &= self.copy_entry(&child, &target.join(name))?;
+                // dentro una cartella unita (o appena creata) le sottocartelle si uniscono
+                all &= self.copy_entry(&child, &target.join(name), true)?;
             }
             // i permessi dopo i figli: una cartella in sola lettura non
             // impedisce di riempirla
