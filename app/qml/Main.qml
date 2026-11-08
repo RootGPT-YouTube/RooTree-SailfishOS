@@ -631,6 +631,40 @@ Window {
         currentPath: folder.path
         onNavigate: function (p) { win.go(p) }
         onClosed: win.places = places
+        onAddConnection: wizard.openNew()
+        onOpenConnection: function (p) {
+            // step 1 della Fase 5: l'interfaccia; il collegamento vero arriva dopo
+            toast.show(Style.t("«" + p.name + "»: il collegamento arriva nel prossimo passo della Fase 5.",
+                               "“" + p.name + "”: connecting comes in the next step of phase 5."))
+        }
+        onConnectionActions: function (p) { connectionMenu.profile = p; connectionMenu.open() }
+    }
+
+    // ── connessioni remote ──────────────────────────────────────────────────
+    ConnectionWizard {
+        id: wizard
+        onSaved: function (id) { toast.show(Style.t("Connessione salvata: la trovi nel menù delle memorie", "Connection saved: find it in the storage menu")) }
+    }
+    Sheet {
+        id: connectionMenu
+        property var profile: ({})
+        title: profile.name || ""
+        MenuRow { icon: "rename"; text: Style.t("Modifica", "Edit"); onClicked: { connectionMenu.close(); wizard.openFor(connectionMenu.profile) } }
+        MenuRow { icon: "copy"; text: Style.t("Duplica", "Duplicate"); onClicked: { connectionMenu.close(); Remotes.duplicate(connectionMenu.profile.id) } }
+        MenuRow {
+            icon: "delete"
+            text: Style.t("Elimina", "Delete")
+            onClicked: { connectionMenu.close(); deleteConnection.profile = connectionMenu.profile; deleteConnection.open() }
+        }
+    }
+    AppDialog {
+        id: deleteConnection
+        property var profile: ({})
+        title: Style.t("Eliminare la connessione?", "Delete the connection?")
+        message: Style.t("«" + (profile.name || "") + "» sparirà dal menù. I file sul server non vengono toccati.",
+                         "“" + (profile.name || "") + "” will disappear from the menu. Files on the server are not touched.")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Elimina", "Delete"), role: "danger" }]
+        onChosen: function (role) { if (role === "danger") Remotes.remove(profile.id) }
     }
 
     Sheet {

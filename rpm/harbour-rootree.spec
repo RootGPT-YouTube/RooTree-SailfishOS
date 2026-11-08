@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.5.0
+Version:    0.6.0
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -92,6 +92,15 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.0-1
+- Phase 5, step 1: remote connections interface. A "Network and cloud"
+  section in the storage menu lists the saved connections; "Add a
+  connection…" opens a step-by-step wizard (type, server, sign-in, name)
+  for SFTP, FTP/FTPS, WebDAV, Nextcloud/ownCloud, SMB, S3, Google Drive,
+  OneDrive, Dropbox and Mega. Connections can be edited, duplicated and
+  deleted. Passwords are never written to the profiles file; connecting
+  comes in the next step.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.5.0-1
 - Root mode (new harbour-rootree-root package): turned on from the menu with
   the developer password, it starts a separate helper through devel-su; the

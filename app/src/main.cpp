@@ -10,6 +10,7 @@
 #include "foldermodel.h"
 #include "jobmanager.h"
 #include "opener.h"
+#include "remotes.h"
 #include "searchmodel.h"
 #include "thumbnailer.h"
 
@@ -36,6 +37,8 @@ int main(int argc, char *argv[])
     JobManager jobs;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Fs", &fs);
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Jobs", &jobs);
+    Remotes remotes;
+    qmlRegisterSingletonInstance("RooTree", 1, 0, "Remotes", &remotes);
     Opener opener;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Opener", &opener);
 

@@ -5,7 +5,7 @@ import "."
 
 // Il menù a tendina delle memorie (al posto del pannello «Risorse» di
 // Dolphin): Memoria interna, Memoria Android, Altre memorie (scheda SD, USB,
-// file system e, più avanti, cloud e server remoti), poi i segnalibri.
+// file system), Rete e cloud (le connessioni remote salvate), poi i segnalibri.
 // Ogni memoria si apre con la sua freccia sulle cartelle predefinite che ha
 // (Documents, Downloads, Pictures, Music, Videos).
 Popup {
@@ -16,6 +16,10 @@ Popup {
     // le memorie aperte sulle loro cartelle, per percorso
     property var openPlaces: ({})
     signal navigate(string path)
+    // le connessioni remote (Fase 5): aggiungerne una, aprirla, il suo menù
+    signal addConnection()
+    signal openConnection(var profile)
+    signal connectionActions(var profile)
 
     parent: Overlay.overlay
     modal: true
@@ -117,10 +121,46 @@ Popup {
                     detail: p ? menu.freeText(p) : ""
                     onClicked: menu.go("/")
                 }
-                // remoti: arrivano con la fase 5
-                MenuRow { indent: true; enabled: false; icon: "cloud"; text: "Cloud · Google Drive, OneDrive, Mega…"; detail: Style.t("in arrivo", "coming") }
-                MenuRow { indent: true; enabled: false; icon: "ssh"; text: "SSH / SFTP"; detail: Style.t("in arrivo", "coming") }
-                MenuRow { indent: true; enabled: false; icon: "server"; text: "Nextcloud / WebDAV"; detail: Style.t("in arrivo", "coming") }
+            }
+
+            MenuSection { text: Style.t("Rete e cloud", "Network and cloud") }
+            Repeater {
+                model: Remotes.list
+                delegate: Item {
+                    width: col.width
+                    height: Style.row
+                    MenuRow {
+                        anchors.left: parent.left
+                        anchors.right: more.left
+                        width: undefined
+                        icon: Remotes.typeInfo(modelData.type).icon || "cloud"
+                        text: modelData.name
+                        detail: ""
+                        onClicked: { menu.close(); menu.openConnection(modelData) }
+                    }
+                    Text {
+                        font.family: Style.fontFamily
+                        anchors { right: more.left; rightMargin: 2 * Style.dp; verticalCenter: parent.verticalCenter }
+                        width: Math.min(implicitWidth, parent.width * 0.42)
+                        text: Remotes.describe(modelData)
+                        color: Style.dim
+                        font.pixelSize: Style.fontS
+                        elide: Text.ElideMiddle
+                    }
+                    IconButton {
+                        id: more
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        icon: "more"
+                        onClicked: { menu.close(); menu.connectionActions(modelData) }
+                    }
+                }
+            }
+            MenuRow {
+                icon: "add"
+                text: Style.t("Aggiungi una connessione…", "Add a connection…")
+                detail: Remotes.list.length === 0 ? "SFTP, WebDAV, SMB, Drive…" : ""
+                onClicked: { menu.close(); menu.addConnection() }
             }
 
             MenuSection { text: Style.t("Segnalibri", "Bookmarks") }

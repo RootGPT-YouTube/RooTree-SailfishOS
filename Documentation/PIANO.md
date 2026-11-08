@@ -241,3 +241,28 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - Note: in una cartella leggibile solo da root l'aggiornamento automatico
     (QFileSystemWatcher dell'app) non c'è: si aggiorna dal menù. La ricerca
     gira ancora come utente.
+- **08/11 — Fase 5, step 1: interfaccia delle connessioni remote (0.6.0-1).**
+  Fase 5 divisa a step su richiesta dell'utente; stile ispirato a Solid
+  Explorer (procedura a pagine, riquadri per tipo), resa nello stile di
+  RooTundra.
+  - Menù delle memorie: sezione «Rete e cloud» con le connessioni salvate
+    (simbolo del tipo, nome, utente@server) e il loro menù ⋮ (Modifica,
+    Duplica, Elimina con conferma); «Aggiungi una connessione…».
+  - Procedura a tutto schermo, quattro passi con indicatore e filo LED che
+    avanza: Tipo (riquadri Server: SFTP, FTP/FTPS, WebDAV, Nextcloud/ownCloud,
+    SMB, S3; Cloud: Google Drive, OneDrive, Dropbox, Mega) → Server (porta
+    predefinita per tipo, FTPS/HTTPS con la porta che segue, condivisione e
+    dominio per SMB, endpoint/bucket/regione per S3; saltato dai cloud) →
+    Accesso (password, chiave SSH con controllo del file, anonimo/ospite,
+    accesso dal browser per i cloud OAuth con Client ID facoltativo per
+    Google) → Nome e riepilogo.
+  - `Remotes` (C++): profili in `~/.config/…/rootree/connessioni.json` (600).
+    Le password non vanno mai nel file: per ora restano in memoria per la
+    sessione; la cassaforte cifrata arriva con il collegamento vero.
+  - Collaudo senza dito sul POCO (QML di prova col binario vero): componenti
+    compilati, salva/descrivi/duplica/modifica/elimina, password assente dal
+    file. Toccare una connessione per ora dice che il collegamento arriva
+    nel prossimo step.
+  - Prossimi step proposti: 2 collegamento e navigazione (SFTP prima, con
+    OpenDAL; cassaforte delle password), 3 copia locale↔remoto nella stessa
+    coda, 4 WebDAV/Nextcloud, FTP, SMB, S3, 5 cloud OAuth e Mega.
