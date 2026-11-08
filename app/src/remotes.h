@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFileSystemWatcher>
 #include <QHash>
 #include <QSet>
 #include <QObject>
@@ -79,5 +80,9 @@ private:
     QVariantList m_list;
     QHash<QString, QString> m_secrets;
     QHash<QString, QString> m_entry;
+    // il file cambiato da fuori (un'altra copia di RooTree, una modifica a
+    // mano) si rilegge: mai riscriverci sopra la copia vecchia in memoria
+    QFileSystemWatcher m_watcher;
+    void watch();
     QSet<QString> m_connecting;
 };

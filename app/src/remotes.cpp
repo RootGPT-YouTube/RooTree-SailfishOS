@@ -32,6 +32,19 @@ Remotes::Remotes(QObject *parent)
     : QObject(parent)
 {
     load();
+    watch();
+    QObject::connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, [this] {
+        load();
+        watch(); // una sostituzione atomica (rename) toglie il file dalla sorveglianza
+        emit changed();
+    });
+    QObject::connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+        if (m_watcher.files().isEmpty() && QFileInfo::exists(file())) {
+            load();
+            watch();
+            emit changed();
+        }
+    });
     const QString vault = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QStringLiteral("/cassaforte.json");
     rootree::vault_set_path(qtrust::str(vault));
 }
@@ -198,6 +211,16 @@ QString Remotes::file() const
     return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QStringLiteral("/connessioni.json");
 }
 
+void Remotes::watch()
+{
+    const QString f = file();
+    QDir().mkpath(QFileInfo(f).absolutePath());
+    if (!m_watcher.directories().contains(QFileInfo(f).absolutePath()))
+        m_watcher.addPath(QFileInfo(f).absolutePath());
+    if (QFileInfo::exists(f) && !m_watcher.files().contains(f))
+        m_watcher.addPath(f);
+}
+
 void Remotes::load()
 {
     QFile f(file());
@@ -215,6 +238,7 @@ void Remotes::store()
         f.write(QJsonDocument(QJsonArray::fromVariantList(m_list)).toJson());
         f.commit();
     }
+    watch();
     emit changed();
 }
 
