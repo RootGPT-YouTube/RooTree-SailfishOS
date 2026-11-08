@@ -437,14 +437,24 @@ Popup {
                                 color: Style.dim
                                 font.pixelSize: Style.fontS
                                 wrapMode: Text.Wrap
-                                textFormat: Text.PlainText
-                                text: wiz.info.type === "dropbox"
+                                // i siti da visitare sono link toccabili (richiesta dell'utente,
+                                // 08/11); gli indirizzi da incollare restano testo
+                                textFormat: Text.StyledText
+                                linkColor: Style.accent
+                                onLinkActivated: function (link) { Opener.openUrl(link) }
+                                function linkify(t) {
+                                    return t.replace(/\n/g, "<br>")
+                                        .replace("dropbox.com/developers/apps", '<a href="https://www.dropbox.com/developers/apps">dropbox.com/developers/apps</a>')
+                                        .replace("entra.microsoft.com", '<a href="https://entra.microsoft.com">entra.microsoft.com</a>')
+                                        .replace("portal.azure.com", '<a href="https://portal.azure.com">portal.azure.com</a>')
+                                }
+                                text: linkify(wiz.info.type === "dropbox"
                                     ? Style.t("Come avere la App key (gratis, una volta sola):\n1. Su dropbox.com/developers/apps: «Create app» → «Scoped access» → «Full Dropbox» (o «App folder»), un nome a piacere.\n2. Scheda «Permissions»: spunta files.metadata.read, files.metadata.write, files.content.read, files.content.write e premi «Submit».\n3. Scheda «Settings», «OAuth 2» → «Redirect URIs»: aggiungi http://127.0.0.1:53682/ (proprio così). «Allow public clients» deve restare su «Allow».\n4. Copia qui la «App key» (la «App secret» non serve).",
                                               "How to get the App key (free, once):\n1. On dropbox.com/developers/apps: “Create app” → “Scoped access” → “Full Dropbox” (or “App folder”), any name.\n2. “Permissions” tab: tick files.metadata.read, files.metadata.write, files.content.read, files.content.write and press “Submit”.\n3. “Settings” tab, “OAuth 2” → “Redirect URIs”: add http://127.0.0.1:53682/ (exactly). “Allow public clients” must stay on “Allow”.\n4. Copy the “App key” here (the “App secret” is not needed).")
                                     : wiz.info.type === "onedrive"
                                     ? Style.t("Come avere l'ID dell'applicazione (una volta sola):\n1. Su entra.microsoft.com (o portal.azure.com), col tuo account Microsoft: «Registrazioni app» → «Nuova registrazione».\n2. Un nome a piacere; «Tipi di account supportati»: «Account in qualsiasi directory organizzativa e account Microsoft personali».\n3. «URI di reindirizzamento»: piattaforma «Client pubblico/nativo (per dispositivi mobili e desktop)», valore http://localhost (proprio così, senza porta).\n4. Dopo la creazione, in «Autenticazione»: «Consenti flussi client pubblici» su «Sì».\n5. Copia qui l'«ID applicazione (client)». Il segreto client non serve.",
                                               "How to get the application ID (once):\n1. On entra.microsoft.com (or portal.azure.com), with your Microsoft account: “App registrations” → “New registration”.\n2. Any name; “Supported account types”: “Accounts in any organizational directory and personal Microsoft accounts”.\n3. “Redirect URI”: platform “Public client/native (mobile & desktop)”, value http://localhost (exactly, no port).\n4. After creating it, in “Authentication”: “Allow public client flows” set to “Yes”.\n5. Copy the “Application (client) ID” here. No client secret is needed.")
-                                    : Style.t("Serve un ID dell'app tuo (gratuito): le istruzioni arriveranno con questo servizio.", "Your own (free) app ID is needed: instructions will come with this service.")
+                                    : Style.t("Serve un ID dell'app tuo (gratuito): le istruzioni arriveranno con questo servizio.", "Your own (free) app ID is needed: instructions will come with this service."))
                             }
                         }
                         CheckRow {
