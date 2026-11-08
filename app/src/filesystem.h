@@ -45,6 +45,13 @@ public:
     Q_INVOKABLE QStringList sshKeys() const;
     // è una chiave privata (inizia con «-----BEGIN … PRIVATE KEY-----»)?
     Q_INVOKABLE bool isPrivateKey(const QString &path) const;
+    // per riconoscere una chiave: {type, comment, hosts}: il tipo dalla .pub
+    // accanto o dalla chiave stessa, il commento dalla .pub, i server di
+    // ~/.ssh/config che la usano (IdentityFile)
+    Q_INVOKABLE QVariantMap sshKeyInfo(const QString &path) const;
+    // i server di ~/.ssh/config (niente caratteri jolly): [{alias, aliases,
+    // host, port, user, identityFile}], con i valori di «Host *» come ripiego
+    Q_INVOKABLE QVariantList sshConfigHosts() const;
     Q_INVOKABLE bool canCreateArchive(const QString &name) const;
     Q_INVOKABLE QString archiveStem(const QString &name) const;
     // estrae una voce di un archivio nella cache (per aprirla); "" se non riesce,

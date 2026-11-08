@@ -1,6 +1,7 @@
 #include "filesystem.h"
 
 #include <QDir>
+#include <QHash>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QProcess>
@@ -213,6 +214,135 @@ bool FileSystem::isPrivateKey(const QString &path) const
         return false;
     const QByteArray head = f.read(80);
     return head.startsWith("-----BEGIN ") && head.contains("PRIVATE KEY-----");
+}
+
+// ~/.ssh/config: le righe «Chiave valore» (o «Chiave=valore»), raggruppate
+// per «Host»; i blocchi «Match» si saltano. ssh prende il PRIMO valore
+// trovato per ogni chiave, e così qui.
+QVariantList FileSystem::sshConfigHosts() const
+{
+    QFile f(QDir::homePath() + QStringLiteral("/.ssh/config"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    struct Block { QStringList patterns; QHash<QString, QString> values; };
+    QList<Block> blocks;
+    bool inMatch = false;
+    const auto lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.isEmpty() || line.startsWith(QLatin1Char('#')))
+            continue;
+        static const QRegularExpression sep(QStringLiteral("^(\\S+?)(?:\\s*=\\s*|\\s+)(.*)$"));
+        const auto m = sep.match(line);
+        if (!m.hasMatch())
+            continue;
+        const QString key = m.captured(1).toLower();
+        QString value = m.captured(2).trimmed();
+        if (value.size() > 1 && value.startsWith(QLatin1Char('"')) && value.endsWith(QLatin1Char('"')))
+            value = value.mid(1, value.size() - 2);
+        if (key == QStringLiteral("host")) {
+            blocks.append({value.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts), {}});
+            inMatch = false;
+        } else if (key == QStringLiteral("match")) {
+            inMatch = true;
+        } else if (!inMatch && !blocks.isEmpty() && !blocks.last().values.contains(key)) {
+            blocks.last().values.insert(key, value);
+        }
+    }
+    const QString home = QDir::homePath();
+    auto expand = [&](QString v) {
+        if (v.startsWith(QStringLiteral("~/")))
+            v = home + v.mid(1);
+        v.replace(QStringLiteral("%d"), home);
+        return v;
+    };
+    // i ripieghi: i blocchi con caratteri jolly che valgono per tutti («Host *»)
+    QHash<QString, QString> fallback;
+    for (const Block &b : std::as_const(blocks))
+        if (b.patterns.contains(QStringLiteral("*")))
+            for (auto it = b.values.cbegin(); it != b.values.cend(); ++it)
+                if (!fallback.contains(it.key()))
+                    fallback.insert(it.key(), it.value());
+    QVariantList out;
+    for (const Block &b : std::as_const(blocks)) {
+        QStringList names;
+        for (const QString &pat : b.patterns)
+            if (!pat.contains(QLatin1Char('*')) && !pat.contains(QLatin1Char('?')) && !pat.startsWith(QLatin1Char('!')))
+                names << pat;
+        if (names.isEmpty())
+            continue;
+        auto val = [&](const char *k) {
+            const QString key = QString::fromLatin1(k);
+            return b.values.value(key, fallback.value(key));
+        };
+        const QString id = val("identityfile");
+        out << QVariantMap{
+            {QStringLiteral("alias"), names.first()},
+            {QStringLiteral("aliases"), names},
+            {QStringLiteral("host"), val("hostname").isEmpty() ? names.first() : val("hostname")},
+            {QStringLiteral("port"), val("port").isEmpty() ? 22 : val("port").toInt()},
+            {QStringLiteral("user"), val("user")},
+            {QStringLiteral("identityFile"), id.isEmpty() ? QString() : expand(id)},
+        };
+    }
+    return out;
+}
+
+QVariantMap FileSystem::sshKeyInfo(const QString &path) const
+{
+    QString type, comment;
+    // la .pub accanto: «ssh-ed25519 AAAA… commento»
+    QFile pub(path + QStringLiteral(".pub"));
+    if (pub.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QStringList f = QString::fromUtf8(pub.readLine(16 * 1024)).trimmed().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (!f.isEmpty())
+            type = f.at(0);
+        if (f.size() > 2)
+            comment = f.mid(2).join(QLatin1Char(' '));
+    }
+    if (type.isEmpty()) {
+        // senza .pub: il tipo sta scritto dentro la chiave (anche cifrata, la
+        // parte pubblica è in chiaro nel formato OpenSSH); i PEM lo dicono
+        // nell'intestazione
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly) && f.size() < 64 * 1024) {
+            const QByteArray all = f.readAll();
+            if (all.contains("BEGIN RSA PRIVATE KEY"))
+                type = QStringLiteral("ssh-rsa");
+            else if (all.contains("BEGIN EC PRIVATE KEY"))
+                type = QStringLiteral("ecdsa");
+            else if (all.contains("BEGIN DSA PRIVATE KEY"))
+                type = QStringLiteral("ssh-dss");
+            else {
+                QByteArray b64;
+                for (const QByteArray &l : all.split('\n'))
+                    if (!l.startsWith("-----"))
+                        b64 += l.trimmed();
+                const QByteArray raw = QByteArray::fromBase64(b64);
+                for (const char *t : {"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384",
+                                      "ecdsa-sha2-nistp521", "sk-ssh-ed25519@openssh.com", "ssh-dss"})
+                    if (raw.contains(t)) { type = QString::fromLatin1(t); break; }
+            }
+        }
+    }
+    // in breve: ed25519, rsa, ecdsa…
+    QString shortType = type;
+    shortType.remove(QStringLiteral("ssh-"));
+    if (shortType.startsWith(QStringLiteral("ecdsa")))
+        shortType = QStringLiteral("ecdsa");
+    if (shortType.startsWith(QStringLiteral("sk-")))
+        shortType = QStringLiteral("ed25519 (chiave fisica)");
+    if (shortType == QStringLiteral("dss"))
+        shortType = QStringLiteral("dsa");
+    QStringList hosts;
+    const QString real = QFileInfo(path).canonicalFilePath();
+    for (const QVariant &v : sshConfigHosts()) {
+        const QVariantMap h = v.toMap();
+        const QString id = h.value(QStringLiteral("identityFile")).toString();
+        if (!id.isEmpty() && (id == path || QFileInfo(id).canonicalFilePath() == real))
+            hosts << h.value(QStringLiteral("alias")).toString();
+    }
+    return {{QStringLiteral("type"), shortType}, {QStringLiteral("comment"), comment}, {QStringLiteral("hosts"), hosts}};
 }
 
 QStringList FileSystem::sshKeys() const

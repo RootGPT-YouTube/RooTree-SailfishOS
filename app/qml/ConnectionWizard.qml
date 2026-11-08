@@ -38,7 +38,8 @@ Popup {
     property string secret
     property bool showSecret: false
     property var keys: []
-    onAboutToShow: keys = Fs.sshKeys()
+    property var configHosts: []
+    onAboutToShow: { keys = Fs.sshKeys(); configHosts = Fs.sshConfigHosts() }
     readonly property var pages: [Style.t("Tipo", "Type"), Style.t("Server", "Server"), Style.t("Accesso", "Sign-in"), Style.t("Nome", "Name")]
     readonly property bool hasServer: info.needsServer === true
 
@@ -65,10 +66,20 @@ Popup {
         page = hasServer ? 1 : 2
         open()
     }
+    // un server di ~/.ssh/config: connessione SFTP già compilata, si va al
+    // riepilogo (da lì si torna indietro a correggere)
+    function fromConfig(h) {
+        info = Remotes.typeInfo("sftp")
+        p = { type: "sftp", name: h.alias, host: h.host, port: h.port, user: h.user,
+              auth: h.identityFile ? "key" : "password", keyPath: h.identityFile || "", secure: true }
+        page = 3
+    }
     function chooseType(t) {
         info = Remotes.typeInfo(t)
         var c = { type: t, port: info.port, auth: info.auths[0], secure: true }
-        if (t === "sftp") c.keyPath = keys.length > 0 ? keys[0] : ""
+        // con una chiave sola la si propone; con più chiavi si sceglie (la
+        // prima in ordine alfabetico poteva essere quella sbagliata)
+        if (t === "sftp") c.keyPath = keys.length === 1 ? keys[0] : ""
         p = c
         page = hasServer ? 1 : 2
     }
@@ -254,6 +265,35 @@ Popup {
                     width: parent.width
                     spacing: 8 * Style.dp
                     Label { text: Style.t("Che cosa vuoi collegare?", "What do you want to connect?"); color: Style.text; font.pixelSize: Style.fontM }
+                    // i server già definiti per ssh, pronti da importare
+                    MenuSection { visible: wiz.configHosts.length > 0; width: parent.width; text: Style.t("Da ~/.ssh/config", "From ~/.ssh/config") }
+                    Repeater {
+                        model: wiz.configHosts
+                        delegate: Rectangle {
+                            width: typesCol.width
+                            height: Style.row + 4 * Style.dp
+                            radius: 12 * Style.dp
+                            color: hostTap.pressed ? Style.pressed : Style.panel
+                            border.color: Style.line
+                            border.width: 1 * Style.dp
+                            TypeBadge { id: hb; anchors { left: parent.left; leftMargin: 8 * Style.dp; verticalCenter: parent.verticalCenter } width: 40 * Style.dp; icon: "ssh" }
+                            Column {
+                                anchors { left: hb.right; leftMargin: Style.margin; right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
+                                Text {
+                                    font.family: Style.fontFamily; width: parent.width; elide: Text.ElideRight
+                                    text: modelData.alias + (modelData.aliases.length > 1 ? "  (" + modelData.aliases.slice(1).join(", ") + ")" : "")
+                                    color: Style.text; font.pixelSize: Style.fontM; font.bold: true
+                                }
+                                Text {
+                                    font.family: Style.fontFamily; width: parent.width; elide: Text.ElideMiddle
+                                    text: (modelData.user ? modelData.user + "@" : "") + modelData.host + (modelData.port !== 22 ? ":" + modelData.port : "")
+                                          + (modelData.identityFile ? " · " + Style.t("chiave ", "key ") + modelData.identityFile.split("/").pop() : "")
+                                    color: Style.dim; font.pixelSize: Style.fontS
+                                }
+                            }
+                            MouseArea { id: hostTap; anchors.fill: parent; onClicked: wiz.fromConfig(modelData) }
+                        }
+                    }
                     MenuSection { width: parent.width; text: Style.t("Server", "Servers") }
                     Flow {
                         width: parent.width
@@ -429,17 +469,40 @@ Popup {
                             visible: wiz.v("auth") === "key" && wiz.keys.length > 0
                             width: parent.width
                             spacing: 6 * Style.dp
-                            Label { text: Style.t("Chiavi trovate in ~/.ssh:", "Keys found in ~/.ssh:") }
-                            Flow {
-                                width: parent.width
-                                spacing: 6 * Style.dp
-                                Repeater {
-                                    model: wiz.keys
-                                    delegate: SteelPill {
-                                        text: modelData.split("/").pop()
-                                        role: wiz.v("keyPath") === modelData ? "accept" : ""
-                                        onClicked: wiz.set("keyPath", modelData)
+                            Label {
+                                text: wiz.keys.length === 1 ? Style.t("Chiave trovata in ~/.ssh:", "Key found in ~/.ssh:")
+                                                            : Style.t("Chiavi trovate in ~/.ssh: tocca quella giusta", "Keys found in ~/.ssh: tap the right one")
+                            }
+                            Repeater {
+                                model: wiz.keys
+                                delegate: Rectangle {
+                                    readonly property var ki: Fs.sshKeyInfo(modelData)
+                                    readonly property bool chosen: wiz.keyFile() === modelData
+                                    width: parent.width
+                                    height: keyCol.implicitHeight + 14 * Style.dp
+                                    radius: 10 * Style.dp
+                                    color: keyTap.pressed ? Style.pressed : (chosen ? Style.accentSoft : Style.panel)
+                                    border.color: chosen ? Style.accent : Style.line
+                                    border.width: (chosen ? 2 : 1) * Style.dp
+                                    Icon { id: keyIcon; anchors { left: parent.left; leftMargin: 10 * Style.dp; verticalCenter: parent.verticalCenter } name: "key"; size: 18 * Style.dp }
+                                    Column {
+                                        id: keyCol
+                                        anchors { left: keyIcon.right; leftMargin: 10 * Style.dp; right: parent.right; rightMargin: 10 * Style.dp; verticalCenter: parent.verticalCenter }
+                                        Text { font.family: Style.fontFamily; width: parent.width; text: modelData.split("/").pop(); color: Style.text; font.pixelSize: Style.fontM; font.bold: true; elide: Text.ElideMiddle }
+                                        Text {
+                                            font.family: Style.fontFamily; width: parent.width; elide: Text.ElideRight
+                                            visible: text !== ""
+                                            text: [parent.parent.ki.type, parent.parent.ki.comment].filter(function (x) { return x }).join(" · ")
+                                            color: Style.dim; font.pixelSize: Style.fontS
+                                        }
+                                        Text {
+                                            font.family: Style.fontFamily; width: parent.width; elide: Text.ElideRight
+                                            visible: parent.parent.ki.hosts.length > 0
+                                            text: Style.t("usata per: ", "used for: ") + parent.parent.ki.hosts.join(", ")
+                                            color: Style.accent; font.pixelSize: Style.fontS
+                                        }
                                     }
+                                    MouseArea { id: keyTap; anchors.fill: parent; onClicked: wiz.set("keyPath", modelData) }
                                 }
                             }
                         }
