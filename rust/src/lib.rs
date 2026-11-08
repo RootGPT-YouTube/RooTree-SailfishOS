@@ -7,9 +7,11 @@ pub mod fsops;
 pub mod helper;
 pub mod jobs;
 pub mod proto;
+pub mod remote;
 pub mod root;
 pub mod search;
 pub mod thumbs;
+pub mod vault;
 #[cfg(test)]
 mod tests;
 
@@ -117,6 +119,25 @@ mod ffi {
         fn root_start(password: &str) -> Result<()>;
         fn root_stop();
         fn root_active() -> bool;
+
+        /// Connessioni remote (Fase 5): collega un profilo (JSON di Remotes)
+        /// e rende il percorso iniziale; errori con codice (vedi remote.rs).
+        fn remote_connect(profile_json: &str, secret: &str) -> Result<String>;
+        /// Fidarsi del server appena visto (dopo HOSTKEY_NEW).
+        fn remote_trust(id: &str) -> Result<()>;
+        fn remote_disconnect(id: &str);
+        fn remote_connected(id: &str) -> bool;
+
+        /// La cassaforte delle password (vault.rs).
+        fn vault_set_path(path: &str);
+        fn vault_exists() -> bool;
+        fn vault_unlocked() -> bool;
+        fn vault_create(master: &str) -> Result<()>;
+        fn vault_unlock(master: &str) -> Result<()>;
+        fn vault_lock();
+        fn vault_get(id: &str) -> String;
+        fn vault_set(id: &str, secret: &str) -> Result<()>;
+        fn vault_remove(id: &str) -> Result<()>;
         fn user_name(uid: u32) -> String;
         fn group_name(gid: u32) -> String;
 
@@ -219,6 +240,11 @@ use proto::Request;
 const REMOTE: u64 = 1 << 30;
 
 fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, dirs_first: bool) -> Result<Vec<ffi::Entry>, String> {
+    if let Some((id, inner)) = remote::split(path) {
+        let mut v = remote::list(&id, &inner, show_hidden).map_err(|e| e.to_string())?;
+        fsops::sort_entries(&mut v, sort_key, descending, dirs_first);
+        return Ok(v);
+    }
     if root::active() {
         return root::call_as(&Request::ListDir { path: path.into(), hidden: show_hidden, key: sort_key, desc: descending, dirs_first });
     }
@@ -226,6 +252,9 @@ fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, dirs_
 }
 
 fn stat_path(path: &str) -> Result<ffi::Entry, String> {
+    if let Some((id, inner)) = remote::split(path) {
+        return remote::stat(&id, &inner).map_err(|e| e.to_string());
+    }
     if root::active() {
         return root::call_as(&Request::Stat { path: path.into() });
     }
@@ -356,4 +385,56 @@ fn job_forget(id: u64) {
     } else {
         jobs::forget(id)
     }
+}
+
+fn remote_connect(profile_json: &str, secret: &str) -> Result<String, String> {
+    remote::connect(profile_json, secret)
+}
+
+fn remote_trust(id: &str) -> Result<(), String> {
+    remote::trust(id)
+}
+
+fn remote_disconnect(id: &str) {
+    remote::disconnect(id)
+}
+
+fn remote_connected(id: &str) -> bool {
+    remote::connected(id)
+}
+
+fn vault_set_path(path: &str) {
+    vault::set_path(path)
+}
+
+fn vault_exists() -> bool {
+    vault::exists()
+}
+
+fn vault_unlocked() -> bool {
+    vault::unlocked()
+}
+
+fn vault_create(master: &str) -> Result<(), String> {
+    vault::create(master).map_err(|e| e.to_string())
+}
+
+fn vault_unlock(master: &str) -> Result<(), String> {
+    vault::unlock(master).map_err(|e| e.to_string())
+}
+
+fn vault_lock() {
+    vault::lock()
+}
+
+fn vault_get(id: &str) -> String {
+    vault::get(id).unwrap_or_default()
+}
+
+fn vault_set(id: &str, secret: &str) -> Result<(), String> {
+    vault::set(id, secret).map_err(|e| e.to_string())
+}
+
+fn vault_remove(id: &str) -> Result<(), String> {
+    vault::remove(id).map_err(|e| e.to_string())
 }

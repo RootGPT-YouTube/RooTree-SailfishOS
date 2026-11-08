@@ -530,9 +530,14 @@ Popup {
                             }
                             IconButton { id: eye; anchors { right: parent.right; verticalCenter: secretField.verticalCenter } icon: "eye"; checked: wiz.showSecret; onClicked: wiz.showSecret = !wiz.showSecret }
                         }
+                        CheckRow {
+                            text: Style.t("Ricorda nella cassaforte", "Remember in the vault")
+                            checked: wiz.p.remember !== false
+                            onCheckedChanged: if (checked !== (wiz.p.remember !== false)) wiz.set("remember", checked)
+                        }
                         Label {
-                            text: Style.t("La password per ora resta solo finché RooTree è aperta; vuota, verrà chiesta al collegamento.",
-                                          "For now the password is kept only while RooTree is open; if empty, it is asked when connecting.")
+                            text: Style.t("La cassaforte è cifrata con una password principale tua. Vuota qui, la password verrà chiesta al collegamento.",
+                                          "The vault is encrypted with your own master password. Left empty here, the password is asked when connecting.")
                         }
                     }
                     Label {

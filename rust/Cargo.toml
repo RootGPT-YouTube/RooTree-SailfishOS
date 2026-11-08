@@ -1,6 +1,6 @@
 [package]
 name = "rootree-core"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
@@ -25,6 +25,14 @@ regex = "1"
 # il protocollo fra l'app e l'helper root: una riga JSON per messaggio
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Fase 5: SFTP con libssh2 (compilata dal crate col cross-gcc, contro
+# l'OpenSSL 3 di sistema: nel target c'è, libssh2 no)
+ssh2 = "0.9"
+# la cassaforte delle password: Argon2id + XChaCha20-Poly1305, Rust puro
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+base64 = "0.22"
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs", "deflate64", "bzip2", "zstd", "lzma", "xz"] }
 tar = { version = "0.4", default-features = false }
 flate2 = "1"

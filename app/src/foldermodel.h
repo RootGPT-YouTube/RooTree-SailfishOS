@@ -26,6 +26,10 @@ class FolderModel : public QAbstractListModel
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
     // il file dell'archivio se la cartella è dentro un archivio (sola lettura), o ""
     Q_PROPERTY(QString archive READ archive NOTIFY pathChanged)
+    // l'id della connessione se la cartella è remota (/@remote/<id>/…), o ""
+    Q_PROPERTY(QString remote READ remote NOTIFY pathChanged)
+    // dentro un archivio o (per ora, Fase 5 step 2) su un server: sola lettura
+    Q_PROPERTY(bool readOnly READ readOnly NOTIFY pathChanged)
 
 public:
     enum Roles {
@@ -64,6 +68,8 @@ public:
     qint64 filesSize() const { return m_filesSize; }
     int selectedCount() const { return m_selected; }
     QString archive() const { return m_archive; }
+    QString remote() const { return m_remote; }
+    bool readOnly() const { return !m_archive.isEmpty() || !m_remote.isEmpty(); }
 
     Q_INVOKABLE void refresh();
     // l'ordinamento intero in una volta: una rilettura sola (cambiando cartella
@@ -104,6 +110,7 @@ private:
 
     QString m_path;
     QString m_archive;
+    QString m_remote;
     bool m_showHidden = false;
     int m_sortKey = 2; // per data, dal più recente (scelta dell'utente, 08/11)
     bool m_descending = false;

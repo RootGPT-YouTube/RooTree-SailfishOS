@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.0
-Release:    3
+Version:    0.6.1
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -36,6 +36,9 @@ Requires:   libgstapp-1.0.so.0()(64bit)
 Requires:   libgstvideo-1.0.so.0()(64bit)
 Requires:   libgobject-2.0.so.0()(64bit)
 Requires:   libpoppler-cpp.so.2()(64bit)
+Requires:   libssl.so.3()(64bit)
+Requires:   libcrypto.so.3()(64bit)
+Requires:   libz.so.1()(64bit)
 %else
 Requires:   libgstreamer-1.0.so.0
 Requires:   libgstbase-1.0.so.0
@@ -43,6 +46,9 @@ Requires:   libgstapp-1.0.so.0
 Requires:   libgstvideo-1.0.so.0
 Requires:   libgobject-2.0.so.0
 Requires:   libpoppler-cpp.so.2
+Requires:   libssl.so.3
+Requires:   libcrypto.so.3
+Requires:   libz.so.1
 %endif
 
 %package root
@@ -92,6 +98,17 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-1
+- Phase 5, step 2: SFTP connections work. Tapping a saved connection
+  connects (password or SSH key, also with a passphrase) and opens its
+  start folder, browsable like a local one (read-only for now: copying
+  comes in the next step). The server fingerprint is checked against
+  ~/.ssh/known_hosts like ssh does: a new server asks for confirmation, a
+  changed one is refused. "Disconnect" in the connection menu.
+- Password vault: passwords can be remembered, encrypted with a master
+  password of your choice (Argon2id + XChaCha20-Poly1305), opened once per
+  session; "Lock the password vault" in the menu.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.0-3
 - Connection wizard: the servers defined in ~/.ssh/config (if it exists)
   are offered at the top of the first step; tapping one fills in an SFTP

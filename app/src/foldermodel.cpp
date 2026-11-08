@@ -59,10 +59,12 @@ void FolderModel::setPath(const QString &path)
     if (!m_path.isEmpty())
         m_watcher.removePath(m_path);
     m_path = clean;
-    m_archive = qtrust::qs(rootree::archive_of(qtrust::str(m_path)));
+    static const QString remotePrefix = QStringLiteral("/@remote/");
+    m_remote = m_path.startsWith(remotePrefix) ? m_path.mid(remotePrefix.size()).section(QLatin1Char('/'), 0, 0) : QString();
+    m_archive = m_remote.isEmpty() ? qtrust::qs(rootree::archive_of(qtrust::str(m_path))) : QString();
     emit pathChanged();
     reload(false);
-    if (m_archive.isEmpty())
+    if (m_archive.isEmpty() && m_remote.isEmpty())
         m_watcher.addPath(m_path);
 }
 

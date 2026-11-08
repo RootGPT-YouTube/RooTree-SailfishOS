@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QSet>
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
@@ -17,6 +18,9 @@ class Remotes : public QObject
     Q_OBJECT
     Q_PROPERTY(QVariantList list READ list NOTIFY changed)
     Q_PROPERTY(QVariantList types READ types CONSTANT)
+    // la cassaforte delle password (vault.rs)
+    Q_PROPERTY(bool vaultExists READ vaultExists NOTIFY vaultChanged)
+    Q_PROPERTY(bool vaultUnlocked READ vaultUnlocked NOTIFY vaultChanged)
 
 public:
     explicit Remotes(QObject *parent = nullptr);
@@ -35,10 +39,34 @@ public:
     Q_INVOKABLE QString describe(const QVariantMap &profile) const;
 
     Q_INVOKABLE void setSecret(const QString &id, const QString &secret) { m_secrets.insert(id, secret); }
-    Q_INVOKABLE bool hasSecret(const QString &id) const { return m_secrets.contains(id); }
+    // in memoria per la sessione, o nella cassaforte aperta
+    Q_INVOKABLE bool hasSecret(const QString &id) const;
+    Q_INVOKABLE QString secret(const QString &id) const;
+
+    // collegamento (su un thread): l'esito con connectFinished(id, code,
+    // message, path). code "" = collegato; HOSTKEY_NEW, HOSTKEY_CHANGED, AUTH,
+    // KEY, NET, UNSUPPORTED, ERR. message per HOSTKEY_*: «tipo:impronta»
+    Q_INVOKABLE void connect(const QString &id);
+    Q_INVOKABLE QString trust(const QString &id);
+    Q_INVOKABLE void disconnect(const QString &id);
+    Q_INVOKABLE bool isConnected(const QString &id) const;
+    // la cartella da cui si entra: /@remote/<id> + percorso iniziale sul server
+    Q_INVOKABLE QString entryPath(const QString &id) const { return m_entry.value(id); }
+    Q_INVOKABLE bool connecting(const QString &id) const { return m_connecting.contains(id); }
+
+    bool vaultExists() const;
+    bool vaultUnlocked() const;
+    // "" se riuscita, altrimenti il perché (WRONG: password principale sbagliata)
+    Q_INVOKABLE QString vaultCreate(const QString &master);
+    Q_INVOKABLE QString vaultUnlock(const QString &master);
+    Q_INVOKABLE void vaultLock();
+    // la password di id (già in memoria) nella cassaforte aperta
+    Q_INVOKABLE QString remember(const QString &id);
 
 signals:
     void changed();
+    void vaultChanged();
+    void connectFinished(const QString &id, const QString &code, const QString &message, const QString &path);
 
 private:
     void load();
@@ -47,4 +75,6 @@ private:
 
     QVariantList m_list;
     QHash<QString, QString> m_secrets;
+    QHash<QString, QString> m_entry;
+    QSet<QString> m_connecting;
 };

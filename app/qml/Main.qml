@@ -114,6 +114,12 @@ Window {
     // la memoria che contiene `path`: quella col percorso più lungo che lo
     // contiene (la radice vale solo se non c'è altro)
     readonly property var place: {
+        // su un server: la «memoria» è la connessione (la barra del percorso
+        // parte dal suo nome)
+        if (folder.remote !== "") {
+            var rp = Remotes.get(folder.remote)
+            return { kind: 5, path: "/@remote/" + folder.remote, label: rp.name || "?", icon: Remotes.typeInfo(rp.type).icon || "cloud", total: 0, free: 0 }
+        }
         var best = null
         for (var i = 0; i < places.length; ++i) {
             var p = places[i]
@@ -129,10 +135,11 @@ Window {
         case 1: return Style.t("Memoria Android", "Android storage")
         case 2: return Style.t("Scheda SD", "SD card")
         case 3: return p.label || "USB"
+        case 5: return p.label
         }
         return "/"
     }
-    function placeIcon(p) { return ["internal", "android", "sdcard", "usb", "root"][p.kind] }
+    function placeIcon(p) { return p.kind === 5 ? p.icon : ["internal", "android", "sdcard", "usb", "root"][p.kind] }
 
     function go(path) {
         if (path === folder.path)
@@ -156,7 +163,9 @@ Window {
         setPath(forward[0])
         forward = forward.slice(1)
     }
-    function goUp() { if (folder.path !== "/") go(Fs.parentOf(folder.path)) }
+    // su un server non si sale oltre la sua radice
+    readonly property bool canGoUp: folder.path !== "/" && !(folder.remote !== "" && folder.path === win.place.path)
+    function goUp() { if (canGoUp) go(Fs.parentOf(folder.path)) }
 
     // toccare un file: le immagini e il testo nei visori di RooTree, il resto
     // con l'app predefinita di Sailfish, o «Apri con» se non ce n'è una
@@ -177,6 +186,10 @@ Window {
         }
         if (folder.archive !== "") {
             openArchived(e)
+            return
+        }
+        if (folder.remote !== "") {
+            toast.show(Style.t("Aprire e copiare i file remoti arriva con il prossimo passo (step 3).", "Opening and copying remote files comes with the next step (step 3)."))
             return
         }
         openFile(e)
@@ -385,7 +398,7 @@ Window {
                     height: width
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails && folder.archive === ""
+                    thumbnails: settings.thumbnails && !folder.readOnly
                     opacity: hidden ? 0.5 : 1
                     scale: gridArea.pressed ? 0.94 : 1
                     Behavior on scale { NumberAnimation { duration: 80 } }
@@ -434,7 +447,7 @@ Window {
                     small: true
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails && folder.archive === ""
+                    thumbnails: settings.thumbnails && !folder.readOnly
                     opacity: hidden ? 0.5 : 1
                 }
                 Icon {
@@ -580,8 +593,8 @@ Window {
             readonly property real w: width / 7
             IconButton { width: parent.w; height: parent.height; icon: "back"; enabled: win.back.length > 0; onClicked: win.goBack() }
             IconButton { width: parent.w; height: parent.height; icon: "forward"; enabled: win.forward.length > 0; onClicked: win.goForward() }
-            IconButton { width: parent.w; height: parent.height; icon: "up"; enabled: folder.path !== "/"; onClicked: win.goUp() }
-            IconButton { width: parent.w; height: parent.height; icon: "search"; enabled: folder.archive === ""; onClicked: searchPanel.openIn(folder.path) }
+            IconButton { width: parent.w; height: parent.height; icon: "up"; enabled: win.canGoUp; onClicked: win.goUp() }
+            IconButton { width: parent.w; height: parent.height; icon: "search"; enabled: !folder.readOnly; onClicked: searchPanel.openIn(folder.path) }
             IconButton { width: parent.w; height: parent.height; icon: settings.view === "grid" ? "list" : "grid"; onClicked: settings.view = settings.view === "grid" ? "list" : "grid" }
             IconButton {
                 width: parent.w; height: parent.height
@@ -606,16 +619,16 @@ Window {
             anchors.topMargin: 5 * Style.dp
             anchors.bottomMargin: 5 * Style.dp
             readonly property real w: width / 5
-            IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
-            IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); enabled: folder.archive === ""; onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
+            IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); enabled: folder.remote === ""; onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
+            IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); enabled: !folder.readOnly; onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "share"; label: Style.t("Condividi", "Share")
                 // si condividono i file, non le cartelle
-                enabled: folder.archive === "" && folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
+                enabled: !folder.readOnly && folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
                 onClicked: { if (!Opener.share(folder.selectedPaths()) && Opener.lastError()) win.showSandboxError(); folder.clearSelection() }
             }
-            IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); enabled: folder.archive === ""; onClicked: win.deleteSelected() }
+            IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); enabled: !folder.readOnly; onClicked: win.deleteSelected() }
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "menu"; label: Style.t("Altro", "More")
@@ -632,23 +645,272 @@ Window {
         onNavigate: function (p) { win.go(p) }
         onClosed: win.places = places
         onAddConnection: wizard.openNew()
-        onOpenConnection: function (p) {
-            // step 1 della Fase 5: l'interfaccia; il collegamento vero arriva dopo
-            toast.show(Style.t("«" + p.name + "»: il collegamento arriva nel prossimo passo della Fase 5.",
-                               "“" + p.name + "”: connecting comes in the next step of phase 5."))
-        }
+        onOpenConnection: function (p) { win.connectTo(p) }
         onConnectionActions: function (p) { connectionMenu.profile = p; connectionMenu.open() }
     }
 
     // ── connessioni remote ──────────────────────────────────────────────────
     ConnectionWizard {
         id: wizard
-        onSaved: function (id) { toast.show(Style.t("Connessione salvata: la trovi nel menù delle memorie", "Connection saved: find it in the storage menu")) }
+        onSaved: function (id) {
+            toast.show(Style.t("Connessione salvata: la trovi nel menù delle memorie", "Connection saved: find it in the storage menu"))
+            // «Ricorda nella cassaforte»: la password appena scritta ci va subito
+            if (Remotes.get(id).remember !== false && Remotes.hasSecret(id))
+                win.withVault(function () { win.rememberSecret(id) })
+        }
+    }
+
+    // la cassaforte aperta (o creata, la prima volta) prima di `then`
+    function withVault(then) {
+        if (Remotes.vaultUnlocked) { then(); return }
+        vaultDialog.ask(Remotes.vaultExists ? "unlock" : "create", then)
+    }
+    function rememberSecret(id) {
+        var err = Remotes.remember(id)
+        if (err) toast.show(Style.t("Password non salvata nella cassaforte: ", "Password not saved in the vault: ") + err, true)
+    }
+
+    // il collegamento: password o sblocco se servono, impronta del server, poi dentro
+    function connectTo(p) {
+        if (Remotes.isConnected(p.id) && Remotes.entryPath(p.id) !== "") {
+            go(Remotes.entryPath(p.id))
+            return
+        }
+        if (p.auth === "password" && !Remotes.hasSecret(p.id)) {
+            // salvata nella cassaforte chiusa: prima si apre
+            if (p.remember !== false && Remotes.vaultExists && !Remotes.vaultUnlocked) {
+                vaultDialog.ask("unlock", function () { win.connectTo(p) }, function () { secretDialog.ask(p, "password", "") })
+                return
+            }
+            secretDialog.ask(p, "password", "")
+            return
+        }
+        doConnect(p)
+    }
+    function doConnect(p) {
+        if (Remotes.connecting(p.id)) return
+        toast.show(Style.t("Collegamento a «" + p.name + "»…", "Connecting to “" + p.name + "”…"))
+        Remotes.connect(p.id)
+    }
+    Connections {
+        target: Remotes
+        function onConnectFinished(id, code, message, path) {
+            var p = Remotes.get(id)
+            if (code === "") {
+                win.go(path)
+                return
+            }
+            var parts = message.split(":")
+            if (code === "HOSTKEY_NEW") {
+                hostKeyDialog.profile = p
+                hostKeyDialog.keyType = parts[0]
+                hostKeyDialog.fingerprint = parts.slice(1).join(":")
+                hostKeyDialog.open()
+            } else if (code === "HOSTKEY_CHANGED") {
+                hostChanged.profile = p
+                hostChanged.keyType = parts[0]
+                hostChanged.fingerprint = parts.slice(1).join(":")
+                hostChanged.open()
+            } else if (code === "AUTH" && p.auth === "password") {
+                secretDialog.ask(p, "password", Style.t("Password rifiutata dal server.", "Password rejected by the server."))
+            } else if (code === "KEY" && message.indexOf("frase") >= 0) {
+                secretDialog.ask(p, "passphrase", "")
+            } else if (code === "AUTH") {
+                connectError.show(p, Style.t("Il server ha rifiutato la chiave", "The server rejected the key"), message)
+            } else if (code === "NET") {
+                connectError.show(p, Style.t("Server irraggiungibile", "Server unreachable"), message)
+            } else {
+                connectError.show(p, Style.t("Collegamento non riuscito", "Connection failed"), message)
+            }
+        }
+    }
+
+    // la password (o la frase della chiave) al collegamento
+    AppDialog {
+        id: secretDialog
+        property var profile: ({})
+        property string what: "password"
+        property string error
+        function ask(p, kind, err) {
+            profile = p
+            what = kind
+            error = err || ""
+            secretField.text = ""
+            rememberCheck.checked = p.remember !== false
+            open()
+            secretField.forceActiveFocus()
+        }
+        title: profile.name || ""
+        message: what === "passphrase"
+            ? Style.t("La chiave «" + (profile.keyPath || "").split("/").pop() + "» è protetta da una frase.", "The key “" + (profile.keyPath || "").split("/").pop() + "” is protected by a passphrase.")
+            : Style.t("Password di " + Remotes.describe(profile), "Password for " + Remotes.describe(profile))
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Collega", "Connect"), role: "accept" }]
+        onChosen: function (role) {
+            if (role !== "accept" || secretField.text === "") return
+            var p = profile
+            Remotes.setSecret(p.id, secretField.text)
+            secretField.text = ""
+            if (rememberCheck.checked !== (p.remember !== false)) {
+                p = Object.assign({}, p); p.remember = rememberCheck.checked; Remotes.save(p)
+            }
+            if (rememberCheck.checked)
+                win.withVault(function () { win.rememberSecret(p.id); win.doConnect(p) })
+            else
+                win.doConnect(p)
+        }
+        TextField {
+            id: secretField
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            echoMode: TextInput.Password
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: secretField.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+            onAccepted: { secretDialog.close(); secretDialog.chosen("accept") }
+        }
+        CheckRow { id: rememberCheck; text: Style.t("Ricorda nella cassaforte", "Remember in the vault") }
+        Text { font.family: Style.fontFamily; visible: secretDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: secretDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
+    }
+
+    // la cassaforte: crearla la prima volta, aprirla una volta per sessione
+    AppDialog {
+        id: vaultDialog
+        property string mode: "unlock"
+        property var then
+        property var otherwise
+        property string error
+        function ask(m, fn, fallback) {
+            mode = m
+            then = fn
+            otherwise = fallback || null
+            error = ""
+            vaultPass.text = ""
+            vaultPass2.text = ""
+            open()
+            vaultPass.forceActiveFocus()
+        }
+        title: mode === "create" ? Style.t("Crea la cassaforte", "Create the vault") : Style.t("Apri la cassaforte", "Open the vault")
+        message: mode === "create"
+            ? Style.t("Le password delle connessioni vengono salvate cifrate con una password principale, che scegli ora e che RooTree non salva. La chiederà una volta, quando serve, finché l'app resta aperta. Se la dimentichi, le password salvate sono perse (le connessioni restano).",
+                      "Connection passwords are stored encrypted with a master password, which you choose now and RooTree does not store. It is asked once, when needed, while the app stays open. If you forget it, the saved passwords are lost (the connections stay).")
+            : Style.t("Password principale della cassaforte di RooTree.", "Master password of the RooTree vault.")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: mode === "create" ? Style.t("Crea", "Create") : Style.t("Apri", "Open"), role: "accept" }]
+        onChosen: function (role) {
+            if (role !== "accept") {
+                if (otherwise) otherwise()
+                return
+            }
+            if (mode === "create" && vaultPass.text !== vaultPass2.text) {
+                error = Style.t("Le due password non coincidono.", "The two passwords do not match.")
+                open()
+                return
+            }
+            var err = mode === "create" ? Remotes.vaultCreate(vaultPass.text) : Remotes.vaultUnlock(vaultPass.text)
+            vaultPass.text = ""
+            vaultPass2.text = ""
+            if (err) {
+                error = err.indexOf("WRONG") === 0 ? Style.t("Password principale sbagliata.", "Wrong master password.") : err
+                open()
+                return
+            }
+            if (then) then()
+        }
+        TextField {
+            id: vaultPass
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            echoMode: TextInput.Password
+            placeholderText: Style.t("Password principale", "Master password")
+            placeholderTextColor: Style.dim
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: vaultPass.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+            onAccepted: if (vaultDialog.mode !== "create") { vaultDialog.close(); vaultDialog.chosen("accept") }
+        }
+        TextField {
+            id: vaultPass2
+            visible: vaultDialog.mode === "create"
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            echoMode: TextInput.Password
+            placeholderText: Style.t("Ripetila", "Repeat it")
+            placeholderTextColor: Style.dim
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: vaultPass2.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+            onAccepted: { vaultDialog.close(); vaultDialog.chosen("accept") }
+        }
+        Text { font.family: Style.fontFamily; visible: vaultDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: vaultDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
+    }
+
+    // server mai visto: l'impronta da confermare, come fa ssh
+    AppDialog {
+        id: hostKeyDialog
+        property var profile: ({})
+        property string keyType
+        property string fingerprint
+        title: Style.t("Server nuovo", "New server")
+        message: Style.t("È la prima volta che RooTree si collega a «" + (profile.host || "") + "». Se vuoi essere sicuro che sia davvero il tuo server, confronta questa impronta con quella del server (ssh-keygen -lf sulla sua chiave).",
+                         "This is the first time RooTree connects to “" + (profile.host || "") + "”. To be sure it really is your server, compare this fingerprint with the server's (ssh-keygen -lf on its key).")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Fidati e collega", "Trust and connect"), role: "accept" }]
+        onChosen: function (role) {
+            if (role !== "accept") return
+            var err = Remotes.trust(profile.id)
+            if (err) { connectError.show(profile, Style.t("Impronta non salvata", "Fingerprint not saved"), err); return }
+            win.doConnect(profile)
+        }
+        Text {
+            font.family: "monospace"
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            text: hostKeyDialog.keyType + "\n" + hostKeyDialog.fingerprint
+            color: Style.accent
+            font.pixelSize: Style.fontS
+        }
+    }
+    // impronta cambiata: nessuna scorciatoia
+    AppDialog {
+        id: hostChanged
+        property var profile: ({})
+        property string keyType
+        property string fingerprint
+        title: Style.t("Attenzione: il server è cambiato", "Warning: the server has changed")
+        message: Style.t("L'impronta di «" + (profile.host || "") + "» non è quella salvata in ~/.ssh/known_hosts. Può essere un server reinstallato, oppure qualcuno che si spaccia per lui: RooTree non si collega. Se sai che è cambiato davvero, togli la sua riga da known_hosts (ssh-keygen -R) e riprova.",
+                         "The fingerprint of “" + (profile.host || "") + "” is not the one saved in ~/.ssh/known_hosts. It may be a reinstalled server, or someone impersonating it: RooTree does not connect. If you know it really changed, remove its line from known_hosts (ssh-keygen -R) and try again.")
+        buttons: [{ text: "OK", role: "reject" }]
+        Text {
+            font.family: "monospace"
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            text: hostChanged.keyType + "\n" + hostChanged.fingerprint
+            color: Style.danger
+            font.pixelSize: Style.fontS
+        }
+    }
+    AppDialog {
+        id: connectError
+        function show(p, t, m) { title = (p.name ? p.name + ": " : "") + t; message = m; open() }
+        buttons: [{ text: "OK", role: "reject" }]
     }
     Sheet {
         id: connectionMenu
         property var profile: ({})
         title: profile.name || ""
+        MenuRow {
+            icon: "connect"
+            visible: connectionMenu.opened && Remotes.isConnected(connectionMenu.profile.id || "")
+            text: Style.t("Scollega", "Disconnect")
+            onClicked: {
+                connectionMenu.close()
+                var id = connectionMenu.profile.id
+                if (folder.remote === id) win.go(Fs.home)
+                Remotes.disconnect(id)
+                toast.show(Style.t("Scollegato", "Disconnected"))
+            }
+        }
         MenuRow { icon: "rename"; text: Style.t("Modifica", "Edit"); onClicked: { connectionMenu.close(); wizard.openFor(connectionMenu.profile) } }
         MenuRow { icon: "copy"; text: Style.t("Duplica", "Duplicate"); onClicked: { connectionMenu.close(); Remotes.duplicate(connectionMenu.profile.id) } }
         MenuRow {
@@ -705,6 +967,12 @@ Window {
                 else rootDialog.ask()
             }
         }
+        MenuRow {
+            icon: "lock"
+            visible: Remotes.vaultUnlocked
+            text: Style.t("Chiudi la cassaforte delle password", "Lock the password vault")
+            onClicked: { mainMenu.close(); Remotes.vaultLock(); toast.show(Style.t("Cassaforte chiusa", "Vault locked")) }
+        }
         MenuSection { text: Style.t("Tema", "Theme") }
         MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
         MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
@@ -749,7 +1017,7 @@ Window {
         MenuRow {
             icon: "rename"
             text: Style.t("Rinomina", "Rename")
-            enabled: folder.selectedCount === 1 && folder.archive === ""
+            enabled: folder.selectedCount === 1 && !folder.readOnly
             onClicked: {
                 moreMenu.close()
                 var p = folder.selectedPaths()[0]
@@ -763,13 +1031,13 @@ Window {
         MenuRow {
             icon: "extract"
             text: Style.t("Estrai qui", "Extract here")
-            visible: folder.archive === "" && folder.selectedCount === 1 && !moreMenu.one.isDir && Fs.isArchive(moreMenu.one.name || "")
+            visible: !folder.readOnly && folder.selectedCount === 1 && !moreMenu.one.isDir && Fs.isArchive(moreMenu.one.name || "")
             onClicked: { moreMenu.close(); Jobs.extract(folder.selectedPaths()[0], folder.path); folder.clearSelection() }
         }
         MenuRow {
             icon: "compress"
             text: Style.t("Comprimi…", "Compress…")
-            visible: folder.archive === ""
+            visible: !folder.readOnly
             enabled: Fs.isWritable(folder.path)
             onClicked: { moreMenu.close(); compressDialog.ask(folder.selectedPaths()) }
         }

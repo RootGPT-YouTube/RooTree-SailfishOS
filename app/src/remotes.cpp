@@ -3,11 +3,17 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QJsonDocument>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QUuid>
+#include <QCoreApplication>
+#include <QPointer>
+#include <thread>
+
+#include "qtrust.h"
 
 namespace {
 // ⭐ porta e metodi d'accesso predefiniti per tipo; i cloud con OAuth non
@@ -26,6 +32,129 @@ Remotes::Remotes(QObject *parent)
     : QObject(parent)
 {
     load();
+    const QString vault = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QStringLiteral("/cassaforte.json");
+    rootree::vault_set_path(qtrust::str(vault));
+}
+
+bool Remotes::hasSecret(const QString &id) const
+{
+    return !secret(id).isEmpty();
+}
+
+QString Remotes::secret(const QString &id) const
+{
+    if (m_secrets.contains(id))
+        return m_secrets.value(id);
+    return qtrust::qs(rootree::vault_get(qtrust::str(id)));
+}
+
+void Remotes::connect(const QString &id)
+{
+    const QVariantMap p = get(id);
+    if (p.isEmpty() || m_connecting.contains(id))
+        return;
+    m_connecting.insert(id);
+    const QByteArray json = QJsonDocument(QJsonObject::fromVariantMap(p)).toJson(QJsonDocument::Compact);
+    QByteArray sec = secret(id).toUtf8();
+    QPointer<Remotes> self(this);
+    std::thread([self, id, json, sec]() mutable {
+        QString code, message, path;
+        try {
+            path = qtrust::qs(rootree::remote_connect(rust::Str(json.constData(), size_t(json.size())),
+                                                      rust::Str(sec.constData(), size_t(sec.size()))));
+        } catch (const rust::Error &e) {
+            message = QString::fromUtf8(e.what());
+            const int colon = message.indexOf(QLatin1Char(':'));
+            const QString head = colon > 0 ? message.left(colon) : QString();
+            if (!head.isEmpty() && head == head.toUpper() && !head.contains(QLatin1Char(' '))) {
+                code = head;
+                message = message.mid(colon + 1);
+            } else {
+                code = QStringLiteral("ERR");
+            }
+        }
+        sec.fill('\0');
+        QMetaObject::invokeMethod(qApp, [self, id, code, message, path] {
+            if (!self)
+                return;
+            self->m_connecting.remove(id);
+            if (code.isEmpty())
+                self->m_entry.insert(id, QStringLiteral("/@remote/") + id + (path == QStringLiteral("/") ? QString() : path));
+            emit self->connectFinished(id, code, message, self->m_entry.value(id));
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+QString Remotes::trust(const QString &id)
+{
+    try {
+        rootree::remote_trust(qtrust::str(id));
+        return {};
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
+}
+
+void Remotes::disconnect(const QString &id)
+{
+    rootree::remote_disconnect(qtrust::str(id));
+    m_entry.remove(id);
+    emit changed();
+}
+
+bool Remotes::isConnected(const QString &id) const
+{
+    return rootree::remote_connected(qtrust::str(id));
+}
+
+bool Remotes::vaultExists() const
+{
+    return rootree::vault_exists();
+}
+
+bool Remotes::vaultUnlocked() const
+{
+    return rootree::vault_unlocked();
+}
+
+QString Remotes::vaultCreate(const QString &master)
+{
+    try {
+        rootree::vault_create(qtrust::str(master));
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
+    emit vaultChanged();
+    return {};
+}
+
+QString Remotes::vaultUnlock(const QString &master)
+{
+    try {
+        rootree::vault_unlock(qtrust::str(master));
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
+    emit vaultChanged();
+    return {};
+}
+
+void Remotes::vaultLock()
+{
+    rootree::vault_lock();
+    emit vaultChanged();
+}
+
+QString Remotes::remember(const QString &id)
+{
+    if (!m_secrets.contains(id))
+        return {};
+    try {
+        rootree::vault_set(qtrust::str(id), qtrust::str(m_secrets.value(id)));
+        return {};
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
 }
 
 QVariantList Remotes::types() const
@@ -113,6 +242,8 @@ void Remotes::remove(const QString &id)
         if (m_list.at(i).toMap().value(QStringLiteral("id")).toString() == id)
             m_list.removeAt(i);
     m_secrets.remove(id);
+    try { rootree::vault_remove(qtrust::str(id)); } catch (const rust::Error &) {}
+    disconnect(id);
     store();
 }
 

@@ -263,6 +263,36 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     compilati, salva/descrivi/duplica/modifica/elimina, password assente dal
     file. Toccare una connessione per ora dice che il collegamento arriva
     nel prossimo step.
-  - Prossimi step proposti: 2 collegamento e navigazione (SFTP prima, con
-    OpenDAL; cassaforte delle password), 3 copia locale↔remoto nella stessa
-    coda, 4 WebDAV/Nextcloud, FTP, SMB, S3, 5 cloud OAuth e Mega.
+  - Step successivi (l'utente l'08/11 ha chiesto di invertire 4 e 5): 2
+    collegamento SFTP e cassaforte, 3 copia locale↔remoto nella stessa coda,
+    4 cloud (Google Drive, OneDrive, Dropbox con accesso dal browser; Mega),
+    5 WebDAV/Nextcloud, FTP/FTPS, SMB, S3.
+- **08/11 — Fase 5, step 2: collegamento SFTP e cassaforte (0.6.1-1).**
+  - SFTP con il crate `ssh2` (libssh2 compilata dal crate col cross-gcc,
+    contro l'OpenSSL 3 di sistema; nel target libssh2 non c'è). Scelto al
+    posto di OpenDAL, che per SFTP guiderebbe il programma `ssh` esterno.
+    L'app ora chiede libssl/libcrypto 3 e libz.
+  - Percorsi remoti finti `/@remote/<id>/<percorso sul server>`: barra del
+    percorso (parte dal nome della connessione), cronologia e «su» (fermo
+    alla radice del server) funzionano come in locale. Per ora sola lettura
+    (FolderModel.readOnly): aprire e copiare arriva con lo step 3.
+  - Impronta del server come ssh: ~/.ssh/known_hosts (anche `[host]:porta`);
+    server nuovo → finestra con tipo e impronta SHA256, «Fidati e collega»
+    la aggiunge; impronta cambiata → rifiuto, con la spiegazione (ssh-keygen
+    -R). Nessuna credenziale parte prima del controllo.
+  - Accesso con password o chiave (anche con frase, chiesta al bisogno);
+    collegamento su un thread; una caduta di rete si ricollega da sola una
+    volta coi dati della sessione; «Scollega» nel menù della connessione.
+  - Cassaforte (`vault.rs`): file cifrato con una password principale scelta
+    dall'utente (Argon2id 32 MiB/3 passate → XChaCha20-Poly1305), scritto
+    accanto e rinominato, 600; si apre una volta per sessione, «Chiudi la
+    cassaforte» nel menù ⋮. Non Sailfish Secrets: è Qt 5 con un D-Bus privato.
+  - Verifica: 27 test (cassaforte: niente in chiaro nel file, password
+    sbagliata, chiusa = illeggibile). Sul POCO contro il NAS vero (porta non
+    standard, chiave ed25519 OpenSSH): collegato in 329 ms,
+    elenco cartella iniziale e radice; con un known_hosts vuoto server nuovo
+    → fiducia → collegato, poi impronta alterata → rifiuto. Col binario vero
+    e un QML di prova: tutto il percorso dei pulsanti, Proprietà di un file
+    remoto, Scollega. Trappola: env-rust.sh dava pkg-config del target anche
+    ai test (host i686): ora le variabili hanno il suffisso del target; nel
+    motore serve `openssl-devel` (installato).

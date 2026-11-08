@@ -39,7 +39,11 @@ export CXX_$t="$CROSS-g++"
 export AR_$t="$CROSS-ar"
 export CFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B"
 export CXXFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B"
-export PKG_CONFIG_SYSROOT_DIR=$SFOS_SYSROOT
-export PKG_CONFIG_LIBDIR=$SFOS_SYSROOT/usr/lib64/pkgconfig:$SFOS_SYSROOT/usr/lib/pkgconfig:$SFOS_SYSROOT/usr/share/pkgconfig
+# pkg-config: SOLO per il target (variabili col suffisso del target, che il
+# crate pkg-config legge per primo). ⛔ Con quelle generiche anche i test, che
+# girano sull'host i686 del motore, cercavano OpenSSL nel sysroot aarch64
+# («skipping incompatible …/libssl.so», Fase 5, 08/11)
+export PKG_CONFIG_SYSROOT_DIR_$t=$SFOS_SYSROOT
+export PKG_CONFIG_LIBDIR_$t=$SFOS_SYSROOT/usr/lib64/pkgconfig:$SFOS_SYSROOT/usr/lib/pkgconfig:$SFOS_SYSROOT/usr/share/pkgconfig
 export PKG_CONFIG_ALLOW_CROSS=1
 unset T t X B CROSS tool _R RUST_HOME

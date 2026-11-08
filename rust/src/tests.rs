@@ -632,3 +632,49 @@ fn salvataggio_con_copia_di_sicurezza() {
     assert!(fs::symlink_metadata(root.join("collegamento")).unwrap().file_type().is_symlink());
     let _ = fs::remove_dir_all(root);
 }
+
+// ------------------------------------------------------------------ Fase 5: remoti
+
+#[test]
+fn cassaforte_cifrata() {
+    let root = tmp(false);
+    let f = root.join("cassaforte.json");
+    crate::vault::set_path(&s(&f));
+    assert!(!crate::vault::exists());
+    assert!(crate::vault::create("corta").is_err(), "almeno 6 caratteri");
+    crate::vault::create("principale-di-prova").unwrap();
+    assert!(crate::vault::unlocked());
+    crate::vault::set("conn-1", "la-mia-password-ssh").unwrap();
+    crate::vault::set("conn-2", "altra").unwrap();
+    // nel file non c'è niente in chiaro, ed è solo dell'utente
+    let raw = fs::read_to_string(&f).unwrap();
+    assert!(!raw.contains("la-mia-password-ssh") && !raw.contains("conn-1"));
+    assert_eq!(fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+    crate::vault::lock();
+    assert!(!crate::vault::unlocked());
+    assert_eq!(crate::vault::get("conn-1"), None);
+    assert!(crate::vault::set("conn-3", "x").is_err(), "chiusa non si scrive");
+    let e = crate::vault::unlock("sbagliata").unwrap_err();
+    assert!(e.to_string().starts_with("WRONG:"));
+    crate::vault::unlock("principale-di-prova").unwrap();
+    assert_eq!(crate::vault::get("conn-1").as_deref(), Some("la-mia-password-ssh"));
+    crate::vault::remove("conn-1").unwrap();
+    crate::vault::lock();
+    crate::vault::unlock("principale-di-prova").unwrap();
+    assert_eq!(crate::vault::get("conn-1"), None);
+    assert_eq!(crate::vault::get("conn-2").as_deref(), Some("altra"));
+    crate::vault::lock();
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn percorsi_remoti() {
+    use crate::remote::split;
+    assert_eq!(split("/@remote/abc/home/emi"), Some(("abc".into(), "/home/emi".into())));
+    assert_eq!(split("/@remote/abc"), Some(("abc".into(), "/".into())));
+    assert_eq!(split("/@remote/abc/"), Some(("abc".into(), "/".into())));
+    assert_eq!(split("/home/emi"), None);
+    assert_eq!(split("/@remote/"), None);
+    // la lista di una cartella remota senza connessione: errore chiaro, niente panico
+    assert!(crate::list_dir("/@remote/nessuna/x", false, 0, false, true).err().unwrap_or_default().contains("NOTCONNECTED"));
+}

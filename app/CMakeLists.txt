@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(harbour-rootree VERSION 0.6.0 LANGUAGES CXX)
+project(harbour-rootree VERSION 0.6.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,4 +37,6 @@ target_link_libraries(harbour-rootree PRIVATE
     "${RUST_LIB_DIR}/librootree_core.a"
     # quelle che chiede la libreria statica di Rust (cargo --print native-static-libs)
     gcc_s util rt pthread m dl
+    # SFTP (libssh2 nel nucleo): OpenSSL 3 e zlib di sistema
+    ssl crypto z
 )
