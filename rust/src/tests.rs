@@ -44,7 +44,7 @@ fn albero(root: &Path) -> PathBuf {
 fn impronta(root: &Path) -> Vec<(String, String)> {
     fn giro(base: &Path, p: &Path, out: &mut Vec<(String, String)>) {
         let rel = p.strip_prefix(base).unwrap().to_string_lossy().into_owned();
-        let m = fs::symlink_metadata(p).unwrap();
+        let m = fs::symlink_metadata(p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
         if m.file_type().is_symlink() {
             out.push((rel, format!("link:{}", fs::read_link(p).unwrap().display())));
         } else if m.is_dir() {
@@ -293,5 +293,259 @@ fn immagine_bmp_ridotta() {
     let p = crate::thumbs::decode_picture(&s(&root.join("x.bmp")), 256).unwrap();
     assert_eq!((p.width, p.height), (256, 128));
     assert_eq!(&p.rgba[..4], &[10, 20, 30, 255]);
+    let _ = fs::remove_dir_all(root);
+}
+
+// ------------------------------------------------------------------ Fase 3: archivi e ricerca
+
+/// L'impronta senza i link (7z non li salva).
+fn senza_link(v: Vec<(String, String)>) -> Vec<(String, String)> {
+    v.into_iter().filter(|(_, k)| !k.starts_with("link:")).collect()
+}
+
+#[test]
+fn archivi_crea_sfoglia_estrai_in_ogni_formato() {
+    for ext in ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "tar.zst", "7z"] {
+        let root = tmp(false);
+        let a = albero(&root);
+        let arch = root.join(format!("pacco.{ext}"));
+        let st = wait(jobs::compress(vec![s(&a)], &s(&arch)));
+        assert_eq!(st.state, ST_DONE, "{ext}: {}", st.error);
+        assert!(arch.is_file(), "{ext}");
+        assert!(!root.join(format!(".pacco.{ext}.rootree-part")).exists(), "{ext}");
+
+        // sfogliare: una cartella dell'archivio come una cartella vera
+        let dentro = fsops::list_dir(&format!("{}/albero/sotto", s(&arch)), false, 0, false, true).unwrap();
+        let nomi: Vec<_> = dentro.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(nomi, ["profondo", "due.bin"], "{ext}");
+        assert_eq!(dentro[1].size, 3 * 1024 * 1024, "{ext}");
+
+        // «Estrai qui»: una sola cartella in cima, quindi niente cartella in più
+        let dest = root.join("dest");
+        fs::create_dir(&dest).unwrap();
+        let st = wait(jobs::extract(&s(&arch), &s(&dest)));
+        assert_eq!(st.state, ST_DONE, "{ext}: {}", st.error);
+        let (atteso, avuto) = (impronta(&a), impronta(&dest.join("albero")));
+        if ext == "7z" {
+            assert_eq!(senza_link(atteso), senza_link(avuto), "{ext}");
+        } else {
+            assert_eq!(atteso, avuto, "{ext}");
+        }
+        assert!(impronta(&dest).iter().all(|(p, _)| !p.contains("rootree-part")), "{ext}");
+
+        // copiare una voce da dentro l'archivio = estrarre solo quella
+        let dest2 = root.join("dest2");
+        fs::create_dir(&dest2).unwrap();
+        let st = wait(jobs::copy(vec![format!("{}/albero/sotto", s(&arch))], &s(&dest2)));
+        assert_eq!(st.state, ST_DONE, "{ext}: {}", st.error);
+        assert_eq!(impronta(&a.join("sotto")), impronta(&dest2.join("sotto")), "{ext}");
+        let _ = fs::remove_dir_all(root);
+    }
+}
+
+#[test]
+fn archivio_cattivo_non_esce_dalla_cartella() {
+    let root = tmp(false);
+    let arch = root.join("cattivo.tar");
+    {
+        let mut b = tar::Builder::new(fs::File::create(&arch).unwrap());
+        // un nome con «..» (scritto a mano: il crate tar non lo permetterebbe)
+        let mut h = tar::Header::new_old();
+        h.as_old_mut().name[..12].copy_from_slice(b"../fuori.txt");
+        h.set_size(5);
+        h.set_mode(0o644);
+        h.set_cksum();
+        b.append(&h, &b"fuori"[..]).unwrap();
+        // un link che porta fuori, e poi un file «attraverso» il link
+        let mut h = tar::Header::new_gnu();
+        h.set_entry_type(tar::EntryType::Symlink);
+        h.set_size(0);
+        b.append_link(&mut h, "esce", s(&root.join("bersaglio"))).unwrap();
+        let mut h = tar::Header::new_gnu();
+        h.set_size(5);
+        h.set_mode(0o4755); // setuid: non deve restare
+        b.append_data(&mut h, "esce/dentro.txt", &b"dentr"[..]).unwrap();
+        b.finish().unwrap();
+    }
+    fs::create_dir(root.join("bersaglio")).unwrap();
+    let dest = root.join("dest");
+    fs::create_dir(&dest).unwrap();
+    let st = wait(jobs::extract(&s(&arch), &s(&dest)));
+    assert_eq!(st.state, ST_DONE, "{}", st.error);
+    assert!(!root.join("fuori.txt").exists());
+    assert!(fs::read_dir(root.join("bersaglio")).unwrap().next().is_none(), "scritto attraverso il link");
+    // «../fuori.txt» saltato: in cima resta solo «esce», estratta senza cartella in più
+    let f = dest.join("esce/dentro.txt");
+    assert!(!f.parent().unwrap().is_symlink());
+    assert_eq!(fs::read(&f).unwrap(), b"dentr");
+    assert_eq!(fs::metadata(&f).unwrap().permissions().mode() & 0o7777, 0o755);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_compresso_da_solo() {
+    use std::io::Write;
+    let root = tmp(false);
+    let gz = root.join("nota.txt.gz");
+    let mut e = flate2::write::GzEncoder::new(fs::File::create(&gz).unwrap(), flate2::Compression::default());
+    e.write_all(b"ciao dal gz").unwrap();
+    e.finish().unwrap();
+    let st = wait(jobs::extract(&s(&gz), &s(&root)));
+    assert_eq!(st.state, ST_DONE, "{}", st.error);
+    assert_eq!(fs::read(root.join("nota.txt")).unwrap(), b"ciao dal gz");
+    // e si apre una voce da dentro (per i visori)
+    let cache = root.join("cache");
+    let p = crate::archive::extract_one(&gz, "nota.txt", &cache).unwrap();
+    assert_eq!(fs::read(p).unwrap(), b"ciao dal gz");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn annullare_un_estrazione_non_lascia_niente() {
+    let root = tmp(false);
+    let a = root.join("grande");
+    fs::create_dir(&a).unwrap();
+    for i in 0..4 {
+        fs::write(a.join(format!("f{i}.bin")), vec![i as u8; 8 << 20]).unwrap();
+    }
+    let arch = root.join("grande.tar");
+    assert_eq!(wait(jobs::compress(vec![s(&a)], &s(&arch))).state, ST_DONE);
+    let dest = root.join("dest");
+    fs::create_dir(&dest).unwrap();
+    let id = jobs::extract(&s(&arch), &s(&dest));
+    jobs::cancel(id);
+    let st = wait(id);
+    assert_eq!(st.state, ST_CANCELLED);
+    assert!(fs::read_dir(&dest).unwrap().next().is_none(), "resti dopo Annulla");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn ricerca_per_nome_e_contenuto() {
+    let root = tmp(false);
+    let a = albero(&root);
+    let cerca = |q: &str, mode: u8, hidden: bool| {
+        let id = crate::search::start(&s(&a), q, mode, false, hidden).unwrap();
+        let mut hits = Vec::new();
+        loop {
+            let b = crate::search::take(id);
+            hits.extend(b.hits.into_iter().map(|h| (h.entry.name, h.snippet)));
+            if b.done {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        crate::search::stop(id);
+        hits.sort();
+        hits
+    };
+    let nomi = |v: Vec<(String, String)>| v.into_iter().map(|h| h.0).collect::<Vec<_>>();
+    assert_eq!(nomi(cerca("*.MD", 0, false)), ["tre.md"]);
+    assert_eq!(nomi(cerca("uno", 0, false)), ["link-a-uno", "uno.txt"]);
+    assert_eq!(nomi(cerca("^(uno|due)\\.", 1, false)), ["due.bin", "uno.txt"]);
+    assert!(cerca("segreto", 2, false).is_empty());
+    assert_eq!(cerca("segreto", 2, true), [(".nascosto".to_string(), "segreto".to_string())]);
+    assert_eq!(nomi(cerca("^# t", 3, false)), ["tre.md"]);
+    assert!(crate::search::start(&s(&a), "(", 1, false, false).is_err());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn per_data_prima_i_piu_recenti() {
+    let root = tmp(false);
+    for (n, t) in [("vecchio", 1_000_000_000u64), ("nuovo", 1_700_000_000), ("medio", 1_400_000_000)] {
+        let f = fs::File::create(root.join(n)).unwrap();
+        f.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(t)).unwrap();
+    }
+    let nomi = |desc| fsops::list_dir(&s(&root), false, fsops::SORT_DATE, desc, true).unwrap().into_iter().map(|e| e.name).collect::<Vec<_>>();
+    assert_eq!(nomi(false), ["nuovo", "medio", "vecchio"]);
+    assert_eq!(nomi(true), ["vecchio", "medio", "nuovo"]);
+    let _ = fs::remove_dir_all(root);
+}
+
+/// Il criterio d'uscita della Fase 3: le estrazioni di RooTree uguali a
+/// quelle di `bsdtar`, nei due versi. Serve bsdtar (c'è nel build engine);
+/// si lancia a mano:  cargo test --release -- --ignored confronto
+#[test]
+#[ignore]
+fn confronto_con_bsdtar() {
+    use std::process::Command;
+    let bsd = |args: &[&str], cwd: &Path| {
+        let st = Command::new("bsdtar").args(args).current_dir(cwd).status().expect("manca bsdtar");
+        assert!(st.success(), "bsdtar {args:?}");
+    };
+    let root = tmp(false);
+    let a = albero(&root);
+    fs::write(a.join("città è – ü.txt"), "nomi non ASCII").unwrap();
+    let mut esito = Vec::new();
+
+    // 1. archivi di bsdtar, estratti da bsdtar e da RooTree
+    for (ext, crea) in [
+        ("tar", &["-cf"][..]),
+        ("tar.gz", &["-czf"][..]),
+        ("tar.bz2", &["-cjf"][..]),
+        ("tar.xz", &["-cJf"][..]),
+        ("tar.zst", &["--zstd", "-cf"][..]),
+        ("zip", &["--format", "zip", "-cf"][..]),
+        ("7z", &["--format", "7zip", "-cf"][..]),
+        ("cpio", &["--format", "newc", "-cf"][..]),
+        ("iso", &["--format", "iso9660", "-cf"][..]),
+    ] {
+        let arch = root.join(format!("bsd.{ext}"));
+        let mut args = crea.to_vec();
+        let an = s(&arch);
+        args.push(&an);
+        args.push("albero");
+        bsd(&args, &root);
+        let (rif, nostra) = (root.join(format!("rif-{ext}")), root.join(format!("nostra-{ext}")));
+        fs::create_dir(&rif).unwrap();
+        fs::create_dir(&nostra).unwrap();
+        bsd(&["-xf", &an], &rif);
+        let st = wait(jobs::extract(&an, &s(&nostra)));
+        assert_eq!(st.state, ST_DONE, "{ext}: {}", st.error);
+        for d in [&rif, &nostra] {
+            let kids: Vec<_> = fs::read_dir(d).unwrap().flatten().map(|e| e.file_name()).collect();
+            assert!(d.join("albero").exists(), "{ext}: in {} c'è {kids:?}", d.display());
+        }
+        let ok = impronta(&rif.join("albero")) == impronta(&nostra.join("albero"));
+        if !ok {
+            let (r, n) = (impronta(&rif.join("albero")), impronta(&nostra.join("albero")));
+            for x in r.iter().filter(|x| !n.contains(x)) {
+                eprintln!("{ext}: solo bsdtar  {x:?}");
+            }
+            for x in n.iter().filter(|x| !r.contains(x)) {
+                eprintln!("{ext}: solo RooTree {x:?}");
+            }
+        }
+        esito.push((format!("bsdtar → RooTree  .{ext}"), ok));
+    }
+
+    // 2. il RAR di prova della suite di libarchive (RooTree non crea RAR)
+    let rar = Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/prova.rar");
+    let (rif, nostra) = (root.join("rif-rar"), root.join("nostra-rar"));
+    fs::create_dir(&rif).unwrap();
+    fs::create_dir(&nostra).unwrap();
+    bsd(&["-xf", &s(&rar)], &rif);
+    let st = wait(jobs::extract(&s(&rar), &s(&nostra)));
+    assert_eq!(st.state, ST_DONE, "rar: {}", st.error);
+    // RooTree mette le voci sciolte in una cartella col nome dell'archivio
+    esito.push(("bsdtar → RooTree  .rar".into(), impronta(&rif) == impronta(&nostra.join("prova"))));
+
+    // 3. archivi di RooTree, estratti da bsdtar
+    for ext in ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "tar.zst", "7z"] {
+        let arch = root.join(format!("nostro.{ext}"));
+        assert_eq!(wait(jobs::compress(vec![s(&a)], &s(&arch))).state, ST_DONE, "{ext}");
+        let out = root.join(format!("da-bsdtar-{ext}"));
+        fs::create_dir(&out).unwrap();
+        bsd(&["-xf", &s(&arch)], &out);
+        let (src, got) = (impronta(&a), impronta(&out.join("albero")));
+        let ok = if ext == "7z" { senza_link(src) == senza_link(got) } else { src == got };
+        esito.push((format!("RooTree → bsdtar  .{ext}"), ok));
+    }
+
+    for (k, ok) in &esito {
+        eprintln!("{} {k}", if *ok { "✅" } else { "❌" });
+    }
+    assert!(esito.iter().all(|(_, ok)| *ok));
     let _ = fs::remove_dir_all(root);
 }

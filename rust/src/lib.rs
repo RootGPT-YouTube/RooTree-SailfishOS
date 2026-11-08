@@ -2,8 +2,10 @@
 //! immediate) e il motore delle operazioni lunghe. Il C++ lo usa attraverso
 //! il ponte `ffi` qui sotto.
 
+mod archive;
 mod fsops;
 mod jobs;
+mod search;
 mod thumbs;
 #[cfg(test)]
 mod tests;
@@ -59,6 +61,24 @@ mod ffi {
         sources: u64,
     }
 
+    /// Un risultato della ricerca; `snippet`: la riga trovata (ricerca nel contenuto).
+    struct SearchHit {
+        entry: Entry,
+        snippet: String,
+    }
+
+    /// I risultati arrivati dall'ultima chiamata e lo stato della ricerca.
+    #[derive(Default)]
+    struct SearchBatch {
+        hits: Vec<SearchHit>,
+        found: u64,
+        scanned: u64,
+        done: bool,
+        limited: bool,
+        current: String,
+        error: String,
+    }
+
     /// Un'immagine decodificata e rimpicciolita, RGBA a 8 bit.
     struct Picture {
         width: u32,
@@ -87,7 +107,27 @@ mod ffi {
         fn job_move(sources: Vec<String>, dest: &str) -> u64;
         fn job_delete(paths: Vec<String>) -> u64;
         fn job_size(paths: Vec<String>) -> u64;
+        /// Estrae tutto l'archivio in `dest` («Estrai qui»).
+        fn job_extract(archive: &str, dest: &str) -> u64;
+        /// Crea l'archivio `dest` (formato dal nome: .zip .tar .tar.gz .tar.bz2 .tar.xz .tar.zst .7z).
+        fn job_compress(sources: Vec<String>, dest: &str) -> u64;
         fn job_statuses() -> Vec<JobStatus>;
+
+        /// Se `path` è (o sta dentro) un archivio: il file dell'archivio, altrimenti "".
+        fn archive_of(path: &str) -> String;
+        /// Si può sfogliare come una cartella (dal nome).
+        fn is_archive(name: &str) -> bool;
+        /// Si può creare con questo nome.
+        fn can_create_archive(name: &str) -> bool;
+        /// Estrae una voce dell'archivio in `dir` (per aprirla) e ne rende il percorso.
+        fn archive_extract_one(path: &str, dir: &str) -> Result<String>;
+        /// Il nome di un archivio senza le sue estensioni.
+        fn archive_stem(name: &str) -> String;
+
+        /// mode: 0 nome (anche * e ?), 1 regex sul nome, 2 testo nel contenuto, 3 regex nel contenuto.
+        fn search_start(root: &str, query: &str, mode: u8, case_sensitive: bool, hidden: bool) -> Result<u64>;
+        fn search_take(id: u64) -> SearchBatch;
+        fn search_stop(id: u64);
         fn job_cancel(id: u64);
         fn job_resolve(id: u64, action: u8, apply_all: bool);
         fn job_forget(id: u64);
@@ -138,4 +178,47 @@ fn job_resolve(id: u64, action: u8, apply_all: bool) {
 
 fn job_forget(id: u64) {
     jobs::forget(id)
+}
+
+fn job_extract(archive: &str, dest: &str) -> u64 {
+    jobs::extract(archive, dest)
+}
+
+fn job_compress(sources: Vec<String>, dest: &str) -> u64 {
+    jobs::compress(sources, dest)
+}
+
+fn archive_of(path: &str) -> String {
+    archive::split(path).map(|(a, _)| a.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+fn is_archive(name: &str) -> bool {
+    archive::format_of(name).is_some()
+}
+
+fn can_create_archive(name: &str) -> bool {
+    archive::creatable(name).is_some()
+}
+
+fn archive_extract_one(path: &str, dir: &str) -> Result<String, String> {
+    let (a, inner) = archive::split(path).ok_or("non è dentro un archivio")?;
+    archive::extract_one(&a, &inner, std::path::Path::new(dir))
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+fn archive_stem(name: &str) -> String {
+    jobs::archive_stem(name)
+}
+
+fn search_start(root: &str, query: &str, mode: u8, case_sensitive: bool, hidden: bool) -> Result<u64, String> {
+    search::start(root, query, mode, case_sensitive, hidden)
+}
+
+fn search_take(id: u64) -> ffi::SearchBatch {
+    search::take(id)
+}
+
+fn search_stop(id: u64) {
+    search::stop(id)
 }

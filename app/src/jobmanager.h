@@ -21,7 +21,7 @@ class JobManager : public QObject
 
 public:
     // come in jobs.rs
-    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3 };
+    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5 };
     enum State { Queued = 0, Scanning, Running, AskConflict, AskError, Done, Failed, Cancelled };
     enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry };
     Q_ENUM(Kind)
@@ -40,6 +40,10 @@ public:
     Q_INVOKABLE int move(const QStringList &sources, const QString &dest);
     Q_INVOKABLE int remove(const QStringList &paths);
     Q_INVOKABLE int size(const QStringList &paths);
+    // «Estrai qui»: tutto l'archivio in dest
+    Q_INVOKABLE int extract(const QString &archive, const QString &dest);
+    // crea l'archivio dest (il formato dal nome) con sources
+    Q_INVOKABLE int compress(const QStringList &sources, const QString &dest);
     Q_INVOKABLE QVariantMap status(int id) const;
     Q_INVOKABLE void cancel(int id);
     Q_INVOKABLE void resolve(int id, int answer, bool applyAll);

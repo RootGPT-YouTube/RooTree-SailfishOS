@@ -10,6 +10,7 @@
 #include "foldermodel.h"
 #include "jobmanager.h"
 #include "opener.h"
+#include "searchmodel.h"
 #include "thumbnailer.h"
 
 int main(int argc, char *argv[])
@@ -30,6 +31,7 @@ int main(int argc, char *argv[])
     }
 
     qmlRegisterType<FolderModel>("RooTree", 1, 0, "FolderModel");
+    qmlRegisterType<SearchModel>("RooTree", 1, 0, "SearchModel");
     FileSystem fs;
     JobManager jobs;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Fs", &fs);

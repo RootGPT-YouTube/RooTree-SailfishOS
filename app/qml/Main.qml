@@ -29,7 +29,12 @@ Window {
 
     // mai 0: una finestra che parte larga 0 (offscreen) darebbe divisioni per zero
     function updateDp() { if (width > 0 && height > 0) Style.dp = Math.min(width, height) / 400 }
-    Component.onCompleted: { updateDp(); loadAmbience() }
+    Component.onCompleted: {
+        updateDp()
+        loadAmbience()
+        var s = sortOf(folder.path)
+        folder.setSorting(s.k, s.d, s.f)
+    }
     onWidthChanged: updateDp()
     onHeightChanged: updateDp()
 
@@ -38,10 +43,50 @@ Window {
         property string view: "grid"
         property bool thumbnails: true
         property alias showHidden: folder.showHidden
-        property alias sortKey: folder.sortKey
-        property alias descending: folder.descending
-        property alias dirsFirst: folder.dirsFirst
+        // l'ordinamento di tutto il sistema; per data, dal più recente
+        property int sortKey: 2
+        property bool descending: false
+        property bool dirsFirst: true
+        // «Solo per questa cartella» (acceso di base) e gli ordinamenti delle
+        // singole cartelle, {percorso: {k, d, f}} (scelta dell'utente, 08/11)
+        property bool sortPerFolder: true
+        property string folderSorts: "{}"
         property string theme: "rootundra"
+    }
+
+    // ── ordinamento: della cartella se ne ha uno suo, altrimenti di sistema ──
+    function folderSortMap() {
+        try { return JSON.parse(settings.folderSorts) || {} } catch (e) { return {} }
+    }
+    function sortOf(path) {
+        var own = folderSortMap()[path]
+        return own ? own : { k: settings.sortKey, d: settings.descending, f: settings.dirsFirst }
+    }
+    // cambiare cartella: prima il suo ordine, poi il percorso (una lettura sola)
+    function setPath(path) {
+        var s = sortOf(path)
+        folder.setSorting(s.k, s.d, s.f)
+        folder.path = path
+    }
+    function changeSort(k, d, f) {
+        var m = folderSortMap()
+        if (settings.sortPerFolder) {
+            m[folder.path] = { k: k, d: d, f: f }
+        } else {
+            // per tutto il sistema: vale ovunque, anche dove c'era un ordine proprio
+            settings.sortKey = k
+            settings.descending = d
+            settings.dirsFirst = f
+            m = {}
+        }
+        settings.folderSorts = JSON.stringify(m)
+        folder.setSorting(k, d, f)
+    }
+    function setSortPerFolder(on) {
+        settings.sortPerFolder = on
+        // spento: l'ordine che si vede ora diventa quello di tutto il sistema
+        if (!on)
+            changeSort(folder.sortKey, folder.descending, folder.dirsFirst)
     }
     // il tema e i colori dell'ambience; l'ambience si rilegge anche quando
     // l'app torna in primo piano (potrebbe essere cambiata nel frattempo)
@@ -95,20 +140,20 @@ Window {
         back = back.concat([folder.path])
         forward = []
         folder.clearSelection()
-        folder.path = path
+        setPath(path)
     }
     function goBack() {
         if (back.length === 0) return
         forward = [folder.path].concat(forward)
         folder.clearSelection()
-        folder.path = back[back.length - 1]
+        setPath(back[back.length - 1])
         back = back.slice(0, -1)
     }
     function goForward() {
         if (forward.length === 0) return
         back = back.concat([folder.path])
         folder.clearSelection()
-        folder.path = forward[0]
+        setPath(forward[0])
         forward = forward.slice(1)
     }
     function goUp() { if (folder.path !== "/") go(Fs.parentOf(folder.path)) }
@@ -125,7 +170,28 @@ Window {
             go(e.path)
             return
         }
+        // un archivio si sfoglia come una cartella (Estrai qui è nel menù)
+        if (Fs.isArchive(e.name)) {
+            go(e.path)
+            return
+        }
+        if (folder.archive !== "") {
+            openArchived(e)
+            return
+        }
         openFile(e)
+    }
+    // un file dentro un archivio: si estrae nella cache e si apre da lì
+    function openArchived(e) {
+        var p = Fs.extractForOpen(e.path)
+        if (!p) {
+            toast.show(Style.t("Impossibile aprire: ", "Cannot open: ") + Fs.lastError(), true)
+            return
+        }
+        if (e.category === "image")
+            imageViewer.openAt([{ path: p, name: e.name, size: e.size, mtime: e.mtime }], 0)
+        else
+            openFile({ path: p, name: e.name, category: e.category })
     }
     function openFile(e) {
         var mime = Opener.mimeType(e.path)
@@ -268,7 +334,7 @@ Window {
                     height: width
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails
+                    thumbnails: settings.thumbnails && folder.archive === ""
                     opacity: hidden ? 0.5 : 1
                     scale: gridArea.pressed ? 0.94 : 1
                     Behavior on scale { NumberAnimation { duration: 80 } }
@@ -317,7 +383,7 @@ Window {
                     small: true
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails
+                    thumbnails: settings.thumbnails && folder.archive === ""
                     opacity: hidden ? 0.5 : 1
                 }
                 Icon {
@@ -460,10 +526,11 @@ Window {
             anchors.fill: parent
             anchors.topMargin: 5 * Style.dp
             anchors.bottomMargin: 5 * Style.dp
-            readonly property real w: width / 6
+            readonly property real w: width / 7
             IconButton { width: parent.w; height: parent.height; icon: "back"; enabled: win.back.length > 0; onClicked: win.goBack() }
             IconButton { width: parent.w; height: parent.height; icon: "forward"; enabled: win.forward.length > 0; onClicked: win.goForward() }
             IconButton { width: parent.w; height: parent.height; icon: "up"; enabled: folder.path !== "/"; onClicked: win.goUp() }
+            IconButton { width: parent.w; height: parent.height; icon: "search"; enabled: folder.archive === ""; onClicked: searchPanel.openIn(folder.path) }
             IconButton { width: parent.w; height: parent.height; icon: settings.view === "grid" ? "list" : "grid"; onClicked: settings.view = settings.view === "grid" ? "list" : "grid" }
             IconButton {
                 width: parent.w; height: parent.height
@@ -489,15 +556,15 @@ Window {
             anchors.bottomMargin: 5 * Style.dp
             readonly property real w: width / 5
             IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
-            IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
+            IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); enabled: folder.archive === ""; onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "share"; label: Style.t("Condividi", "Share")
                 // si condividono i file, non le cartelle
-                enabled: folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
+                enabled: folder.archive === "" && folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
                 onClicked: { if (!Opener.share(folder.selectedPaths()) && Opener.lastError()) win.showSandboxError(); folder.clearSelection() }
             }
-            IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); onClicked: win.deleteSelected() }
+            IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); enabled: folder.archive === ""; onClicked: win.deleteSelected() }
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "menu"; label: Style.t("Altro", "More")
@@ -525,10 +592,22 @@ Window {
         MenuSection { text: Style.t("Ordina per", "Sort by") }
         Repeater {
             model: [Style.t("Nome", "Name"), Style.t("Dimensione", "Size"), Style.t("Data di modifica", "Modified"), Style.t("Tipo", "Type")]
-            delegate: MenuRow { text: modelData; checkable: true; checked: folder.sortKey === index; onClicked: folder.sortKey = index }
+            delegate: MenuRow { text: modelData; checkable: true; checked: folder.sortKey === index; onClicked: win.changeSort(index, folder.descending, folder.dirsFirst) }
         }
-        MenuRow { icon: "sort"; text: Style.t("Ordine inverso", "Descending"); checkable: true; checked: folder.descending; onClicked: folder.descending = !folder.descending }
-        MenuRow { icon: "folder"; text: Style.t("Cartelle prima", "Folders first"); checkable: true; checked: folder.dirsFirst; onClicked: folder.dirsFirst = !folder.dirsFirst }
+        MenuRow {
+            icon: "sort"
+            // per data l'ordine normale è dal più recente: l'inverso lo dice
+            text: folder.sortKey === 2 ? Style.t("Prima i più vecchi", "Oldest first") : Style.t("Ordine inverso", "Descending")
+            checkable: true; checked: folder.descending
+            onClicked: win.changeSort(folder.sortKey, !folder.descending, folder.dirsFirst)
+        }
+        MenuRow { icon: "folder"; text: Style.t("Cartelle prima", "Folders first"); checkable: true; checked: folder.dirsFirst; onClicked: win.changeSort(folder.sortKey, folder.descending, !folder.dirsFirst) }
+        MenuRow {
+            icon: "check"
+            text: Style.t("Solo per questa cartella", "Only for this folder")
+            checkable: true; checked: settings.sortPerFolder
+            onClicked: win.setSortPerFolder(!settings.sortPerFolder)
+        }
         MenuSection { text: Style.t("Tema", "Theme") }
         MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
         MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
@@ -573,7 +652,7 @@ Window {
         MenuRow {
             icon: "rename"
             text: Style.t("Rinomina", "Rename")
-            enabled: folder.selectedCount === 1
+            enabled: folder.selectedCount === 1 && folder.archive === ""
             onClicked: {
                 moreMenu.close()
                 var p = folder.selectedPaths()[0]
@@ -584,8 +663,98 @@ Window {
                 })
             }
         }
+        MenuRow {
+            icon: "extract"
+            text: Style.t("Estrai qui", "Extract here")
+            visible: folder.archive === "" && folder.selectedCount === 1 && !moreMenu.one.isDir && Fs.isArchive(moreMenu.one.name || "")
+            onClicked: { moreMenu.close(); Jobs.extract(folder.selectedPaths()[0], folder.path); folder.clearSelection() }
+        }
+        MenuRow {
+            icon: "compress"
+            text: Style.t("Comprimi…", "Compress…")
+            visible: folder.archive === ""
+            enabled: Fs.isWritable(folder.path)
+            onClicked: { moreMenu.close(); compressDialog.ask(folder.selectedPaths()) }
+        }
         MenuRow { icon: "info"; text: Style.t("Proprietà", "Properties"); onClicked: { moreMenu.close(); properties.openFor(folder.selectedPaths()) } }
         MenuRow { icon: "selectall"; text: Style.t("Seleziona tutto", "Select all"); onClicked: { moreMenu.close(); folder.selectAll() } }
+    }
+
+    // Comprimi: nome e formato; l'archivio nasce nella cartella corrente
+    AppDialog {
+        id: compressDialog
+        property var paths: []
+        property string format: "zip"
+        readonly property var formats: ["zip", "tar.gz", "tar.xz", "tar.zst", "tar.bz2", "7z", "tar"]
+        title: Style.t("Comprimi", "Compress")
+        function ask(list) {
+            paths = list
+            var first = list[0].split("/").pop()
+            // uno: il suo nome (senza estensione se è un file); più: il nome della cartella
+            var base = list.length === 1 ? (Fs.info(list[0]).isDir || first.lastIndexOf(".") <= 0 ? first : first.substring(0, first.lastIndexOf(".")))
+                                         : (folder.path.split("/").pop() || "archivio")
+            archiveName.text = base
+            open()
+        }
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Comprimi", "Compress"), role: "accept" }]
+        onChosen: function (role) {
+            if (role !== "accept" || archiveName.text.trim() === "") return
+            Jobs.compress(paths, Fs.join(folder.path, archiveName.text.trim() + "." + format))
+            folder.clearSelection()
+        }
+        TextField {
+            id: archiveName
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            selectByMouse: true
+            selectionColor: Style.accent
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: archiveName.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+        }
+        Flow {
+            width: parent.width
+            spacing: 6 * Style.dp
+            Repeater {
+                model: compressDialog.formats
+                delegate: SteelPill { text: "." + modelData; role: compressDialog.format === modelData ? "accept" : ""; onClicked: compressDialog.format = modelData }
+            }
+        }
+        Text {
+            font.family: Style.fontFamily
+            width: parent.width
+            wrapMode: Text.Wrap
+            color: Style.dim
+            font.pixelSize: Style.fontS
+            text: ({ "zip": Style.t("Si apre ovunque (Windows, Android, Mac).", "Opens everywhere (Windows, Android, Mac)."),
+                     "tar.gz": Style.t("Il classico di Linux; tiene permessi e link.", "The Linux classic; keeps permissions and links."),
+                     "tar.xz": Style.t("Più piccolo, più lento da creare.", "Smaller, slower to create."),
+                     "tar.zst": Style.t("Veloce e compatto.", "Fast and compact."),
+                     "tar.bz2": Style.t("Vecchio standard di Linux.", "Old Linux standard."),
+                     "7z": Style.t("Molto compatto; non salva i link.", "Very compact; does not store links."),
+                     "tar": Style.t("Senza compressione.", "No compression.") })[compressDialog.format]
+        }
+    }
+
+    SearchPanel {
+        id: searchPanel
+        onOpenRequested: function (e) {
+            if (e.isDir) {
+                close()
+                win.go(e.path)
+            } else if (Fs.isArchive(e.name)) {
+                close()
+                win.go(e.path)
+            } else {
+                win.openFile(e)
+            }
+        }
+        onShowInFolder: function (p) {
+            close()
+            win.go(Fs.parentOf(p))
+            var i = folder.indexOf(p.split("/").pop())
+            if (i >= 0) folder.setSelected(i, true)
+        }
     }
 
     OpenWithSheet { id: openWith }
@@ -705,7 +874,8 @@ Window {
                 toast.show(Style.t("Operazione non riuscita: ", "Operation failed: ") + error, true)
             } else if (state === 5) {
                 toast.show([Style.t("Copia completata", "Copy finished"), Style.t("Spostamento completato", "Move finished"),
-                            Style.t("Eliminazione completata", "Deleted")][kind])
+                            Style.t("Eliminazione completata", "Deleted"), "",
+                            Style.t("Estrazione completata", "Extraction finished"), Style.t("Archivio creato", "Archive created")][kind])
                 Jobs.forget(id)
             } else if (state === 7) {
                 Jobs.forget(id)

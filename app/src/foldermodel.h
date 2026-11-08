@@ -24,6 +24,8 @@ class FolderModel : public QAbstractListModel
     Q_PROPERTY(int fileCount READ fileCount NOTIFY countChanged)
     Q_PROPERTY(qint64 filesSize READ filesSize NOTIFY countChanged)
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
+    // il file dell'archivio se la cartella è dentro un archivio (sola lettura), o ""
+    Q_PROPERTY(QString archive READ archive NOTIFY pathChanged)
 
 public:
     enum Roles {
@@ -61,8 +63,12 @@ public:
     int fileCount() const { return m_items.size() - m_dirCount; }
     qint64 filesSize() const { return m_filesSize; }
     int selectedCount() const { return m_selected; }
+    QString archive() const { return m_archive; }
 
     Q_INVOKABLE void refresh();
+    // l'ordinamento intero in una volta: una rilettura sola (cambiando cartella
+    // con un ordinamento suo, prima l'ordine e poi il percorso)
+    Q_INVOKABLE void setSorting(int key, bool descending, bool dirsFirst);
     Q_INVOKABLE QVariantMap get(int row) const;
     Q_INVOKABLE int indexOf(const QString &name) const;
     Q_INVOKABLE void setSelected(int row, bool selected);
@@ -97,8 +103,9 @@ private:
     void reload(bool keepSelection);
 
     QString m_path;
+    QString m_archive;
     bool m_showHidden = false;
-    int m_sortKey = 0;
+    int m_sortKey = 2; // per data, dal più recente (scelta dell'utente, 08/11)
     bool m_descending = false;
     bool m_dirsFirst = true;
     QString m_error;

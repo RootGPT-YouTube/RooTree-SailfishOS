@@ -32,6 +32,15 @@ public:
     Q_INVOKABLE QString parentOf(const QString &path) const;
     Q_INVOKABLE QString join(const QString &dir, const QString &name) const;
 
+    // archivi: si sfoglia (dal nome), si crea (dal nome), il nome senza estensioni
+    Q_INVOKABLE bool isArchive(const QString &name) const;
+    Q_INVOKABLE bool canCreateArchive(const QString &name) const;
+    Q_INVOKABLE QString archiveStem(const QString &name) const;
+    // estrae una voce di un archivio nella cache (per aprirla); "" se non riesce,
+    // e il perché in lastError
+    Q_INVOKABLE QString extractForOpen(const QString &path);
+    Q_INVOKABLE QString lastError() const { return m_lastError; }
+
     // per il tema «SailfishOS classico»: i colori dell'ambience attiva e il
     // carattere Sail Sans Pro (del sistema, non lo si copia)
     // {highlight, primary, secondary, secondaryHighlight, lightScheme, font};
@@ -47,5 +56,6 @@ signals:
 
 private:
     QStringList m_bookmarks;
+    QString m_lastError;
     QSettings m_settings;
 };

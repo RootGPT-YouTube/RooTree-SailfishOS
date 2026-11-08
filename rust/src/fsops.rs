@@ -149,19 +149,36 @@ fn extension(name: &str) -> String {
 
 pub fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, dirs_first: bool) -> io::Result<Vec<Entry>> {
     let mut entries = Vec::new();
-    for item in fs::read_dir(path)? {
-        let item = item?;
-        let name = item.file_name().to_string_lossy().into_owned();
-        if !show_hidden && name.starts_with('.') {
-            continue;
+    match fs::read_dir(path) {
+        Ok(rd) => {
+            for item in rd {
+                let item = item?;
+                let name = item.file_name().to_string_lossy().into_owned();
+                if !show_hidden && name.starts_with('.') {
+                    continue;
+                }
+                entries.push(entry_for(&item.path(), name));
+            }
         }
-        entries.push(entry_for(&item.path(), name));
+        // dentro un archivio: si sfoglia come una cartella
+        Err(e) => match crate::archive::split(path) {
+            Some((archive, inner)) => entries = crate::archive::children(&archive, &inner, show_hidden)?,
+            None => return Err(e),
+        },
     }
+    sort_entries(&mut entries, sort_key, descending, dirs_first);
+    Ok(entries)
+}
+
+/// L'ordine di una cartella. Per data l'ordine «normale» è dal più recente
+/// (scelta dell'utente dell'08/11: «dai più vecchi ai più nuovi» non serve
+/// quasi mai); «inverso» rovescia quello normale, per ogni criterio.
+pub fn sort_entries(entries: &mut [Entry], sort_key: u8, descending: bool, dirs_first: bool) {
     entries.sort_by(|a, b| {
         let dirs = if dirs_first { (b.kind == KIND_DIR).cmp(&(a.kind == KIND_DIR)) } else { Ordering::Equal };
         let key = match sort_key {
             SORT_SIZE => a.size.cmp(&b.size),
-            SORT_DATE => a.mtime.cmp(&b.mtime),
+            SORT_DATE => b.mtime.cmp(&a.mtime),
             SORT_TYPE => extension(&a.name).cmp(&extension(&b.name)),
             _ => Ordering::Equal,
         };
@@ -169,12 +186,18 @@ pub fn list_dir(path: &str, show_hidden: bool, sort_key: u8, descending: bool, d
         // le cartelle restano in cima anche in ordine inverso, come in Dolphin
         dirs.then(if descending { key.reverse() } else { key })
     });
-    Ok(entries)
 }
 
 pub fn stat_path(path: &str) -> io::Result<Entry> {
     let p = Path::new(path);
-    fs::symlink_metadata(p)?;
+    if let Err(e) = fs::symlink_metadata(p) {
+        // una voce di un archivio: la si cerca fra quelle della sua cartella
+        let parent = p.parent().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default();
+        return crate::archive::split(&parent)
+            .and_then(|(a, inner)| crate::archive::children(&a, &inner, true).ok())
+            .and_then(|v| v.into_iter().find(|x| x.path == path))
+            .ok_or(e);
+    }
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "/".into());
     Ok(entry_for(p, name))
 }

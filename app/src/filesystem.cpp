@@ -4,7 +4,10 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QProcess>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QRegularExpression>
+#include <QStandardPaths>
 
 #include <unistd.h>
 
@@ -114,6 +117,53 @@ QString FileSystem::parentOf(const QString &path) const
 QString FileSystem::join(const QString &dir, const QString &name) const
 {
     return QDir::cleanPath(dir + QLatin1Char('/') + name);
+}
+
+bool FileSystem::isArchive(const QString &name) const
+{
+    return rootree::is_archive(qtrust::str(name));
+}
+
+bool FileSystem::canCreateArchive(const QString &name) const
+{
+    return rootree::can_create_archive(qtrust::str(name));
+}
+
+QString FileSystem::archiveStem(const QString &name) const
+{
+    return qtrust::qs(rootree::archive_stem(qtrust::str(name)));
+}
+
+// la cache delle voci aperte da dentro un archivio: una cartella per voce,
+// col nome vero del file dentro (le app lo mostrano); al primo uso della
+// sessione si buttano quelle di più di un giorno
+static QString archiveCache()
+{
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/archivi");
+    static bool cleaned = false;
+    if (!cleaned) {
+        cleaned = true;
+        const QDateTime limit = QDateTime::currentDateTime().addDays(-1);
+        const auto dirs = QDir(base).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo &d : dirs)
+            if (d.lastModified() < limit)
+                QDir(d.absoluteFilePath()).removeRecursively();
+    }
+    return base;
+}
+
+QString FileSystem::extractForOpen(const QString &path)
+{
+    m_lastError.clear();
+    const QString dir = archiveCache() + QLatin1Char('/')
+        + QString::fromLatin1(QCryptographicHash::hash(path.toUtf8(), QCryptographicHash::Sha1).toHex().left(16));
+    QDir(dir).removeRecursively(); // l'archivio può essere cambiato
+    try {
+        return qtrust::qs(rootree::archive_extract_one(qtrust::str(path), qtrust::str(dir)));
+    } catch (const rust::Error &e) {
+        m_lastError = QString::fromUtf8(e.what());
+        return {};
+    }
 }
 
 QVariantList FileSystem::bookmarks() const

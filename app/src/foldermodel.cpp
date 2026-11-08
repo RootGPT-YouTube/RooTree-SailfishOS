@@ -59,9 +59,11 @@ void FolderModel::setPath(const QString &path)
     if (!m_path.isEmpty())
         m_watcher.removePath(m_path);
     m_path = clean;
+    m_archive = qtrust::qs(rootree::archive_of(qtrust::str(m_path)));
     emit pathChanged();
     reload(false);
-    m_watcher.addPath(m_path);
+    if (m_archive.isEmpty())
+        m_watcher.addPath(m_path);
 }
 
 #define SORT_SETTER(name, member, type)        \
@@ -78,6 +80,17 @@ SORT_SETTER(setSortKey, m_sortKey, int)
 SORT_SETTER(setDescending, m_descending, bool)
 SORT_SETTER(setDirsFirst, m_dirsFirst, bool)
 #undef SORT_SETTER
+
+void FolderModel::setSorting(int key, bool descending, bool dirsFirst)
+{
+    if (key == m_sortKey && descending == m_descending && dirsFirst == m_dirsFirst)
+        return;
+    m_sortKey = key;
+    m_descending = descending;
+    m_dirsFirst = dirsFirst;
+    emit sortingChanged();
+    reload(true);
+}
 
 void FolderModel::refresh()
 {

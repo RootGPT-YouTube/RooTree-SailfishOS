@@ -173,3 +173,35 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - Collaudo sul POCO: griglia, menù ⋮, menù delle memorie con le cartelle
     (anche della SD) e cambio di tema dal vivo nei due versi. Ancora da
     guardare col tema Sailfish: Proprietà, dialoghi, visori.
+- **08/11 — Fase 3 completata: RooTree 0.4.0.**
+  - Ricerca (nucleo Rust, `search.rs`, un thread suo): per nome (testo o
+    `*`/`?`), espressione regolare sul nome, testo o espressione regolare nel
+    contenuto (file fino a 64 MB, i binari si saltano, la riga trovata nel
+    risultato). Dalla cartella corrente in giù, senza seguire i link alle
+    cartelle e senza entrare in /proc, /sys, /dev; si ferma a 5000 risultati.
+    Interfaccia: pannello a tutto schermo dal pulsante con la lente; tocco =
+    apri, disco a destra = vai alla cartella che lo contiene.
+  - Archivi (`archive.rs`): zip, tar (.gz .bz2 .xz .zst) e 7z in Rust
+    (lettura e creazione; zstd in C col cross-gcc); un file compresso da solo
+    (`.gz` ecc.) come archivio di una voce; RAR, iso, cpio, cab, lha, deb, rpm
+    in sola lettura con la libarchive di sistema caricata con dlopen (nel
+    target non ci sono gli header; lo spec la chiede). Toccare un archivio lo
+    apre come una cartella; copiare da dentro = estrarre quelle voci;
+    «Estrai qui» e «Comprimi…» (7 formati) nel menù Altro. Si estrae in una
+    cartella temporanea nascosta, i nomi con `..` si saltano, i link simbolici
+    si creano per ultimi, niente setuid; una voce sola in cima si estrae
+    senza cartella in più, altrimenti in una cartella col nome dell'archivio.
+  - Ordinamento (richiesta dell'utente dell'08/11): per data l'ordine normale
+    è dal più recente (predefinito); interruttore «Solo per questa cartella»
+    (acceso di base: l'ordine scelto vale per la cartella; spento: l'ordine
+    vale ovunque e gli ordini delle singole cartelle si azzerano).
+  - Verifica: 23 test (`cargo test --release -- --include-ignored` nel
+    motore), fra cui il **confronto con bsdtar 3.8.6** nei due versi: archivi
+    di bsdtar (tar, tar.gz/bz2/xz/zst, zip, 7z, cpio, iso) e il RAR della suite
+    di libarchive estratti da RooTree = estratti da bsdtar; archivi di RooTree
+    (7 formati) estratti da bsdtar = sorgente (7z senza i link). Archivio
+    costruito apposta con `../` e un link che esce: niente scritto fuori.
+  - POCO: RPM 0.4.0-1 installato, `rpm -V` pulito; il QML si carica (prova
+    fuori schermo, che ha trovato un errore poi corretto). Prove col dito
+    dell'utente: archivi di esempio in
+    `/home/debugging/2026-11-08-rootree-fase3/archivi-di-prova`.

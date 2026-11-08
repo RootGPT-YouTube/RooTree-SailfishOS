@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.3.1
-Release:    2
+Version:    0.4.0
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -26,6 +26,9 @@ Requires:   rootgpt-qt6-runtime >= 6.12.0
 # quindi le librerie si chiedono a mano, per soname.
 Requires:   gstreamer1.0-plugins-base
 Requires:   /usr/bin/lca-tool
+# RAR e formati rari (iso, cpio, cab...): libarchive, caricata a runtime con
+# dlopen (zip, tar.* e 7z invece sono nel binario)
+Requires:   libarchive
 %ifarch aarch64
 Requires:   libgstreamer-1.0.so.0()(64bit)
 Requires:   libgstbase-1.0.so.0()(64bit)
@@ -71,6 +74,18 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.4.0-1
+- Search from the current folder down: by name (also with * and ?), by
+  regular expression, or inside the files' content, with results arriving
+  while it runs.
+- Archives: zip, tar (.gz .bz2 .xz .zst) and 7z open like folders, and
+  copying from inside one extracts just those items; "Extract here" and
+  "Compress…" in the selection menu. RAR and other read-only formats through
+  the system libarchive. Unsafe archive paths are never written outside.
+- Sorting by date now shows the newest first; a new "Only for this folder"
+  switch (on by default) keeps the chosen sorting for the current folder
+  only, while turned off it applies everywhere.
+
 * Tue Oct 27 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.3.1-2
 - Classic SailfishOS theme: file icons are tinted too, in the secondary
   highlight colour of the ambience.

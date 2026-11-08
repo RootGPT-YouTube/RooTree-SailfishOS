@@ -28,6 +28,8 @@ pub const JOB_COPY: u8 = 0;
 pub const JOB_MOVE: u8 = 1;
 pub const JOB_DELETE: u8 = 2;
 pub const JOB_SIZE: u8 = 3;
+pub const JOB_EXTRACT: u8 = 4;
+pub const JOB_COMPRESS: u8 = 5;
 
 pub const ST_QUEUED: u8 = 0;
 pub const ST_SCANNING: u8 = 1;
@@ -87,6 +89,8 @@ fn worker() {
         let mut run = Run::new(job.clone());
         let result = match kind {
             JOB_DELETE => run.delete(&sources),
+            JOB_EXTRACT => run.extract(&sources, &dest),
+            JOB_COMPRESS => run.compress(&sources, &dest),
             _ => run.transfer(&sources, &dest, kind == JOB_MOVE),
         };
         run.finish(result);
@@ -127,7 +131,22 @@ fn enqueue(kind: u8, sources: Vec<String>, dest: &str) -> u64 {
 }
 
 pub fn copy(sources: Vec<String>, dest: &str) -> u64 {
+    // copiare da dentro un archivio = estrarre quelle voci
+    if sources.first().and_then(|s| crate::archive::split(s)).is_some_and(|(_, inner)| !inner.is_empty()) {
+        return enqueue(JOB_EXTRACT, sources, dest);
+    }
     enqueue(JOB_COPY, sources, dest)
+}
+
+/// «Estrai qui»: tutto l'archivio in `dest`, in una cartella col suo nome
+/// (o direttamente, se l'archivio contiene già una sola cartella).
+pub fn extract(archive: &str, dest: &str) -> u64 {
+    enqueue(JOB_EXTRACT, vec![archive.to_string()], dest)
+}
+
+/// Crea l'archivio `dest` (il formato dal nome) con `sources`.
+pub fn compress(sources: Vec<String>, dest: &str) -> u64 {
+    enqueue(JOB_COMPRESS, sources, dest)
 }
 
 pub fn move_to(sources: Vec<String>, dest: &str) -> u64 {
@@ -236,6 +255,11 @@ fn scan(p: &Path, t: &mut Totals, cancel: &AtomicBool) {
             t.bytes += m.len();
         }
     }
+}
+
+/// Il nome stesso se è libero, altrimenti il primo «nome (N)» libero.
+pub fn free_name(target: &Path) -> PathBuf {
+    if fs::symlink_metadata(target).is_err() { target.to_path_buf() } else { unique_name(target) }
 }
 
 /// «nome (1).ext», «nome (2).ext»… il primo che non esiste.
@@ -430,6 +454,160 @@ impl Run {
             }
         }
         Ok(())
+    }
+
+    /// Avanzamento di un archivio: una voce (byte 0) o un blocco di byte.
+    fn archive_progress(&self, name: &str, n: u64) -> io::Result<()> {
+        if self.cancelled() {
+            return Err(crate::archive::cancelled());
+        }
+        self.set(|s| {
+            if n == 0 {
+                s.done_items += 1;
+                s.current = name.to_string();
+            }
+            s.done_bytes += n;
+        });
+        Ok(())
+    }
+
+    fn archive_error(&self, e: io::Error) -> Stop {
+        if e.kind() == io::ErrorKind::Interrupted || self.cancelled() { Stop::Cancelled } else { Stop::Failed(e.to_string()) }
+    }
+
+    fn extract(&mut self, sources: &[PathBuf], dest: &Path) -> Res<()> {
+        use crate::archive;
+        self.set(|s| s.state = ST_SCANNING);
+        if !dest.is_dir() {
+            return Err(Stop::Failed(format!("la destinazione non è una cartella: {}", dest.display())));
+        }
+        let first = sources.first().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        let Some((arch, _)) = archive::split(&first) else {
+            return Err(Stop::Failed(format!("non è un archivio: {first}")));
+        };
+        // le voci scelte (vuoto = tutto l'archivio)
+        let mut picks: Vec<String> = Vec::new();
+        for s in sources {
+            let s = s.to_string_lossy();
+            match archive::split(&s) {
+                Some((a, inner)) if a == arch => {
+                    if let Some(c) = archive::clean(&inner) {
+                        picks.push(c);
+                    }
+                }
+                _ => return Err(Stop::Failed("si estrae da un archivio alla volta".into())),
+            }
+        }
+        let list = archive::list(&arch).map_err(|e| self.archive_error(e))?;
+        let chosen = |p: &str| picks.is_empty() || picks.iter().any(|k| p == k || p.starts_with(&format!("{k}/")));
+        let (mut bytes, mut items) = (0u64, 0u64);
+        for e in list.iter().filter(|e| chosen(&e.path)) {
+            bytes += e.size;
+            items += 1;
+        }
+        self.check()?;
+        self.set(|s| {
+            s.total_bytes = bytes;
+            s.total_items = items;
+            s.state = ST_RUNNING;
+        });
+        if let Some((_, free)) = fsops::space(dest)
+            && bytes > free
+        {
+            return Err(Stop::Failed(format!("spazio insufficiente: servono {bytes} byte, liberi {free}")));
+        }
+        let arch_name = arch.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let stem = archive_stem(&arch_name);
+        let tmp = free_name(&dest.join(format!(".{stem}.rootree-part")));
+        let r = (|| -> Res<()> {
+            fs::create_dir(&tmp).map_err(|e| Stop::Failed(e.to_string()))?;
+            let base = |k: &str| k.rsplit('/').next().unwrap_or(k).to_string();
+            let map = |p: &str| -> Option<PathBuf> {
+                if picks.is_empty() {
+                    return Some(PathBuf::from(p));
+                }
+                picks.iter().find_map(|k| {
+                    if p == k {
+                        Some(PathBuf::from(base(k)))
+                    } else {
+                        p.strip_prefix(&format!("{k}/")).map(|rest| Path::new(&base(k)).join(rest))
+                    }
+                })
+            };
+            archive::extract_into(&arch, &tmp, &map, &mut |n, b| self.archive_progress(n, b))
+                .map_err(|e| self.archive_error(e))?;
+            self.check()?;
+            // dalla cartella temporanea al posto vero
+            let tops: Vec<PathBuf> = if picks.is_empty() {
+                let kids: Vec<PathBuf> = fs::read_dir(&tmp).map_err(|e| Stop::Failed(e.to_string()))?.flatten().map(|e| e.path()).collect();
+                if kids.len() == 1 {
+                    kids // una voce sola (cartella o file): niente cartella in più
+                } else {
+                    let target = free_name(&dest.join(&stem));
+                    fs::rename(&tmp, &target).map_err(|e| Stop::Failed(e.to_string()))?;
+                    return Ok(());
+                }
+            } else {
+                let mut v: Vec<PathBuf> = picks.iter().map(|k| tmp.join(base(k))).collect();
+                v.dedup();
+                v
+            };
+            for src in tops {
+                if fs::symlink_metadata(&src).is_err() {
+                    continue;
+                }
+                let mut target = dest.join(src.file_name().unwrap());
+                if fs::symlink_metadata(&target).is_ok() {
+                    let shown = arch.join(src.strip_prefix(&tmp).unwrap_or(&src));
+                    match self.on_conflict(&shown, &target)? {
+                        ANS_SKIP => continue,
+                        ANS_OVERWRITE if !target.is_dir() => {
+                            let _ = fs::remove_file(&target);
+                        }
+                        _ => target = unique_name(&target),
+                    }
+                }
+                fs::rename(&src, &target).map_err(|e| Stop::Failed(e.to_string()))?;
+            }
+            Ok(())
+        })();
+        let _ = fs::remove_dir_all(&tmp);
+        r
+    }
+
+    fn compress(&mut self, sources: &[PathBuf], dest: &Path) -> Res<()> {
+        use crate::archive;
+        self.set(|s| s.state = ST_SCANNING);
+        let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let Some(fmt) = archive::creatable(&name) else {
+            return Err(Stop::Failed(format!("formato non supportato per creare: {name}")));
+        };
+        let mut t = Totals::default();
+        for s in sources {
+            self.check()?;
+            scan(s, &mut t, &self.job.cancel);
+        }
+        self.check()?;
+        self.set(|s| {
+            s.total_bytes = t.bytes;
+            s.total_items = t.files + t.dirs;
+            s.state = ST_RUNNING;
+        });
+        let dest = if fs::symlink_metadata(dest).is_ok() { unique_name(dest) } else { dest.to_path_buf() };
+        let final_name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let part = dest.with_file_name(format!(".{final_name}.rootree-part"));
+        let r = archive::create(&part, fmt, sources, &mut |n, b| self.archive_progress(n, b))
+            .map_err(|e| self.archive_error(e))
+            .and_then(|_| {
+                if let Ok(f) = File::open(&part) {
+                    let _ = f.sync_all();
+                }
+                fs::rename(&part, &dest).map_err(|e| Stop::Failed(e.to_string()))
+            });
+        if r.is_err() {
+            let _ = fs::remove_file(&part);
+        }
+        r
     }
 
     /// Spostamento veloce con rename() se la destinazione è libera e sullo
@@ -723,4 +901,17 @@ pub fn wait(id: u64) -> JobStatus {
         }
         thread::sleep(std::time::Duration::from_millis(5));
     }
+}
+
+/// Il nome di un archivio senza le estensioni dell'archivio: «foto.tar.gz» → «foto».
+pub fn archive_stem(name: &str) -> String {
+    let lower = name.to_ascii_lowercase();
+    for ext in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".tar", ".zip", ".cbz",
+        ".7z", ".rar", ".cbr", ".iso", ".cpio", ".cab", ".lzh", ".lha", ".xar", ".deb", ".rpm", ".ar", ".gz", ".bz2", ".xz", ".zst"]
+    {
+        if lower.len() > ext.len() && lower.ends_with(ext) {
+            return name[..name.len() - ext.len()].to_string();
+        }
+    }
+    format!("{name}.estratto")
 }

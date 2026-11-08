@@ -38,6 +38,16 @@ int JobManager::size(const QStringList &paths)
     return started(rootree::job_size(qtrust::vec(paths)));
 }
 
+int JobManager::extract(const QString &archive, const QString &dest)
+{
+    return started(rootree::job_extract(qtrust::str(archive), qtrust::str(dest)));
+}
+
+int JobManager::compress(const QStringList &sources, const QString &dest)
+{
+    return started(rootree::job_compress(qtrust::vec(sources), qtrust::str(dest)));
+}
+
 void JobManager::cancel(int id)
 {
     rootree::job_cancel(quint64(id));
