@@ -21,6 +21,8 @@ public:
     Q_INVOKABLE QVariantList actions(const QString &path) const;
     // false se non c'è un'app predefinita per questo tipo
     Q_INVOKABLE bool openDefault(const QString &path) const;
+    // un indirizzo web nel browser predefinito (come xdg-open su Sailfish)
+    Q_INVOKABLE bool openUrl(const QString &url) const;
     Q_INVOKABLE void openWith(const QString &path, const QString &actionId) const;
     Q_INVOKABLE void setDefault(const QString &mime, const QString &actionId) const;
     Q_INVOKABLE bool share(const QStringList &paths) const;

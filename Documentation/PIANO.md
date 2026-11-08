@@ -320,3 +320,30 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - ⛔ Trovato provando: OpenSSH scambia gli argomenti di SSH_FXP_SYMLINK.
     La prima versione ha creato un link fuori posto nella home dell'utente
     sul NAS (tolto subito); ora l'ordine è quello di OpenSSH, provato.
+- **08/11 — Fase 5, step 4 (cloud, uno alla volta — scelta dell'utente):
+  Dropbox (0.6.3-1).** Il più semplice: API per percorso, PKCE senza
+  segreto.
+  - Regole verificate l'08/11 sulle pagine ufficiali (fonti in `oauth.rs`):
+    Google desktop = loopback + PKCE, client_secret non segreto; app non
+    verificata con lo scope completo di Drive = 100 utenti per sempre e
+    avviso; in modalità «Test» token di 7 giorni. Microsoft: `http://localhost`
+    ammesso, porta ignorata. Dropbox: PKCE senza segreto, `offline` per il
+    rinnovo, indirizzo di ritorno esatto ⇒ porta fissa 53682. Limite di
+    utenti delle app Dropbox in sviluppo: non nella pagina ufficiale, da
+    verificare.
+  - `oauth.rs` (accesso dal browser: ascolto su 127.0.0.1, controllo dello
+    state, scambio del codice, rinnovo), `http.rs` (ureq 3 con l'OpenSSL di
+    sistema), `cloud.rs` (trait Drive + Dropbox: elenco a pagine, metadati,
+    scaricamento in streaming, caricamento a pezzi da 8 MB mentre si scrive,
+    nuova cartella, elimina, sposta). `remote.rs` ha ora uno strato generico
+    (SFTP o cloud) usato da vfs: copia, coda, Annulla e conflitti valgono
+    uguali. Il segreto della connessione è il token di rinnovo, nella
+    cassaforte.
+  - Ogni utente usa la sua App key gratuita (la procedura spiega come
+    crearla: costo zero, nessun servizio a carico dell'autore).
+  - Verificato senza account: 30 test (date, intestazione con accenti,
+    codifica, ascolto su 127.0.0.1 con browser simulato che rifiuta state
+    falsi e riconosce l'accesso negato); HTTPS dal POCO verso Dropbox,
+    Microsoft e Google; col binario vero: indirizzo d'accesso, Annulla,
+    collegamento senza token. ⏳ La prova con un account vero aspetta la App
+    key dell'utente. OneDrive, Google Drive, Mega: «in arrivo».

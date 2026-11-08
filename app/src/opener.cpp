@@ -269,6 +269,12 @@ bool Opener::share(const QStringList &paths) const
     return sent;
 }
 
+bool Opener::openUrl(const QString &url) const
+{
+    // il ramo degli indirizzi di xdg-open di Jolla: il gestore predefinito di https
+    return QProcess::startDetached(lca, {QStringLiteral("--scheme"), QStringLiteral("--triggerdefault"), url});
+}
+
 QVariantMap Opener::readText(const QString &path) const
 {
     try {

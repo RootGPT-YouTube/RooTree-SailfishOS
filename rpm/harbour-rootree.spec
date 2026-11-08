@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.2
-Release:    3
+Version:    0.6.3
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,15 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.3-1
+- Phase 5, step 4 (clouds, one at a time): Dropbox. Sign-in happens in the
+  browser (OAuth with PKCE, return to 127.0.0.1: the password never goes
+  through RooTree); the sign-in is kept in the password vault. Dropbox
+  folders are browsed, copied to and from, renamed and deleted like the
+  other connections; big files are uploaded in 8 MB pieces while being
+  written, so the progress is real. Needs your own free Dropbox App key
+  (the wizard explains how). OneDrive, Google Drive and Mega: coming.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-3
 - Copying a folder where a folder with the same name exists now asks, like
   Dolphin: Merge, Keep both, Skip or Cancel, with "Do this for all folders"

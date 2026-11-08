@@ -105,6 +105,11 @@ fn kh_format(t: ssh2::HostKeyType) -> KnownHostKeyFormat {
 /// frase mancante), `NET:` (server irraggiungibile).
 pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
     let p: Profile = serde_json::from_str(profile_json).map_err(|e| format!("profilo non valido: {e}"))?;
+    if crate::cloud::is_cloud_type(&p.kind) {
+        let drive = crate::cloud::connect(profile_json, secret)?;
+        clouds().lock().unwrap().insert(p.id.clone(), drive);
+        return Ok("/".into());
+    }
     if p.kind != "sftp" {
         return Err(format!("UNSUPPORTED:il collegamento a «{}» arriva in uno step successivo", p.kind));
     }
@@ -203,6 +208,7 @@ pub fn trust(id: &str) -> Result<(), String> {
 }
 
 pub fn disconnect(id: &str) {
+    clouds().lock().unwrap().remove(id);
     if let Some(c) = conns().lock().unwrap().remove(id)
         && let Ok(c) = c.lock()
     {
@@ -211,7 +217,7 @@ pub fn disconnect(id: &str) {
 }
 
 pub fn connected(id: &str) -> bool {
-    conns().lock().unwrap().contains_key(id)
+    conns().lock().unwrap().contains_key(id) || clouds().lock().unwrap().contains_key(id)
 }
 
 /// (id, percorso sul server) da un percorso `/@remote/<id>/…`.
@@ -304,7 +310,35 @@ fn entry(id: &str, dir: &str, name: String, st: &ssh2::FileStat, target: Option<
 }
 
 /// Il contenuto di una cartella remota.
+/// Una voce per l'interfaccia dai dati generici (i cloud: niente link).
+fn entry_rs(id: &str, dir: &str, name: String, st: RStat) -> Entry {
+    let full = if dir == "/" { format!("/{name}") } else { format!("{dir}/{name}") };
+    let category = if st.is_dir { fsops::folder_category(&name) } else { fsops::category(&name) };
+    Entry {
+        hidden: name.starts_with('.'),
+        path: format!("{PREFIX}{id}{full}"),
+        kind: if st.is_dir { fsops::KIND_DIR } else { fsops::KIND_FILE },
+        is_link: false,
+        link_broken: false,
+        link_target: String::new(),
+        size: if st.is_dir { 0 } else { st.size },
+        mtime: st.mtime,
+        mode: st.mode | if st.is_dir { libc::S_IFDIR } else { libc::S_IFREG },
+        uid: 0,
+        gid: 0,
+        category: category.to_string(),
+        name,
+    }
+}
+
 pub fn list(id: &str, dir: &str, show_hidden: bool) -> io::Result<Vec<Entry>> {
+    if is_cloud(id) {
+        return Ok(readdir(id, dir)?
+            .into_iter()
+            .filter(|(n, _)| show_hidden || !n.starts_with('.'))
+            .map(|(n, st)| entry_rs(id, dir, n, st))
+            .collect());
+    }
     let items = with_conn(id, |c| {
         let list = c.sftp.readdir(Path::new(dir))?;
         let mut out = Vec::with_capacity(list.len());
@@ -326,6 +360,9 @@ pub fn stat(id: &str, path: &str) -> io::Result<Entry> {
     let p = Path::new(path);
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "/".into());
     let dir = p.parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or_else(|| "/".into());
+    if is_cloud(id) {
+        return Ok(entry_rs(id, &dir, name, lstat(id, path)?));
+    }
     let (st, target) = with_conn(id, |c| {
         let st = c.sftp.lstat(p)?;
         let t = if st.file_type().is_symlink() { c.sftp.stat(p).ok() } else { None };
@@ -362,17 +399,18 @@ pub fn rename_entry(id: &str, path: &str, new_name: &str) -> io::Result<String> 
     fsops::valid_name(new_name)?;
     let p = Path::new(path);
     let to = p.with_file_name(new_name);
-    if op(id, |s| s.lstat(&to)).is_ok() {
+    let to_s = to.to_string_lossy().into_owned();
+    if lstat(id, &to_s).is_ok() {
         return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già un elemento con questo nome"));
     }
-    op(id, |s| s.rename(p, &to, None))?;
+    rename_any(id, path, &to_s)?;
     Ok(format!("{PREFIX}{id}{}", to.to_string_lossy()))
 }
 
 pub fn make_dir(id: &str, parent: &str, name: &str) -> io::Result<String> {
     fsops::valid_name(name)?;
     let p = Path::new(parent).join(name);
-    op(id, |s| s.mkdir(&p, 0o755))?;
+    mkdir_any(id, &p.to_string_lossy())?;
     Ok(format!("{PREFIX}{id}{}", p.to_string_lossy()))
 }
 
@@ -384,7 +422,7 @@ pub fn set_stat(id: &str, path: &str, mode: Option<u32>, mtime: Option<u64>) -> 
 /// Il testo di un file remoto (per il visore), al più `max` byte.
 pub fn read_head(id: &str, path: &str, max: u64) -> io::Result<Vec<u8>> {
     use std::io::Read;
-    let mut f = open_read(id, path)?;
+    let mut f = open_any(id, path)?;
     let mut buf = Vec::new();
     (&mut f).take(max).read_to_end(&mut buf)?;
     Ok(buf)
@@ -395,22 +433,167 @@ pub fn read_head(id: &str, path: &str, max: u64) -> io::Result<Vec<u8>> {
 pub fn write_text(id: &str, path: &str, text: &str) -> io::Result<()> {
     use std::io::Write;
     let p = Path::new(path);
-    let old = op(id, |s| s.stat(p)).ok();
+    let old = stat_follow(id, path).ok();
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let part = p.with_file_name(format!(".{name}.rootree-part"));
     let part_s = part.to_string_lossy().into_owned();
     let r = (|| -> io::Result<()> {
-        let mut f = create(id, &part_s, old.as_ref().and_then(|o| o.perm).map(|m| (m & 0o7777) as i32).unwrap_or(0o644))?;
+        let mode = old.map(|o| o.mode & 0o7777).filter(|m| *m != 0).unwrap_or(0o644);
+        let mut f = create_any(id, &part_s, mode)?;
         f.write_all(text.as_bytes())?;
-        let _ = f.fsync();
+        f.sync()?;
+        f.flush()?;
         drop(f);
-        if let Some(perm) = old.as_ref().and_then(|o| o.perm) {
-            let _ = set_stat(id, &part_s, Some(perm & 0o7777), None);
-        }
+        let _ = set_stat_any(id, &part_s, Some(mode), None);
         crate::vfs::rename(Path::new(&format!("{PREFIX}{id}{part_s}")), Path::new(&format!("{PREFIX}{id}{path}")))
     })();
     if r.is_err() {
-        let _ = op(id, |s| s.unlink(&part));
+        let _ = unlink_any(id, &part_s);
     }
     r
+}
+
+// ------------------------------------------------------------------ step 4: strato generico
+// SFTP o cloud: vfs.rs chiama solo queste funzioni, e la connessione sceglie
+// il servizio. I cloud (cloud.rs) si registrano in `clouds()`.
+
+/// I dati di una voce remota, comuni a tutti i servizi.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RStat {
+    pub is_dir: bool,
+    pub is_file: bool,
+    pub is_link: bool,
+    pub size: u64,
+    pub mode: u32,
+    pub mtime: i64,
+}
+
+fn rstat(st: &ssh2::FileStat) -> RStat {
+    RStat {
+        is_dir: st.is_dir(),
+        is_file: st.is_file(),
+        is_link: st.file_type().is_symlink(),
+        size: st.size.unwrap_or(0),
+        mode: st.perm.unwrap_or(0),
+        mtime: st.mtime.unwrap_or(0) as i64,
+    }
+}
+
+pub fn clouds() -> &'static Mutex<HashMap<String, Arc<dyn crate::cloud::Drive>>> {
+    static C: OnceLock<Mutex<HashMap<String, Arc<dyn crate::cloud::Drive>>>> = OnceLock::new();
+    C.get_or_init(Default::default)
+}
+
+fn cloud_of(id: &str) -> Option<Arc<dyn crate::cloud::Drive>> {
+    clouds().lock().unwrap().get(id).cloned()
+}
+
+pub fn lstat(id: &str, path: &str) -> io::Result<RStat> {
+    match cloud_of(id) {
+        Some(c) => c.stat(path),
+        None => op(id, |s| s.lstat(Path::new(path))).map(|st| rstat(&st)),
+    }
+}
+
+pub fn stat_follow(id: &str, path: &str) -> io::Result<RStat> {
+    match cloud_of(id) {
+        Some(c) => c.stat(path),
+        None => op(id, |s| s.stat(Path::new(path))).map(|st| rstat(&st)),
+    }
+}
+
+/// I figli di una cartella (nome, dati); per SFTP i link sono seguiti in
+/// `target` dal chiamante che ne ha bisogno (list()).
+pub fn readdir(id: &str, path: &str) -> io::Result<Vec<(String, RStat)>> {
+    if let Some(c) = cloud_of(id) {
+        return c.list(path);
+    }
+    let list = op(id, |s| s.readdir(Path::new(path)))?;
+    Ok(list
+        .into_iter()
+        .filter_map(|(p, st)| {
+            let name = p.file_name()?.to_string_lossy().into_owned();
+            (name != "." && name != "..").then(|| (name, rstat(&st)))
+        })
+        .collect())
+}
+
+pub fn open_any(id: &str, path: &str) -> io::Result<Box<dyn io::Read + Send>> {
+    match cloud_of(id) {
+        Some(c) => c.read(path),
+        None => Ok(Box::new(open_read(id, path)?)),
+    }
+}
+
+pub fn create_any(id: &str, path: &str, mode: u32) -> io::Result<Box<dyn crate::vfs::Sink>> {
+    match cloud_of(id) {
+        Some(c) => crate::cloud::sink(c, path),
+        None => Ok(Box::new(create(id, path, (mode & 0o7777) as i32)?)),
+    }
+}
+
+pub fn mkdir_any(id: &str, path: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(c) => c.mkdir(path),
+        None => op(id, |s| s.mkdir(Path::new(path), 0o755)),
+    }
+}
+
+pub fn rmdir_any(id: &str, path: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(c) => c.delete(path),
+        None => op(id, |s| s.rmdir(Path::new(path))),
+    }
+}
+
+pub fn unlink_any(id: &str, path: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(c) => c.delete(path),
+        None => op(id, |s| s.unlink(Path::new(path))),
+    }
+}
+
+pub fn rename_any(id: &str, from: &str, to: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(c) => {
+            // come SFTP v3: chi rinomina sopra un file (il .part finito) lo toglie prima
+            if c.stat(to).map(|s| !s.is_dir).unwrap_or(false) {
+                c.delete(to)?;
+            }
+            c.rename(from, to)
+        }
+        None => {
+            if op(id, |s| s.lstat(Path::new(to))).map(|st| !st.is_dir()).unwrap_or(false) {
+                op(id, |s| s.unlink(Path::new(to)))?;
+            }
+            rename(id, from, to)
+        }
+    }
+}
+
+/// Permessi e data: i cloud non hanno permessi Unix (si ignora, come su FAT).
+pub fn set_stat_any(id: &str, path: &str, mode: Option<u32>, mtime: Option<u64>) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(_) => Ok(()),
+        None => set_stat(id, path, mode, mtime),
+    }
+}
+
+pub fn readlink_any(id: &str, path: &str) -> io::Result<PathBuf> {
+    match cloud_of(id) {
+        Some(_) => Err(io::Error::new(io::ErrorKind::Unsupported, "i cloud non hanno link")),
+        None => op(id, |s| s.readlink(Path::new(path))),
+    }
+}
+
+/// Un link in `link` → `target`. ⛔ OpenSSH scambia gli argomenti (vedi vfs.rs).
+pub fn symlink_any(id: &str, target: &Path, link: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(_) => Err(io::Error::new(io::ErrorKind::Unsupported, "i cloud non hanno link: il link si salta")),
+        None => op(id, |s| s.symlink(target, Path::new(link))),
+    }
+}
+
+pub fn is_cloud(id: &str) -> bool {
+    cloud_of(id).is_some()
 }

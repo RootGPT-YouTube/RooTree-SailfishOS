@@ -58,6 +58,16 @@ public:
     Q_INVOKABLE void setStartPath(const QString &id, const QString &serverPath);
     Q_INVOKABLE bool connecting(const QString &id) const { return m_connecting.contains(id); }
 
+    // cloud: accesso dal browser (su un thread). authUrl(id, url) quando c'è
+    // l'indirizzo da aprire; authFinished(id, code, message) alla fine: code ""
+    // = riuscito (il token di rinnovo è il segreto della connessione, in
+    // memoria; nella cassaforte con remember()), CLIENTID, CANCELLED, AUTH, NET, ERR
+    Q_INVOKABLE void authorize(const QString &id);
+    Q_INVOKABLE void cancelAuth(const QString &id);
+    Q_INVOKABLE bool authorizing(const QString &id) const { return m_authorizing.contains(id); }
+    // dimentica il segreto (accesso revocato o scaduto): si rifà il login
+    Q_INVOKABLE void forgetSecret(const QString &id);
+
     bool vaultExists() const;
     bool vaultUnlocked() const;
     // "" se riuscita, altrimenti il perché (WRONG: password principale sbagliata)
@@ -71,6 +81,8 @@ signals:
     void changed();
     void vaultChanged();
     void connectFinished(const QString &id, const QString &code, const QString &message, const QString &path);
+    void authUrl(const QString &id, const QString &url);
+    void authFinished(const QString &id, const QString &code, const QString &message);
 
 private:
     void load();
@@ -85,4 +97,5 @@ private:
     QFileSystemWatcher m_watcher;
     void watch();
     QSet<QString> m_connecting;
+    QSet<QString> m_authorizing;
 };

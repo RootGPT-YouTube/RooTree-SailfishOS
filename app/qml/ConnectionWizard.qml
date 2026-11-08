@@ -94,7 +94,8 @@ Popup {
         }
         if (page === 2) {
             var a = v("auth")
-            if (a === "anonymous" || a === "guest" || a === "oauth") return true
+            if (a === "oauth") return v("clientId").trim() !== ""
+            if (a === "anonymous" || a === "guest") return true
             if (a === "key") return v("user") !== "" && v("keyPath") !== ""
             return v("user") !== ""
         }
@@ -151,8 +152,11 @@ Popup {
         id: tile
         property var t
         readonly property bool chosen: wiz.info.type === t.type
+        // un cloud alla volta: quelli non ancora pronti si vedono ma non si scelgono
+        readonly property bool soon: t.soon === true
+        opacity: soon ? 0.45 : 1
         width: (typesCol.width - 2 * 8 * Style.dp) / 3
-        height: 104 * Style.dp
+        height: 112 * Style.dp
         Rectangle {
             anchors.fill: parent
             radius: 12 * Style.dp
@@ -173,11 +177,11 @@ Popup {
             wrapMode: Text.Wrap
             maximumLineCount: 2
             elide: Text.ElideRight
-            text: tile.t.label
+            text: tile.t.label + (tile.soon ? "\n" + Style.t("in arrivo", "coming") : "")
             color: Style.text
             font.pixelSize: 12.5 * Style.dp
         }
-        MouseArea { id: tap; anchors.fill: parent; onClicked: wiz.chooseType(tile.t.type) }
+        MouseArea { id: tap; anchors.fill: parent; enabled: !tile.soon; onClicked: wiz.chooseType(tile.t.type) }
     }
 
     FilePicker {
@@ -407,15 +411,44 @@ Popup {
                         spacing: 8 * Style.dp
                         Label {
                             color: Style.text
-                            text: Style.t("Al primo collegamento si aprirà il browser per accedere a " + (wiz.info.label || "") + " e autorizzare RooTree. La password non passa da RooTree.",
-                                          "On first connection the browser will open to sign in to " + (wiz.info.label || "") + " and authorise RooTree. Your password never goes through RooTree.")
+                            text: Style.t("Al collegamento si aprirà il browser per accedere a " + (wiz.info.label || "") + " e autorizzare RooTree. La password non passa da RooTree.",
+                                          "On connecting the browser will open to sign in to " + (wiz.info.label || "") + " and authorise RooTree. Your password never goes through RooTree.")
                         }
                         Label {
-                            visible: wiz.info.type === "gdrive"
-                            text: Style.t("Facoltativo: un tuo «Client ID» di Google Cloud (gratuito). Senza, Google mostra l'avviso «app non verificata».",
-                                          "Optional: your own Google Cloud “Client ID” (free). Without it, Google shows the “unverified app” warning.")
+                            text: wiz.info.type === "dropbox" ? "App key"
+                                : wiz.info.type === "gdrive" ? "Client ID" : Style.t("ID dell'applicazione (client)", "Application (client) ID")
                         }
-                        Field { visible: wiz.info.type === "gdrive"; key: "clientId"; placeholderText: "…apps.googleusercontent.com" }
+                        Field { key: "clientId"; placeholderText: wiz.info.type === "dropbox" ? "abc123xyz…" : "" }
+                        Label { visible: wiz.info.type === "gdrive"; text: "Client secret" }
+                        Field { visible: wiz.info.type === "gdrive"; key: "clientSecret" }
+                        // come avere la chiave: gratis, una volta sola (RooTree non usa servizi a carico dell'autore)
+                        Rectangle {
+                            width: parent.width
+                            height: howto.implicitHeight + 2 * Style.margin
+                            radius: 10 * Style.dp
+                            color: Style.panel
+                            border.color: Style.line
+                            border.width: 1 * Style.dp
+                            Text {
+                                id: howto
+                                x: Style.margin; y: Style.margin
+                                width: parent.width - 2 * Style.margin
+                                font.family: Style.fontFamily
+                                color: Style.dim
+                                font.pixelSize: Style.fontS
+                                wrapMode: Text.Wrap
+                                textFormat: Text.PlainText
+                                text: wiz.info.type === "dropbox"
+                                    ? Style.t("Come avere la App key (gratis, una volta sola):\n1. Su dropbox.com/developers/apps: «Create app» → «Scoped access» → «Full Dropbox» (o «App folder»), un nome a piacere.\n2. Scheda «Permissions»: spunta files.metadata.read, files.metadata.write, files.content.read, files.content.write e premi «Submit».\n3. Scheda «Settings», «OAuth 2» → «Redirect URIs»: aggiungi http://127.0.0.1:53682/ (proprio così). «Allow public clients» deve restare su «Allow».\n4. Copia qui la «App key» (la «App secret» non serve).",
+                                              "How to get the App key (free, once):\n1. On dropbox.com/developers/apps: “Create app” → “Scoped access” → “Full Dropbox” (or “App folder”), any name.\n2. “Permissions” tab: tick files.metadata.read, files.metadata.write, files.content.read, files.content.write and press “Submit”.\n3. “Settings” tab, “OAuth 2” → “Redirect URIs”: add http://127.0.0.1:53682/ (exactly). “Allow public clients” must stay on “Allow”.\n4. Copy the “App key” here (the “App secret” is not needed).")
+                                    : Style.t("Serve un ID dell'app tuo (gratuito): le istruzioni arriveranno con questo servizio.", "Your own (free) app ID is needed: instructions will come with this service.")
+                            }
+                        }
+                        CheckRow {
+                            text: Style.t("Ricorda l'accesso nella cassaforte", "Remember the sign-in in the vault")
+                            checked: wiz.p.remember !== false
+                            onCheckedChanged: if (checked !== (wiz.p.remember !== false)) wiz.set("remember", checked)
+                        }
                     }
                     // utente e password / chiave
                     Column {

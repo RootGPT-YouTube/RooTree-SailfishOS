@@ -731,3 +731,48 @@ fn cartella_su_cartella_si_chiede_come_dolphin() {
     assert!(!root.join("dst/musica (1)").exists());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn cloud_aiuti_http() {
+    use crate::http::{json_ascii, pct, rfc3339};
+    assert_eq!(rfc3339("1970-01-01T00:00:00Z"), 0);
+    assert_eq!(rfc3339("2024-03-01T12:34:56Z"), 1709296496);
+    assert_eq!(rfc3339("2024-03-01T12:34:56.789Z"), 1709296496);
+    assert_eq!(rfc3339("2024-03-01T13:34:56+01:00"), 1709296496);
+    assert_eq!(rfc3339("boh"), 0);
+    assert_eq!(json_ascii(&serde_json::json!({"path": "/città è"})), r#"{"path":"/citt\u00e0 \u00e8"}"#);
+    assert_eq!(pct("/Foto mare/è.jpg", true), "/Foto%20mare/%C3%A8.jpg");
+    assert_eq!(pct("a/b", false), "a%2Fb");
+}
+
+#[test]
+fn accesso_dal_browser_ascolta_e_controlla_lo_state() {
+    use std::io::{Read, Write};
+    // il «browser» simulato: richieste al ritorno su 127.0.0.1
+    let url = crate::oauth::begin("t1", "gdrive", "cliente-di-prova").unwrap();
+    assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?"));
+    assert!(url.contains("code_challenge_method=S256") && url.contains("access_type=offline") && url.contains("client_id=cliente-di-prova"));
+    let redirect = url.split("redirect_uri=").nth(1).unwrap().split('&').next().unwrap().replace("%3A", ":").replace("%2F", "/");
+    let port: u16 = redirect.trim_start_matches("http://127.0.0.1:").trim_end_matches('/').parse().unwrap();
+    let state = url.split("state=").nth(1).unwrap().split('&').next().unwrap().to_string();
+    let browser = std::thread::spawn(move || {
+        let ask = |target: String| {
+            let mut c = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+            write!(c, "GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+            let mut r = String::new();
+            let _ = c.read_to_string(&mut r);
+            r
+        };
+        let a = ask("/favicon.ico".into());                      // ignorata
+        let b = ask("/?code=x&state=sbagliato".into());          // state falso: ignorata
+        let c = ask(format!("/?error=access_denied&state={state}")); // l'utente rifiuta
+        (a, b, c)
+    });
+    let r = crate::oauth::complete("t1", "gdrive", "cliente-di-prova", "", std::time::Duration::from_secs(10));
+    let (a, b, c) = browser.join().unwrap();
+    assert!(a.starts_with("HTTP/1.1 404") && b.starts_with("HTTP/1.1 404"));
+    assert!(c.starts_with("HTTP/1.1 200") && c.contains("non riuscito"));
+    assert!(r.unwrap_err().starts_with("CANCELLED:"));
+    // senza Client ID non si parte
+    assert!(crate::oauth::begin("t2", "dropbox", "  ").unwrap_err().starts_with("CLIENTID:"));
+}

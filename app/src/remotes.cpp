@@ -28,6 +28,12 @@ QVariantMap type(const char *type, const QString &label, const char *group, cons
 }
 }
 
+static QVariantMap soon(QVariantMap t)
+{
+    t.insert(QStringLiteral("soon"), true);
+    return t;
+}
+
 Remotes::Remotes(QObject *parent)
     : QObject(parent)
 {
@@ -107,6 +113,62 @@ void Remotes::setStartPath(const QString &id, const QString &serverPath)
     save(p);
     if (m_entry.contains(id))
         m_entry.insert(id, QStringLiteral("/@remote/") + id + (serverPath == QStringLiteral("/") ? QString() : serverPath));
+}
+
+static QPair<QString, QString> splitCode(const QString &what)
+{
+    const int colon = what.indexOf(QLatin1Char(':'));
+    const QString head = colon > 0 ? what.left(colon) : QString();
+    if (!head.isEmpty() && head == head.toUpper() && !head.contains(QLatin1Char(' ')))
+        return {head, what.mid(colon + 1)};
+    return {QStringLiteral("ERR"), what};
+}
+
+void Remotes::authorize(const QString &id)
+{
+    const QVariantMap p = get(id);
+    if (p.isEmpty() || m_authorizing.contains(id))
+        return;
+    m_authorizing.insert(id);
+    const QByteArray kind = p.value(QStringLiteral("type")).toString().toUtf8();
+    const QByteArray cid = p.value(QStringLiteral("clientId")).toString().toUtf8();
+    const QByteArray csec = p.value(QStringLiteral("clientSecret")).toString().toUtf8();
+    const QByteArray bid = id.toUtf8();
+    QPointer<Remotes> self(this);
+    std::thread([self, id, kind, cid, csec, bid] {
+        auto s = [](const QByteArray &b) { return rust::Str(b.constData(), size_t(b.size())); };
+        QString code, message, token;
+        try {
+            const QString url = qtrust::qs(rootree::oauth_begin(s(bid), s(kind), s(cid)));
+            QMetaObject::invokeMethod(qApp, [self, id, url] { if (self) emit self->authUrl(id, url); }, Qt::QueuedConnection);
+            // cinque minuti per accedere nel browser
+            token = qtrust::qs(rootree::oauth_complete(s(bid), s(kind), s(cid), s(csec), 300));
+        } catch (const rust::Error &e) {
+            const auto cm = splitCode(QString::fromUtf8(e.what()));
+            code = cm.first;
+            message = cm.second;
+        }
+        QMetaObject::invokeMethod(qApp, [self, id, code, message, token] {
+            if (!self)
+                return;
+            self->m_authorizing.remove(id);
+            if (code.isEmpty())
+                self->m_secrets.insert(id, token);
+            emit self->authFinished(id, code, message);
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+void Remotes::cancelAuth(const QString &id)
+{
+    rootree::oauth_cancel(qtrust::str(id));
+}
+
+void Remotes::forgetSecret(const QString &id)
+{
+    m_secrets.remove(id);
+    try { rootree::vault_remove(qtrust::str(id)); } catch (const rust::Error &) {}
+    disconnect(id);
 }
 
 QString Remotes::trust(const QString &id)
@@ -191,10 +253,11 @@ QVariantList Remotes::types() const
         type("nextcloud", QStringLiteral("Nextcloud / ownCloud"), "server", "cloud", 443, pw, true, false),
         type("smb", QStringLiteral("SMB (Windows, Samba)"), "server", "smb", 445, {QStringLiteral("password"), QStringLiteral("guest")}, true, false),
         type("s3", QStringLiteral("S3 / compatibile"), "server", "s3", 443, pw, true, false),
-        type("gdrive", QStringLiteral("Google Drive"), "cloud", "gdrive", 0, {QStringLiteral("oauth")}, false, true),
-        type("onedrive", QStringLiteral("OneDrive"), "cloud", "onedrive", 0, {QStringLiteral("oauth")}, false, true),
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
-        type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false),
+        // un cloud alla volta (scelta dell'utente, 08/11): questi arrivano dopo Dropbox
+        soon(type("onedrive", QStringLiteral("OneDrive"), "cloud", "onedrive", 0, {QStringLiteral("oauth")}, false, true)),
+        soon(type("gdrive", QStringLiteral("Google Drive"), "cloud", "gdrive", 0, {QStringLiteral("oauth")}, false, true)),
+        soon(type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false)),
     };
 }
 

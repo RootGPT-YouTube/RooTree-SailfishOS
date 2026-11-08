@@ -726,6 +726,15 @@ Window {
             go(Remotes.entryPath(p.id))
             return
         }
+        // cloud con accesso dal browser: il segreto è il token di rinnovo
+        if (p.auth === "oauth" && !Remotes.hasSecret(p.id)) {
+            if (p.remember !== false && Remotes.vaultExists && !Remotes.vaultUnlocked) {
+                vaultDialog.ask("unlock", function () { win.connectTo(p) }, function () { loginDialog.ask(p) })
+                return
+            }
+            loginDialog.ask(p)
+            return
+        }
         if (p.auth === "password" && !Remotes.hasSecret(p.id)) {
             // salvata nella cassaforte chiusa: prima si apre
             if (p.remember !== false && Remotes.vaultExists && !Remotes.vaultUnlocked) {
@@ -761,6 +770,10 @@ Window {
                 hostChanged.keyType = parts[0]
                 hostChanged.fingerprint = parts.slice(1).join(":")
                 hostChanged.open()
+            } else if ((code === "AUTH" || code === "LOGIN") && p.auth === "oauth") {
+                // accesso scaduto o revocato: si rifà dal browser
+                Remotes.forgetSecret(id)
+                loginDialog.ask(p, Style.t("L'accesso a " + (Remotes.typeInfo(p.type).label || "") + " è scaduto o è stato revocato: rifallo.", "The sign-in has expired or been revoked: do it again."))
             } else if (code === "AUTH" && p.auth === "password") {
                 secretDialog.ask(p, "password", Style.t("Password rifiutata dal server.", "Password rejected by the server."))
             } else if (code === "KEY" && message.indexOf("frase") >= 0) {
@@ -771,6 +784,64 @@ Window {
                 connectError.show(p, Style.t("Server irraggiungibile", "Server unreachable"), message)
             } else {
                 connectError.show(p, Style.t("Collegamento non riuscito", "Connection failed"), message)
+            }
+        }
+    }
+
+    // l'accesso dal browser (cloud): si apre il browser, si aspetta il ritorno
+    AppDialog {
+        id: loginDialog
+        property var profile: ({})
+        property bool waiting: false
+        property string error
+        function ask(p, err) {
+            profile = p
+            error = err || ""
+            waiting = false
+            open()
+        }
+        title: Style.t("Accedi a ", "Sign in to ") + (Remotes.typeInfo(profile.type || "").label || "")
+        message: waiting
+            ? Style.t("Accedi nel browser e autorizza RooTree, poi torna qui: il collegamento parte da solo.", "Sign in in the browser and authorise RooTree, then come back: the connection starts by itself.")
+            : Style.t("Si aprirà il browser per accedere a «" + (profile.name || "") + "». La password la scrivi solo lì, non in RooTree.",
+                      "The browser will open to sign in to “" + (profile.name || "") + "”. You type the password only there, not in RooTree.")
+        buttons: waiting ? [{ text: Style.t("Annulla l'accesso", "Cancel sign-in"), role: "cancel" }]
+                         : [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Apri il browser", "Open the browser"), role: "accept" }]
+        onChosen: function (role) {
+            if (role === "accept") {
+                waiting = true
+                Remotes.authorize(profile.id)
+                open() // resta aperta in attesa
+            } else if (role === "cancel") {
+                Remotes.cancelAuth(profile.id)
+                waiting = false
+            }
+        }
+        Text { font.family: Style.fontFamily; visible: loginDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: loginDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
+    }
+    Connections {
+        target: Remotes
+        function onAuthUrl(id, url) {
+            if (!Opener.openUrl(url))
+                toast.show(Style.t("Non riesco ad aprire il browser", "Cannot open the browser"), true)
+        }
+        function onAuthFinished(id, code, message) {
+            var p = Remotes.get(id)
+            loginDialog.waiting = false
+            loginDialog.close()
+            if (code === "") {
+                toast.show(Style.t("Accesso riuscito", "Signed in"))
+                if (p.remember !== false)
+                    win.withVault(function () { win.rememberSecret(id); win.doConnect(p) })
+                else
+                    win.doConnect(p)
+            } else if (code === "CANCELLED") {
+                toast.show(message)
+            } else if (code === "CLIENTID") {
+                connectError.show(p, Style.t("Manca la chiave dell'app", "The app key is missing"),
+                                  Style.t("Apri «Modifica la connessione» e incolla la App key: lì trovi anche come crearla.", "Open “Edit the connection” and paste the App key: you also find how to create it there."))
+            } else {
+                connectError.show(p, Style.t("Accesso non riuscito", "Sign-in failed"), message)
             }
         }
     }

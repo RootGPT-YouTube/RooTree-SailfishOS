@@ -55,16 +55,8 @@ fn from_local(m: &fs::Metadata) -> Meta {
 pub fn lmeta(p: &Path) -> io::Result<Meta> {
     match rsplit(p) {
         Some((id, inner)) => {
-            let st = remote::op(&id, |s| s.lstat(Path::new(&inner)))?;
-            Ok(Meta {
-                is_dir: st.is_dir(),
-                is_file: st.is_file(),
-                is_symlink: st.file_type().is_symlink(),
-                len: st.size.unwrap_or(0),
-                mode: st.perm.unwrap_or(0),
-                mtime: st.mtime.unwrap_or(0) as i64,
-                dev: dev_of(&id),
-            })
+            let st = remote::lstat(&id, &inner)?;
+            Ok(Meta { is_dir: st.is_dir, is_file: st.is_file, is_symlink: st.is_link, len: st.size, mode: st.mode, mtime: st.mtime, dev: dev_of(&id) })
         }
         None => fs::symlink_metadata(p).map(|m| from_local(&m)),
     }
@@ -74,16 +66,8 @@ pub fn lmeta(p: &Path) -> io::Result<Meta> {
 pub fn meta(p: &Path) -> io::Result<Meta> {
     match rsplit(p) {
         Some((id, inner)) => {
-            let st = remote::op(&id, |s| s.stat(Path::new(&inner)))?;
-            Ok(Meta {
-                is_dir: st.is_dir(),
-                is_file: st.is_file(),
-                is_symlink: false,
-                len: st.size.unwrap_or(0),
-                mode: st.perm.unwrap_or(0),
-                mtime: st.mtime.unwrap_or(0) as i64,
-                dev: dev_of(&id),
-            })
+            let st = remote::stat_follow(&id, &inner)?;
+            Ok(Meta { is_dir: st.is_dir, is_file: st.is_file, is_symlink: false, len: st.size, mode: st.mode, mtime: st.mtime, dev: dev_of(&id) })
         }
         None => fs::metadata(p).map(|m| from_local(&m)),
     }
@@ -101,14 +85,7 @@ pub fn is_dir(p: &Path) -> bool {
 pub fn read_dir(p: &Path) -> io::Result<Vec<PathBuf>> {
     match rsplit(p) {
         Some((id, inner)) => {
-            let list = remote::op(&id, |s| s.readdir(Path::new(&inner)))?;
-            Ok(list
-                .into_iter()
-                .filter_map(|(child, _)| {
-                    let name = child.file_name()?.to_string_lossy().into_owned();
-                    (name != "." && name != "..").then(|| p.join(name))
-                })
-                .collect())
+            Ok(remote::readdir(&id, &inner)?.into_iter().map(|(name, _)| p.join(name)).collect())
         }
         None => Ok(fs::read_dir(p)?.flatten().map(|e| e.path()).collect()),
     }
@@ -116,7 +93,7 @@ pub fn read_dir(p: &Path) -> io::Result<Vec<PathBuf>> {
 
 pub fn open_read(p: &Path) -> io::Result<Box<dyn Read + Send>> {
     match rsplit(p) {
-        Some((id, inner)) => Ok(Box::new(remote::open_read(&id, &inner)?)),
+        Some((id, inner)) => remote::open_any(&id, &inner),
         None => Ok(Box::new(File::open(p)?)),
     }
 }
@@ -143,7 +120,7 @@ impl Sink for ssh2::File {
 
 pub fn create(p: &Path, mode: u32) -> io::Result<Box<dyn Sink>> {
     match rsplit(p) {
-        Some((id, inner)) => Ok(Box::new(remote::create(&id, &inner, (mode & 0o7777) as i32)?)),
+        Some((id, inner)) => remote::create_any(&id, &inner, mode),
         None => {
             let f = File::create(p)?;
             Ok(Box::new(f))
@@ -153,7 +130,7 @@ pub fn create(p: &Path, mode: u32) -> io::Result<Box<dyn Sink>> {
 
 pub fn create_dir(p: &Path) -> io::Result<()> {
     match rsplit(p) {
-        Some((id, inner)) => remote::op(&id, |s| s.mkdir(Path::new(&inner), 0o755)),
+        Some((id, inner)) => remote::mkdir_any(&id, &inner),
         None => fs::create_dir(p),
     }
 }
@@ -163,28 +140,22 @@ pub fn create_dir(p: &Path) -> io::Result<()> {
 pub fn rename(from: &Path, to: &Path) -> io::Result<()> {
     match (rsplit(from), rsplit(to)) {
         (None, None) => fs::rename(from, to),
-        (Some((a, fi)), Some((b, ti))) if a == b => {
-            // SFTP v3 non sovrascrive: chi rinomina sopra un file (il .part
-            // finito su un file da sostituire) lo toglie prima
-            if remote::op(&a, |s| s.lstat(Path::new(&ti))).map(|st| !st.is_dir()).unwrap_or(false) {
-                remote::op(&a, |s| s.unlink(Path::new(&ti)))?;
-            }
-            remote::rename(&a, &fi, &ti)
-        }
+        // SFTP v3 (e i cloud) non sovrascrivono: rename_any toglie prima il file
+        (Some((a, fi)), Some((b, ti))) if a == b => remote::rename_any(&a, &fi, &ti),
         _ => Err(io::Error::from_raw_os_error(EXDEV)),
     }
 }
 
 pub fn remove_file(p: &Path) -> io::Result<()> {
     match rsplit(p) {
-        Some((id, inner)) => remote::op(&id, |s| s.unlink(Path::new(&inner))),
+        Some((id, inner)) => remote::unlink_any(&id, &inner),
         None => fs::remove_file(p),
     }
 }
 
 pub fn remove_dir(p: &Path) -> io::Result<()> {
     match rsplit(p) {
-        Some((id, inner)) => remote::op(&id, |s| s.rmdir(Path::new(&inner))),
+        Some((id, inner)) => remote::rmdir_any(&id, &inner),
         None => fs::remove_dir(p),
     }
 }
@@ -207,7 +178,7 @@ pub fn remove_all(p: &Path) -> io::Result<()> {
 
 pub fn set_mode(p: &Path, mode: u32) -> io::Result<()> {
     match rsplit(p) {
-        Some((id, inner)) => remote::set_stat(&id, &inner, Some(mode & 0o7777), None),
+        Some((id, inner)) => remote::set_stat_any(&id, &inner, Some(mode & 0o7777), None),
         None => fs::set_permissions(p, fs::Permissions::from_mode(mode & 0o7777)),
     }
 }
@@ -217,14 +188,14 @@ pub fn set_mtime(p: &Path, mtime: i64) -> io::Result<()> {
         return Ok(());
     }
     match rsplit(p) {
-        Some((id, inner)) => remote::set_stat(&id, &inner, None, Some(mtime as u64)),
+        Some((id, inner)) => remote::set_stat_any(&id, &inner, None, Some(mtime as u64)),
         None => File::open(p)?.set_modified(UNIX_EPOCH + Duration::from_secs(mtime as u64)),
     }
 }
 
 pub fn read_link(p: &Path) -> io::Result<PathBuf> {
     match rsplit(p) {
-        Some((id, inner)) => remote::op(&id, |s| s.readlink(Path::new(&inner))),
+        Some((id, inner)) => remote::readlink_any(&id, &inner),
         None => fs::read_link(p),
     }
 }
@@ -238,7 +209,7 @@ pub fn symlink(target: &Path, link: &Path) -> io::Result<()> {
         //    home sul server, un link «uno.txt» → percorso_del_link (finito
         //    nella home dell'utente, poi tolto). Quindi con OpenSSH: prima la
         //    destinazione, poi il percorso del link.
-        Some((id, inner)) => remote::op(&id, |s| s.symlink(target, Path::new(&inner))),
+        Some((id, inner)) => remote::symlink_any(&id, target, &inner),
         None => local_symlink(target, link),
     }
 }

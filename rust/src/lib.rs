@@ -3,6 +3,9 @@
 //! il ponte `ffi` qui sotto.
 
 pub mod archive;
+pub mod cloud;
+pub mod http;
+pub mod oauth;
 pub mod fsops;
 pub mod helper;
 pub mod jobs;
@@ -139,6 +142,11 @@ mod ffi {
         /// Fidarsi del server appena visto (dopo HOSTKEY_NEW).
         fn remote_trust(id: &str) -> Result<()>;
         fn remote_disconnect(id: &str);
+        /// Accesso dal browser (cloud): l'URL da aprire; poi `oauth_complete`
+        /// aspetta il ritorno (bloccante, su un thread) e rende il token di rinnovo.
+        fn oauth_begin(id: &str, kind: &str, client_id: &str) -> Result<String>;
+        fn oauth_complete(id: &str, kind: &str, client_id: &str, client_secret: &str, timeout_secs: u32) -> Result<String>;
+        fn oauth_cancel(id: &str);
         fn remote_connected(id: &str) -> bool;
 
         /// La cassaforte delle password (vault.rs).
@@ -320,7 +328,7 @@ fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
 
 fn set_mode(path: &str, mode: u32) -> Result<(), String> {
     if let Some((id, inner)) = remote::split(path) {
-        return remote::set_stat(&id, &inner, Some(mode & 0o7777), None).map_err(|e| e.to_string());
+        return remote::set_stat_any(&id, &inner, Some(mode & 0o7777), None).map_err(|e| e.to_string());
     }
     if root::active() {
         return root::call_as(&Request::SetMode { path: path.into(), mode });
@@ -473,4 +481,16 @@ fn vault_set(id: &str, secret: &str) -> Result<(), String> {
 
 fn vault_remove(id: &str) -> Result<(), String> {
     vault::remove(id).map_err(|e| e.to_string())
+}
+
+fn oauth_begin(id: &str, kind: &str, client_id: &str) -> Result<String, String> {
+    oauth::begin(id, kind, client_id)
+}
+
+fn oauth_complete(id: &str, kind: &str, client_id: &str, client_secret: &str, timeout_secs: u32) -> Result<String, String> {
+    oauth::complete(id, kind, client_id, client_secret, std::time::Duration::from_secs(timeout_secs as u64)).map(|t| t.refresh_token)
+}
+
+fn oauth_cancel(id: &str) {
+    oauth::cancel(id)
 }
