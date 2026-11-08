@@ -7,7 +7,7 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
 | Tema | Scelta |
 |---|---|
 | Distribuzione | OpenRepos, non Jolla Store: niente sandbox, accesso a tutto il filesystem, root possibile |
-| Funzioni | navigazione, copia/taglia/incolla, rinomina, elimina, anteprime, ricerca, permessi, archivi, condivisione, file nascosti, segnalibri **+ remoti** (SSH/SFTP, cloud: Google Drive, Mega, OneDrive…) |
+| Funzioni | navigazione, copia/taglia/incolla, rinomina, elimina, anteprime, ricerca, permessi, archivi, condivisione, file nascosti, segnalibri **+ remoti** (SSH/SFTP, cloud: Dropbox, Mega) |
 | Stack | Qt6 / QML / C++ / Rust, **Silica non obbligatoria** (come RooTitanium) |
 | Architetture | aarch64 + armv7hl |
 | Icona | cartella hi-tech «acciaio / tech» come RooTheater e RooTelegram → `grafica/icona-vettoriale.py`, **approvata** |
@@ -48,7 +48,7 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
   eseguire `moc` del target dentro cargo). Il nucleo Rust è una libreria statica;
   modelli e oggetti QML sono in C++ e chiamano il nucleo attraverso il ponte.
 - **Remoti: OpenDAL** (Apache-2.0), un'unica API per sftp, ftp, webdav (Nextcloud,
-  ownCloud), s3, gdrive, onedrive, dropbox, pcloud, … **Mega non c'è**: va un crate
+  ownCloud), s3, onedrive, dropbox, pcloud, … **Mega non c'è**: va un crate
   a parte (`mega`, da valutare) o rclone come ripiego.
 - **Archivi** (comprimere e decomprimere file e cartelle): crate `zip`, `tar`, `flate2`, `xz2`, `zstd`, `bzip2`, `sevenz-rust2`;
   la RAR solo in estrazione, tramite libarchive (BSD).
@@ -74,7 +74,7 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
 | 2 | **Aprire e vedere** | anteprime (immagini, video, PDF), visore di testo/immagini, «Apri con», condivisione di Sailfish | aprire e condividere dal browser i tipi di file comuni |
 | 3 | **Ricerca e archivi** | ricerca per nome/regex/contenuto, crea ed estrai zip/tar.*/7z, estrai rar, sfoglia l'archivio come una cartella | estrazione a confronto con quella di `bsdtar` |
 | 4 | **Modalità root** | helper, sottopacchetto `-root`, permessi e proprietario, avviso visivo chiaro quando si è in root | modificare un file di `/etc` con un backup automatico |
-| 5 | **Remoti** | SFTP/SSH (con chiavi), FTP/FTPS, WebDAV/Nextcloud, SMB, S3; poi i cloud: Google Drive, OneDrive, Dropbox, Mega; copia locale↔remoto con la stessa coda | copia di 1 GB andata e ritorno con hash identico |
+| 5 | **Remoti** | SFTP/SSH (con chiavi), FTP/FTPS, WebDAV/Nextcloud, SMB, S3; poi i cloud: Dropbox, Mega; copia locale↔remoto con la stessa coda | copia di 1 GB andata e ritorno con hash identico |
 | 6 | **Rifinitura e rilascio** | italiano/inglese, impostazioni, cover, eventuale doppio pannello, pagina OpenRepos | primo rilascio pubblico |
 
 ## Punti delicati già noti (dalle sessioni di RooTitanium)
@@ -89,12 +89,6 @@ Distribuzione: **OpenRepos** (niente vincoli Harbour del Jolla Store).
   del SDK.
 - **armv7hl**: Qt 6 di piggz è compilato su SFOS 5.0 (ICU 70) e c'è la
   compatibilità in `RooTitanium/packaging/icu70-compat/`.
-- **Google Drive (da verificare)**: lo scope di accesso completo a Drive è
-  «restricted». Un'app pubblica con un client OAuth dell'autore richiede la
-  verifica di Google, con valutazione di sicurezza a pagamento. Senza verifica
-  si resta a 100 utenti e compare la schermata «app non verificata». Strada a
-  costo zero: ogni utente inserisce il **proprio** client ID, come fa rclone.
-  OneDrive e Dropbox: la registrazione dell'app è gratuita.
 
 Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
 
@@ -250,12 +244,11 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     Duplica, Elimina con conferma); «Aggiungi una connessione…».
   - Procedura a tutto schermo, quattro passi con indicatore e filo LED che
     avanza: Tipo (riquadri Server: SFTP, FTP/FTPS, WebDAV, Nextcloud/ownCloud,
-    SMB, S3; Cloud: Google Drive, OneDrive, Dropbox, Mega) → Server (porta
+    SMB, S3; Cloud: Dropbox, Mega) → Server (porta
     predefinita per tipo, FTPS/HTTPS con la porta che segue, condivisione e
     dominio per SMB, endpoint/bucket/regione per S3; saltato dai cloud) →
     Accesso (password, chiave SSH con controllo del file, anonimo/ospite,
-    accesso dal browser per i cloud OAuth con Client ID facoltativo per
-    Google) → Nome e riepilogo.
+    accesso dal browser per i cloud OAuth) → Nome e riepilogo.
   - `Remotes` (C++): profili in `~/.config/…/rootree/connessioni.json` (600).
     Le password non vanno mai nel file: per ora restano in memoria per la
     sessione; la cassaforte cifrata arriva con il collegamento vero.
@@ -265,7 +258,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     nel prossimo step.
   - Step successivi (l'utente l'08/11 ha chiesto di invertire 4 e 5): 2
     collegamento SFTP e cassaforte, 3 copia locale↔remoto nella stessa coda,
-    4 cloud (Google Drive, OneDrive, Dropbox con accesso dal browser; Mega),
+    4 cloud (Dropbox con accesso dal browser; Mega),
     5 WebDAV/Nextcloud, FTP/FTPS, SMB, S3.
 - **08/11 — Fase 5, step 2: collegamento SFTP e cassaforte (0.6.1-1).**
   - SFTP con il crate `ssh2` (libssh2 compilata dal crate col cross-gcc,
@@ -324,9 +317,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Dropbox (0.6.3-1).** Il più semplice: API per percorso, PKCE senza
   segreto.
   - Regole verificate l'08/11 sulle pagine ufficiali (fonti in `oauth.rs`):
-    Google desktop = loopback + PKCE, client_secret non segreto; app non
-    verificata con lo scope completo di Drive = 100 utenti per sempre e
-    avviso; in modalità «Test» token di 7 giorni. Microsoft: `http://localhost`
+    Microsoft: `http://localhost`
     ammesso, porta ignorata. Dropbox: PKCE senza segreto, `offline` per il
     rinnovo, indirizzo di ritorno esatto ⇒ porta fissa 53682. Limite di
     utenti delle app Dropbox in sviluppo: non nella pagina ufficiale, da
@@ -344,9 +335,9 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   - Verificato senza account: 30 test (date, intestazione con accenti,
     codifica, ascolto su 127.0.0.1 con browser simulato che rifiuta state
     falsi e riconosce l'accesso negato); HTTPS dal POCO verso Dropbox,
-    Microsoft e Google; col binario vero: indirizzo d'accesso, Annulla,
+    Microsoft; col binario vero: indirizzo d'accesso, Annulla,
     collegamento senza token. ⏳ La prova con un account vero aspetta la App
-    key dell'utente. OneDrive, Google Drive, Mega: «in arrivo».
+    key dell'utente. OneDrive, Mega: «in arrivo».
 - **08/11 — Fase 5, step 4: OneDrive (0.6.4-1).** Microsoft Graph per
   percorso (`/me/drive/root:/a/b:`), elenco a pagine (@odata.nextLink),
   scaricamento seguendo il rinvio all'indirizzo già autorizzato,
@@ -363,3 +354,4 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   procedura; il parametro `size` di `vfs::create` resta. **Dropbox provato
   con account vero: funziona.** «Accedi con un account di lavoro» = app con
   permessi di team: la procedura ora elenca le caselle esatte.
+- **08/11 — Fase 5, step 4: Mega (0.6.7-1).** Crate `mega` 0.8 (MIT/Apache-2.0, asincrono, un runtime tokio e tubi `sluice` verso il motore sincrono); email e password, password nella cassaforte; albero ricordato 30 s; elimina/sovrascrive = cestino di Mega. Codice a 6 cifre della verifica in due passaggi chiesto a ogni collegamento (0.6.7-2), mai salvato; casella «non chiedere più» (0.6.7-3): sessione nella cassaforte, revoca da Opzioni per Remoto anche sui server di Mega. ⏳ Prova con account vero.

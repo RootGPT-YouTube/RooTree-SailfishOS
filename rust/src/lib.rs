@@ -145,7 +145,7 @@ mod ffi {
         /// Accesso dal browser (cloud): l'URL da aprire; poi `oauth_complete`
         /// aspetta il ritorno (bloccante, su un thread) e rende il token di rinnovo.
         fn oauth_begin(id: &str, kind: &str, client_id: &str) -> Result<String>;
-        fn oauth_complete(id: &str, kind: &str, client_id: &str, client_secret: &str, timeout_secs: u32) -> Result<String>;
+        fn oauth_complete(id: &str, kind: &str, client_id: &str, timeout_secs: u32) -> Result<String>;
         fn oauth_cancel(id: &str);
         fn remote_connected(id: &str) -> bool;
 
@@ -159,6 +159,7 @@ mod ffi {
         fn vault_get(id: &str) -> String;
         fn vault_set(id: &str, secret: &str) -> Result<()>;
         fn vault_remove(id: &str) -> Result<()>;
+        fn mega_revoke(id: &str) -> Result<()>;
         fn user_name(uid: u32) -> String;
         fn group_name(gid: u32) -> String;
 
@@ -483,12 +484,16 @@ fn vault_remove(id: &str) -> Result<(), String> {
     vault::remove(id).map_err(|e| e.to_string())
 }
 
+fn mega_revoke(id: &str) -> Result<(), String> {
+    cloud::mega_revoke(id)
+}
+
 fn oauth_begin(id: &str, kind: &str, client_id: &str) -> Result<String, String> {
     oauth::begin(id, kind, client_id)
 }
 
-fn oauth_complete(id: &str, kind: &str, client_id: &str, client_secret: &str, timeout_secs: u32) -> Result<String, String> {
-    oauth::complete(id, kind, client_id, client_secret, std::time::Duration::from_secs(timeout_secs as u64)).map(|t| t.refresh_token)
+fn oauth_complete(id: &str, kind: &str, client_id: &str, timeout_secs: u32) -> Result<String, String> {
+    oauth::complete(id, kind, client_id, std::time::Duration::from_secs(timeout_secs as u64)).map(|t| t.refresh_token)
 }
 
 fn oauth_cancel(id: &str) {

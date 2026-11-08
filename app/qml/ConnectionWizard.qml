@@ -416,11 +416,9 @@ Popup {
                         }
                         Label {
                             text: wiz.info.type === "dropbox" ? "App key"
-                                : wiz.info.type === "gdrive" ? "Client ID" : Style.t("ID dell'applicazione (client)", "Application (client) ID")
+                                : Style.t("ID dell'applicazione (client)", "Application (client) ID")
                         }
                         Field { key: "clientId"; placeholderText: wiz.info.type === "dropbox" ? "abc123xyz…" : "" }
-                        Label { visible: wiz.info.type === "gdrive"; text: "Client secret" }
-                        Field { visible: wiz.info.type === "gdrive"; key: "clientSecret" }
                         // come avere la chiave: gratis, una volta sola (RooTree non usa servizi a carico dell'autore)
                         Rectangle {
                             width: parent.width

@@ -749,9 +749,9 @@ fn cloud_aiuti_http() {
 fn accesso_dal_browser_ascolta_e_controlla_lo_state() {
     use std::io::{Read, Write};
     // il «browser» simulato: richieste al ritorno su 127.0.0.1
-    let url = crate::oauth::begin("t1", "gdrive", "cliente-di-prova").unwrap();
-    assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?"));
-    assert!(url.contains("code_challenge_method=S256") && url.contains("access_type=offline") && url.contains("client_id=cliente-di-prova"));
+    let url = crate::oauth::begin("t1", "dropbox", "cliente-di-prova").unwrap();
+    assert!(url.starts_with("https://www.dropbox.com/oauth2/authorize?"));
+    assert!(url.contains("code_challenge_method=S256") && url.contains("token_access_type=offline") && url.contains("client_id=cliente-di-prova"));
     let redirect = url.split("redirect_uri=").nth(1).unwrap().split('&').next().unwrap().replace("%3A", ":").replace("%2F", "/");
     let port: u16 = redirect.trim_start_matches("http://127.0.0.1:").trim_end_matches('/').parse().unwrap();
     let state = url.split("state=").nth(1).unwrap().split('&').next().unwrap().to_string();
@@ -768,7 +768,7 @@ fn accesso_dal_browser_ascolta_e_controlla_lo_state() {
         let c = ask(format!("/?error=access_denied&state={state}")); // l'utente rifiuta
         (a, b, c)
     });
-    let r = crate::oauth::complete("t1", "gdrive", "cliente-di-prova", "", std::time::Duration::from_secs(10));
+    let r = crate::oauth::complete("t1", "dropbox", "cliente-di-prova", std::time::Duration::from_secs(10));
     let (a, b, c) = browser.join().unwrap();
     assert!(a.starts_with("HTTP/1.1 404") && b.starts_with("HTTP/1.1 404"));
     assert!(c.starts_with("HTTP/1.1 200") && c.contains("non riuscito"));

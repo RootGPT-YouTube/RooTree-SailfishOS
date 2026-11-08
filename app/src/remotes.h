@@ -40,6 +40,8 @@ public:
     Q_INVOKABLE QString describe(const QVariantMap &profile) const;
 
     Q_INVOKABLE void setSecret(const QString &id, const QString &secret) { m_secrets.insert(id, secret); }
+    // il codice a 6 cifre (Mega): vale per il prossimo collegamento, poi sparisce
+    Q_INVOKABLE void setOneTimeCode(const QString &id, const QString &code) { m_oneTime.insert(id, code); }
     // in memoria per la sessione, o nella cassaforte aperta
     Q_INVOKABLE bool hasSecret(const QString &id) const;
     Q_INVOKABLE QString secret(const QString &id) const;
@@ -50,6 +52,8 @@ public:
     Q_INVOKABLE void connect(const QString &id);
     Q_INVOKABLE QString trust(const QString &id);
     Q_INVOKABLE void disconnect(const QString &id);
+    // Mega: toglie la sessione ricordata; esito con megaRevoked(id, errore)
+    Q_INVOKABLE void megaRevoke(const QString &id);
     Q_INVOKABLE bool isConnected(const QString &id) const;
     // la cartella da cui si entra: /@remote/<id> + percorso iniziale sul server
     Q_INVOKABLE QString entryPath(const QString &id) const { return m_entry.value(id); }
@@ -78,6 +82,7 @@ public:
     Q_INVOKABLE QString remember(const QString &id);
 
 signals:
+    void megaRevoked(const QString &id, const QString &error);
     void changed();
     void vaultChanged();
     void connectFinished(const QString &id, const QString &code, const QString &message, const QString &path);
@@ -91,6 +96,7 @@ private:
 
     QVariantList m_list;
     QHash<QString, QString> m_secrets;
+    QHash<QString, QString> m_oneTime;
     QHash<QString, QString> m_entry;
     // il file cambiato da fuori (un'altra copia di RooTree, una modifica a
     // mano) si rilegge: mai riscriverci sopra la copia vecchia in memoria

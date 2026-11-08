@@ -34,7 +34,7 @@ pub trait Drive: Send + Sync {
 }
 
 pub fn is_cloud_type(kind: &str) -> bool {
-    matches!(kind, "dropbox")
+    matches!(kind, "dropbox" | "mega")
 }
 
 pub fn sink(d: Arc<dyn Drive>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
@@ -49,17 +49,24 @@ struct Profile {
     kind: String,
     #[serde(rename = "clientId")]
     client_id: String,
-    #[serde(rename = "clientSecret")]
-    client_secret: String,
+    user: String,
+    /// il codice a 6 cifre: solo per questo collegamento, mai nel file dei profili
+    mfa: String,
+    /// l'utente ha chiesto di non inserire più il codice: la sessione va nella cassaforte
+    #[serde(rename = "mfaTrusted")]
+    mfa_trusted: bool,
 }
 
 /// Collega un profilo cloud col suo token di rinnovo (`secret`).
 pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, String> {
     let p: Profile = serde_json::from_str(profile_json).map_err(|e| format!("profilo non valido: {e}"))?;
+    if p.kind == "mega" {
+        return Ok(Arc::new(Mega::connect(&p, secret)?));
+    }
     if secret.is_empty() {
         return Err("LOGIN:serve l'accesso dal browser".into());
     }
-    let auth = Auth::new(&p.kind, &p.client_id, &p.client_secret, secret);
+    let auth = Auth::new(&p.kind, &p.client_id, secret);
     match p.kind.as_str() {
         "dropbox" => {
             let d = Dropbox { auth };
@@ -79,14 +86,13 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, Strin
 pub struct Auth {
     kind: String,
     client_id: String,
-    client_secret: String,
     refresh: String,
     access: Mutex<Option<(String, Instant)>>,
 }
 
 impl Auth {
-    fn new(kind: &str, client_id: &str, client_secret: &str, refresh: &str) -> Self {
-        Auth { kind: kind.into(), client_id: client_id.into(), client_secret: client_secret.into(), refresh: refresh.into(), access: Mutex::new(None) }
+    fn new(kind: &str, client_id: &str, refresh: &str) -> Self {
+        Auth { kind: kind.into(), client_id: client_id.into(), refresh: refresh.into(), access: Mutex::new(None) }
     }
 
     fn token(&self, force: bool) -> io::Result<String> {
@@ -97,7 +103,7 @@ impl Auth {
         {
             return Ok(t.clone());
         }
-        let t = oauth::refresh(&self.kind, &self.client_id, &self.client_secret, &self.refresh).map_err(io::Error::other)?;
+        let t = oauth::refresh(&self.kind, &self.client_id, &self.refresh).map_err(io::Error::other)?;
         // un minuto di margine sulla scadenza dichiarata
         let life = if t.expires_in > 120 { t.expires_in - 60 } else { 600 };
         *g = Some((t.access_token.clone(), Instant::now() + Duration::from_secs(life)));
@@ -320,11 +326,359 @@ impl crate::vfs::Sink for DropboxSink {
     }
 }
 
+// ------------------------------------------------------------------ Mega
+// Crate `mega` (MIT/Apache-2.0): la cifratura è lato client, quindi serve
+// la password vera (il «segreto» della connessione, nella cassaforte) e niente
+// browser né chiavi dell'app. L'API dà tutto l'albero in una volta: si ricorda
+// per poco e si dimentica a ogni modifica.
+// Eliminare e sovrascrivere = spostare nel cestino di Mega (si recupera dal sito).
+
+const MEGA_CACHE: Duration = Duration::from_secs(30);
+
+fn mega_runtime() -> Result<tokio::runtime::Runtime, String> {
+    tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().map_err(|e| e.to_string())
+}
+
+fn mega_client() -> Result<mega::Client, String> {
+    mega::Client::builder().build(reqwest::Client::new()).map_err(|e| e.to_string())
+}
+
+fn mega_session_key(id: &str) -> String {
+    format!("{id}#mega-session")
+}
+
+/// Toglie la fiducia: chiude la sessione anche sui server di Mega e la
+/// cancella dalla cassaforte. Se Mega non risponde, dalla cassaforte sparisce
+/// lo stesso e l'errore lo dice (la sessione resta viva finché non scade).
+pub fn mega_revoke(id: &str) -> Result<(), String> {
+    let key = mega_session_key(id);
+    let stored = crate::vault::get(&key).unwrap_or_default();
+    if stored.is_empty() {
+        return Ok(());
+    }
+    let closed = (|| {
+        let rt = mega_runtime()?;
+        let mut client = mega_client()?;
+        rt.block_on(async {
+            client.resume_session(&stored).await?;
+            client.logout().await
+        })
+        .map_err(|e| e.to_string())
+    })();
+    crate::vault::remove(&key).map_err(|e| e.to_string())?;
+    closed
+}
+
+pub struct Mega {
+    rt: tokio::runtime::Runtime,
+    client: Arc<mega::Client>,
+    nodes: Mutex<Option<(Arc<mega::Nodes>, Instant)>>,
+}
+
+fn mega_err(e: mega::Error) -> io::Error {
+    let d = format!("{e:?}");
+    if d.contains("ENOENT") {
+        io::Error::new(io::ErrorKind::NotFound, "non esiste")
+    } else if d.contains("EOVERQUOTA") {
+        io::Error::other("spazio esaurito sul cloud")
+    } else {
+        io::Error::other(format!("Mega: {e}"))
+    }
+}
+
+fn mega_login_err(e: mega::Error, with_code: bool) -> String {
+    let d = format!("{e:?}");
+    if d.contains("EMFAREQUIRED") {
+        // «MFA:» chiede il codice; «MFA:wrong», che quello dato non andava
+        if with_code { "MFA:wrong".into() } else { "MFA:".into() }
+    } else if with_code && ["EFAILED", "EEXPIRED"].iter().any(|c| d.contains(c)) {
+        "MFA:wrong".into()
+    } else if ["ENOENT", "EACCESS", "EKEY", "EINCOMPLETE", "EARGS"].iter().any(|c| d.contains(c)) {
+        "AUTH:email o password di Mega sbagliata".into()
+    } else {
+        format!("NET:Mega: {e}")
+    }
+}
+
+fn mega_stat(n: &mega::Node) -> RStat {
+    let dir = !matches!(n.kind(), mega::NodeKind::File);
+    RStat {
+        is_dir: dir,
+        is_file: !dir,
+        is_link: false,
+        size: n.size(),
+        mode: if dir { 0o755 } else { 0o644 },
+        mtime: n.modified_at().or(n.created_at()).map(|d| d.timestamp()).unwrap_or(0),
+    }
+}
+
+fn mega_parts(p: &str) -> Vec<&str> {
+    p.split('/').filter(|c| !c.is_empty()).collect()
+}
+
+/// («/a/b», «c») da «/a/b/c»
+fn mega_split(p: &str) -> (String, String) {
+    let mut c = mega_parts(p);
+    let name = c.pop().unwrap_or("").to_string();
+    (format!("/{}", c.join("/")), name)
+}
+
+fn mega_child<'a>(nodes: &'a mega::Nodes, parent: &str, name: &str) -> Option<&'a mega::Node> {
+    nodes.iter().find(|n| n.parent() == Some(parent) && n.name() == name)
+}
+
+/// Il nodo a quel percorso, dalla radice del Cloud Drive.
+fn mega_at<'a>(nodes: &'a mega::Nodes, path: &str) -> io::Result<&'a mega::Node> {
+    let mut cur = nodes.cloud_drive().ok_or_else(|| io::Error::other("Mega: Cloud Drive non trovato"))?;
+    for c in mega_parts(path) {
+        cur = mega_child(nodes, cur.handle(), c).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "non esiste"))?;
+    }
+    Ok(cur)
+}
+
+impl Mega {
+    fn connect(p: &Profile, password: &str) -> Result<Self, String> {
+        let rt = mega_runtime()?;
+        let mut client = mega_client()?;
+        let key = mega_session_key(&p.id);
+        let stored = crate::vault::get(&key).unwrap_or_default();
+        if !stored.is_empty() {
+            let resumed = rt.block_on(async {
+                client.resume_session(&stored).await?;
+                client.get_current_user_info().await
+            });
+            match resumed {
+                Ok(_) => return Ok(Mega { rt, client: Arc::new(client), nodes: Mutex::new(None) }),
+                Err(e) => {
+                    let d = format!("{e:?}");
+                    if !["ESID", "EACCESS", "ENOENT", "InvalidSession"].iter().any(|c| d.contains(c)) {
+                        return Err(format!("NET:Mega: {e}"));
+                    }
+                    // revocata dal sito o scaduta: si riparte da password e codice
+                    let _ = crate::vault::remove(&key);
+                    client = mega_client()?;
+                }
+            }
+        }
+        let code = p.mfa.trim();
+        let mfa = (!code.is_empty()).then_some(code);
+        rt.block_on(client.login(p.user.trim(), password, mfa)).map_err(|e| mega_login_err(e, mfa.is_some()))?;
+        if p.mfa_trusted && mfa.is_some() {
+            let s = rt.block_on(client.serialize_session()).map_err(|e| e.to_string())?;
+            crate::vault::set(&key, &s).map_err(|e| format!("cassaforte: {e}"))?;
+        }
+        Ok(Mega { rt, client: Arc::new(client), nodes: Mutex::new(None) })
+    }
+
+    fn nodes(&self) -> io::Result<Arc<mega::Nodes>> {
+        let mut g = self.nodes.lock().unwrap();
+        if let Some((n, t)) = g.as_ref()
+            && t.elapsed() < MEGA_CACHE
+        {
+            return Ok(n.clone());
+        }
+        let n = Arc::new(self.rt.block_on(self.client.fetch_own_nodes()).map_err(mega_err)?);
+        *g = Some((n.clone(), Instant::now()));
+        Ok(n)
+    }
+
+    fn forget(&self) {
+        *self.nodes.lock().unwrap() = None;
+    }
+
+    fn to_bin(&self, nodes: &mega::Nodes, node: &mega::Node) -> io::Result<()> {
+        let bin = nodes.rubbish_bin().ok_or_else(|| io::Error::other("Mega: cestino non trovato"))?;
+        self.rt.block_on(self.client.move_node(node, bin)).map_err(mega_err)
+    }
+}
+
+impl Drive for Mega {
+    fn stat(&self, path: &str) -> io::Result<RStat> {
+        if mega_parts(path).is_empty() {
+            return Ok(RStat { is_dir: true, mode: 0o755, ..Default::default() });
+        }
+        let nodes = self.nodes()?;
+        Ok(mega_stat(mega_at(&nodes, path)?))
+    }
+
+    fn list(&self, path: &str) -> io::Result<Vec<(String, RStat)>> {
+        let nodes = self.nodes()?;
+        let dir = mega_at(&nodes, path)?;
+        Ok(nodes.iter().filter(|n| n.parent() == Some(dir.handle())).map(|n| (n.name().to_string(), mega_stat(n))).collect())
+    }
+
+    fn read(&self, path: &str) -> io::Result<Box<dyn Read + Send>> {
+        let nodes = self.nodes()?;
+        let handle = mega_at(&nodes, path)?.handle().to_string();
+        let (reader, writer) = sluice::pipe::pipe();
+        let (rt, client) = (self.rt.handle().clone(), self.client.clone());
+        let task = std::thread::spawn(move || {
+            let node = nodes.get_node_by_handle(&handle).ok_or_else(|| io::Error::other("Mega: nodo sparito"))?;
+            rt.block_on(client.download_node(node, writer)).map_err(mega_err)
+        });
+        Ok(Box::new(MegaReader { reader, task: Some(task) }))
+    }
+
+    fn writer(self: Arc<Self>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
+        let (parent, name) = mega_split(path);
+        let nodes = self.nodes()?;
+        let parent = mega_at(&nodes, &parent)?.handle().to_string();
+        let old = match mega_child(&nodes, &parent, &name) {
+            Some(n) if !matches!(n.kind(), mega::NodeKind::File) => return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già una cartella con questo nome")),
+            Some(n) => Some(n.handle().to_string()),
+            None => None,
+        };
+        let mut sink = MegaSink { drive: self, parent, name, old, memory: Vec::new(), pipe: None, task: None, done: false };
+        if let Some(s) = size {
+            sink.start(s);
+        }
+        Ok(Box::new(sink))
+    }
+
+    fn mkdir(&self, path: &str) -> io::Result<()> {
+        let (parent, name) = mega_split(path);
+        let nodes = self.nodes()?;
+        let p = mega_at(&nodes, &parent)?;
+        if mega_child(&nodes, p.handle(), &name).is_some() {
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già"));
+        }
+        self.rt.block_on(self.client.create_folder(p, &name)).map_err(mega_err)?;
+        self.forget();
+        Ok(())
+    }
+
+    fn delete(&self, path: &str) -> io::Result<()> {
+        let nodes = self.nodes()?;
+        self.to_bin(&nodes, mega_at(&nodes, path)?)?;
+        self.forget();
+        Ok(())
+    }
+
+    fn rename(&self, from: &str, to: &str) -> io::Result<()> {
+        let nodes = self.nodes()?;
+        let node = mega_at(&nodes, from)?;
+        let (from_parent, from_name) = mega_split(from);
+        let (to_parent, name) = mega_split(to);
+        let target = mega_at(&nodes, &to_parent)?;
+        if mega_child(&nodes, target.handle(), &name).is_some() {
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già"));
+        }
+        if from_name != name {
+            self.rt.block_on(self.client.rename_node(node, &name)).map_err(mega_err)?;
+            self.forget();
+        }
+        if from_parent != to_parent {
+            self.rt.block_on(self.client.move_node(node, target)).map_err(mega_err)?;
+            self.forget();
+        }
+        Ok(())
+    }
+}
+
+/// Lo scaricamento gira in un filo a parte e riempie il tubo; a fine tubo si
+/// guarda com'è andata, così un guasto non sembra un file finito.
+struct MegaReader {
+    reader: sluice::pipe::PipeReader,
+    task: Option<std::thread::JoinHandle<io::Result<()>>>,
+}
+
+impl Read for MegaReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        use futures::AsyncReadExt;
+        let n = futures::executor::block_on(self.reader.read(buf))?;
+        if n == 0
+            && let Some(t) = self.task.take()
+        {
+            t.join().map_err(|_| io::Error::other("Mega: scaricamento interrotto"))??;
+        }
+        Ok(n)
+    }
+}
+
+/// Con la dimensione nota i dati passano in un tubo verso il caricamento; senza,
+/// si tengono in memoria e partono al flush (Mega vuole il totale in anticipo).
+struct MegaSink {
+    drive: Arc<Mega>,
+    parent: String,
+    name: String,
+    old: Option<String>,
+    memory: Vec<u8>,
+    pipe: Option<sluice::pipe::PipeWriter>,
+    task: Option<std::thread::JoinHandle<io::Result<()>>>,
+    done: bool,
+}
+
+impl MegaSink {
+    fn start(&mut self, size: u64) {
+        let (reader, writer) = sluice::pipe::pipe();
+        self.pipe = Some(writer);
+        let (rt, client, drive) = (self.drive.rt.handle().clone(), self.drive.client.clone(), self.drive.clone());
+        let (parent, name) = (self.parent.clone(), self.name.clone());
+        self.task = Some(std::thread::spawn(move || {
+            let nodes = drive.nodes()?;
+            let p = nodes.get_node_by_handle(&parent).ok_or_else(|| io::Error::other("Mega: cartella sparita"))?;
+            rt.block_on(client.upload_node(p, &name, size, reader, mega::LastModified::Now)).map_err(mega_err)
+        }));
+    }
+}
+
+impl Write for MegaSink {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        use futures::AsyncWriteExt;
+        match self.pipe.as_mut() {
+            Some(w) => futures::executor::block_on(w.write_all(data))?,
+            None => self.memory.extend_from_slice(data),
+        }
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        use futures::AsyncWriteExt;
+        if self.done {
+            return Ok(());
+        }
+        if self.pipe.is_none() {
+            let data = std::mem::take(&mut self.memory);
+            self.start(data.len() as u64);
+            futures::executor::block_on(self.pipe.as_mut().unwrap().write_all(&data))?;
+        }
+        let _ = futures::executor::block_on(self.pipe.as_mut().unwrap().close());
+        self.pipe = None;
+        if let Some(t) = self.task.take() {
+            t.join().map_err(|_| io::Error::other("Mega: caricamento interrotto"))??;
+        }
+        self.done = true;
+        self.drive.forget();
+        // il vecchio file va nel cestino solo a caricamento riuscito
+        if let Some(h) = self.old.take() {
+            let nodes = self.drive.nodes()?;
+            if let Some(n) = nodes.get_node_by_handle(&h) {
+                self.drive.to_bin(&nodes, n)?;
+                self.drive.forget();
+            }
+        }
+        Ok(())
+    }
+}
+
+impl crate::vfs::Sink for MegaSink {
+    fn sync(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod prove {
     #[test]
     fn indirizzi_dropbox() {
         assert_eq!(super::dbx_path("/"), "");
         assert_eq!(super::dbx_path("/x/"), "/x");
+    }
+
+    #[test]
+    fn percorsi_mega() {
+        assert_eq!(super::mega_split("/a/b/c.txt"), ("/a/b".to_string(), "c.txt".to_string()));
+        assert_eq!(super::mega_split("/c.txt"), ("/".to_string(), "c.txt".to_string()));
+        assert_eq!(super::mega_parts("//a//b/"), vec!["a", "b"]);
     }
 }

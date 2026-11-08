@@ -4,9 +4,6 @@
 //! cassaforte come le password.
 //!
 //! Regole dei servizi verificate l'08/11/2026 sulle pagine ufficiali:
-//! - Google: client «Desktop app», ritorno su loopback con porta qualsiasi,
-//!   PKCE sempre; il client_secret delle app desktop non è segreto ed è
-//!   facoltativo nello scambio (developers.google.com/identity/protocols/oauth2/native-app);
 //! - Dropbox: PKCE senza segreto, `token_access_type=offline` per il rinnovo,
 //!   indirizzo di ritorno registrato ESATTO (quindi porta fissa)
 //!   (docs.dropboxapi.com/dropbox-api/docs/oauth).
@@ -41,14 +38,6 @@ pub struct Provider {
 
 pub fn provider(kind: &str) -> Option<Provider> {
     Some(match kind {
-        "gdrive" => Provider {
-            auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
-            token_url: "https://oauth2.googleapis.com/token",
-            scope: "https://www.googleapis.com/auth/drive",
-            extra: &[("access_type", "offline"), ("prompt", "consent")],
-            host: "127.0.0.1",
-            port: 0,
-        },
         "dropbox" => Provider {
             auth_url: "https://www.dropbox.com/oauth2/authorize",
             token_url: "https://api.dropboxapi.com/oauth2/token",
@@ -143,7 +132,7 @@ pub fn begin(id: &str, kind: &str, client_id: &str) -> Result<String, String> {
 
 /// Aspetta il ritorno dal browser (al più `timeout`), risponde con una pagina
 /// «puoi tornare a RooTree», e scambia il codice coi token.
-pub fn complete(id: &str, kind: &str, client_id: &str, client_secret: &str, timeout: Duration) -> Result<Tokens, String> {
+pub fn complete(id: &str, kind: &str, client_id: &str, timeout: Duration) -> Result<Tokens, String> {
     cancelled().lock().unwrap().remove(id);
     let pend = pending().lock().unwrap().remove(id).ok_or("nessun accesso in corso")?;
     pend.listener.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -203,16 +192,13 @@ pub fn complete(id: &str, kind: &str, client_id: &str, client_secret: &str, time
         }
     };
     let p = provider(kind).ok_or("servizio sconosciuto")?;
-    let mut form = vec![
+    let form = vec![
         ("grant_type", "authorization_code".to_string()),
         ("code", code),
         ("redirect_uri", pend.redirect.clone()),
         ("client_id", client_id.trim().to_string()),
         ("code_verifier", pend.verifier.clone()),
     ];
-    if !client_secret.trim().is_empty() {
-        form.push(("client_secret", client_secret.trim().to_string()));
-    }
     let r = post_form(p.token_url, &form);
     let _ = reply(&stream, 200, &page(r.is_ok()));
     let _ = stream.flush();
@@ -224,16 +210,13 @@ pub fn complete(id: &str, kind: &str, client_id: &str, client_secret: &str, time
 }
 
 /// Un token d'accesso nuovo dal token di rinnovo.
-pub fn refresh(kind: &str, client_id: &str, client_secret: &str, refresh_token: &str) -> Result<Tokens, String> {
+pub fn refresh(kind: &str, client_id: &str, refresh_token: &str) -> Result<Tokens, String> {
     let p = provider(kind).ok_or("servizio sconosciuto")?;
-    let mut form = vec![
+    let form = vec![
         ("grant_type", "refresh_token".to_string()),
         ("refresh_token", refresh_token.to_string()),
         ("client_id", client_id.trim().to_string()),
     ];
-    if !client_secret.trim().is_empty() {
-        form.push(("client_secret", client_secret.trim().to_string()));
-    }
     let mut t = post_form(p.token_url, &form)?;
     // alcuni servizi non ridanno il token di rinnovo: resta quello di prima
     if t.refresh_token.is_empty() {

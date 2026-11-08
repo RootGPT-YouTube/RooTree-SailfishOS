@@ -69,10 +69,12 @@ QString Remotes::secret(const QString &id) const
 
 void Remotes::connect(const QString &id)
 {
-    const QVariantMap p = get(id);
+    QVariantMap p = get(id);
     if (p.isEmpty() || m_connecting.contains(id))
         return;
     m_connecting.insert(id);
+    if (m_oneTime.contains(id))
+        p.insert(QStringLiteral("mfa"), m_oneTime.take(id));
     const QByteArray json = QJsonDocument(QJsonObject::fromVariantMap(p)).toJson(QJsonDocument::Compact);
     QByteArray sec = secret(id).toUtf8();
     QPointer<Remotes> self(this);
@@ -132,17 +134,16 @@ void Remotes::authorize(const QString &id)
     m_authorizing.insert(id);
     const QByteArray kind = p.value(QStringLiteral("type")).toString().toUtf8();
     const QByteArray cid = p.value(QStringLiteral("clientId")).toString().toUtf8();
-    const QByteArray csec = p.value(QStringLiteral("clientSecret")).toString().toUtf8();
     const QByteArray bid = id.toUtf8();
     QPointer<Remotes> self(this);
-    std::thread([self, id, kind, cid, csec, bid] {
+    std::thread([self, id, kind, cid, bid] {
         auto s = [](const QByteArray &b) { return rust::Str(b.constData(), size_t(b.size())); };
         QString code, message, token;
         try {
             const QString url = qtrust::qs(rootree::oauth_begin(s(bid), s(kind), s(cid)));
             QMetaObject::invokeMethod(qApp, [self, id, url] { if (self) emit self->authUrl(id, url); }, Qt::QueuedConnection);
             // cinque minuti per accedere nel browser
-            token = qtrust::qs(rootree::oauth_complete(s(bid), s(kind), s(cid), s(csec), 300));
+            token = qtrust::qs(rootree::oauth_complete(s(bid), s(kind), s(cid), 300));
         } catch (const rust::Error &e) {
             const auto cm = splitCode(QString::fromUtf8(e.what()));
             code = cm.first;
@@ -156,6 +157,21 @@ void Remotes::authorize(const QString &id)
                 self->m_secrets.insert(id, token);
             emit self->authFinished(id, code, message);
         }, Qt::QueuedConnection);
+    }).detach();
+}
+
+void Remotes::megaRevoke(const QString &id)
+{
+    const QByteArray bid = id.toUtf8();
+    QPointer<Remotes> self(this);
+    std::thread([self, id, bid] {
+        QString error;
+        try {
+            rootree::mega_revoke(rust::Str(bid.constData(), size_t(bid.size())));
+        } catch (const rust::Error &e) {
+            error = QString::fromUtf8(e.what());
+        }
+        QMetaObject::invokeMethod(qApp, [self, id, error] { if (self) emit self->megaRevoked(id, error); }, Qt::QueuedConnection);
     }).detach();
 }
 
@@ -255,8 +271,7 @@ QVariantList Remotes::types() const
         type("s3", QStringLiteral("S3 / compatibile"), "server", "s3", 443, pw, true, false),
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
         // un cloud alla volta (scelta dell'utente, 08/11): questi arrivano dopo Dropbox
-        soon(type("gdrive", QStringLiteral("Google Drive"), "cloud", "gdrive", 0, {QStringLiteral("oauth")}, false, true)),
-        soon(type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false)),
+        type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false),
     };
 }
 
@@ -356,6 +371,8 @@ QString Remotes::save(const QVariantMap &profile)
 
 void Remotes::remove(const QString &id)
 {
+    if (get(id).value(QStringLiteral("mfaTrusted")).toBool())
+        megaRevoke(id);
     for (int i = m_list.size() - 1; i >= 0; --i)
         if (m_list.at(i).toMap().value(QStringLiteral("id")).toString() == id)
             m_list.removeAt(i);

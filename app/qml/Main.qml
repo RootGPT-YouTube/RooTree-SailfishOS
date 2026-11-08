@@ -753,6 +753,12 @@ Window {
     }
     Connections {
         target: Remotes
+        function onMegaRevoked(id, error) {
+            if (error === "")
+                toast.show(Style.t("Fatto: al prossimo collegamento Mega chiederà di nuovo il codice.", "Done: Mega will ask for the code again at the next connection."))
+            else
+                toast.show(Style.t("Tolta da questo telefono, ma Mega non ha risposto: chiudi la sessione anche dal sito di Mega. ", "Removed from this phone, but Mega did not answer: close the session on the Mega site too. ") + error, true)
+        }
         function onConnectFinished(id, code, message, path) {
             var p = Remotes.get(id)
             if (code === "") {
@@ -774,6 +780,8 @@ Window {
                 // accesso scaduto o revocato: si rifà dal browser
                 Remotes.forgetSecret(id)
                 loginDialog.ask(p, Style.t("L'accesso a " + (Remotes.typeInfo(p.type).label || "") + " è scaduto o è stato revocato: rifallo.", "The sign-in has expired or been revoked: do it again."))
+            } else if (code === "MFA") {
+                secretDialog.ask(p, "mfa", message === "wrong" ? Style.t("Codice sbagliato o scaduto: riprova.", "Wrong or expired code: try again.") : "")
             } else if (code === "AUTH" && p.auth === "password") {
                 secretDialog.ask(p, "password", Style.t("Password rifiutata dal server.", "Password rejected by the server."))
             } else if (code === "KEY" && message.indexOf("frase") >= 0) {
@@ -858,17 +866,32 @@ Window {
             error = err || ""
             secretField.text = ""
             rememberCheck.checked = p.remember !== false
+            trustCheck.checked = false
             open()
             secretField.forceActiveFocus()
         }
         title: profile.name || ""
-        message: what === "passphrase"
+        message: what === "mfa"
+            ? Style.t("Codice a 6 cifre della verifica in due passaggi di Mega (lo trovi nella tua app di autenticazione).", "6-digit two-step verification code for Mega (from your authenticator app).")
+            : what === "passphrase"
             ? Style.t("La chiave «" + (profile.keyPath || "").split("/").pop() + "» è protetta da una frase.", "The key “" + (profile.keyPath || "").split("/").pop() + "” is protected by a passphrase.")
             : Style.t("Password di " + Remotes.describe(profile), "Password for " + Remotes.describe(profile))
         buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Collega", "Connect"), role: "accept" }]
         onChosen: function (role) {
             if (role !== "accept" || secretField.text === "") return
             var p = profile
+            if (what === "mfa") {
+                Remotes.setOneTimeCode(p.id, secretField.text)
+                secretField.text = ""
+                var trust = trustCheck.checked
+                if (trust !== (p.mfaTrusted === true)) {
+                    p = Object.assign({}, p); p.mfaTrusted = trust; Remotes.save(p)
+                }
+                // la sessione va nella cassaforte: che sia aperta prima
+                if (trust) win.withVault(function () { win.doConnect(p) })
+                else win.doConnect(p)
+                return
+            }
             Remotes.setSecret(p.id, secretField.text)
             secretField.text = ""
             if (rememberCheck.checked !== (p.remember !== false)) {
@@ -885,12 +908,17 @@ Window {
             width: parent.width
             color: Style.text
             font.pixelSize: Style.fontM
-            echoMode: TextInput.Password
-            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+            echoMode: secretDialog.what === "mfa" ? TextInput.Normal : TextInput.Password
+            inputMethodHints: secretDialog.what === "mfa" ? Qt.ImhDigitsOnly : (Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase)
             background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: secretField.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
             onAccepted: { secretDialog.close(); secretDialog.chosen("accept") }
         }
-        CheckRow { id: rememberCheck; text: Style.t("Ricorda nella cassaforte", "Remember in the vault") }
+        CheckRow {
+            id: trustCheck
+            visible: secretDialog.what === "mfa"
+            text: Style.t("Non chiedere più il codice su questo telefono", "Don't ask for the code again on this phone")
+        }
+        CheckRow { id: rememberCheck; visible: secretDialog.what !== "mfa"; text: Style.t("Ricorda nella cassaforte", "Remember in the vault") }
         Text { font.family: Style.fontFamily; visible: secretDialog.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: secretDialog.error; color: Style.danger; font.pixelSize: Style.fontS }
     }
 
@@ -1113,6 +1141,23 @@ Window {
                 }
                 Remotes.setStartPath(folder.remote, serverPath)
                 toast.show(Style.t("«" + Remotes.get(folder.remote).name + "» si aprirà da " + serverPath, "“" + Remotes.get(folder.remote).name + "” will open from " + serverPath))
+            }
+        }
+        MenuRow {
+            depth: 1
+            icon: "key"
+            visible: remoteOptions.open && folder.remote !== "" && Remotes.get(folder.remote).mfaTrusted === true
+            text: Style.t("Chiedi di nuovo il codice di Mega", "Ask for the Mega code again")
+            onClicked: {
+                mainMenu.close()
+                var p = Object.assign({}, Remotes.get(folder.remote))
+                win.withVault(function () {
+                    p.mfaTrusted = false
+                    Remotes.save(p)
+                    win.go(Fs.home)
+                    Remotes.disconnect(p.id)
+                    Remotes.megaRevoke(p.id)
+                })
             }
         }
         MenuRow {

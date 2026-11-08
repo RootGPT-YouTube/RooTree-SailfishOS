@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.5
-Release:    1
+Version:    0.6.7
+Release:    4
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,22 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.7-4
+- Connections list: the detail is hidden when the name already says it.
+
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.7-3
+- Mega: optional "don't ask for the code again". The session is kept in the
+  password vault; Remote options can revoke it, also on the Mega servers.
+
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.7-2
+- Mega: accounts with two-step verification work. The 6-digit code is asked
+  at each connection and never saved.
+
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.7-1
+- Mega joins Dropbox: sign in with email and password (no app to register),
+  browse, copy to and from, rename. Deleting and overwriting move the old
+  file to the Mega rubbish bin. Two-step verification is not supported yet.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.5-1
 - OneDrive removed: registering an app on the Microsoft portal is too
   complicated to ask of every user.
@@ -123,7 +139,7 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
   folders are browsed, copied to and from, renamed and deleted like the
   other connections; big files are uploaded in 8 MB pieces while being
   written, so the progress is real. Needs your own free Dropbox App key
-  (the wizard explains how). OneDrive, Google Drive and Mega: coming.
+  (the wizard explains how). OneDrive and Mega: coming.
 
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-3
 - Copying a folder where a folder with the same name exists now asks, like
@@ -200,7 +216,7 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 - Phase 5, step 1: remote connections interface. A "Network and cloud"
   section in the storage menu lists the saved connections; "Add a
   connection…" opens a step-by-step wizard (type, server, sign-in, name)
-  for SFTP, FTP/FTPS, WebDAV, Nextcloud/ownCloud, SMB, S3, Google Drive,
+  for SFTP, FTP/FTPS, WebDAV, Nextcloud/ownCloud, SMB, S3,
   OneDrive, Dropbox and Mega. Connections can be edited, duplicated and
   deleted. Passwords are never written to the profiles file; connecting
   comes in the next step.
