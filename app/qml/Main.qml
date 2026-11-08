@@ -796,21 +796,36 @@ Window {
                 folder.refresh()
             }
         }
-        TextField {
-            font.family: Style.fontFamily
-            id: field
+        // il campo con le maniglie sopra (sotto il testo c'è posto per i dischi)
+        Item {
             width: parent.width
-            color: Style.text
-            font.pixelSize: Style.fontM
-            selectByMouse: true
-            // la selezione resta mentre si toccano i pulsanti qui sotto
-            persistentSelection: true
-            selectionColor: Style.accent
-            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: field.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
-            onAccepted: { nameDialog.close(); nameDialog.chosen("accept") }
+            height: field.height + 34 * Style.dp
+            z: 2
+            TextField {
+                font.family: Style.fontFamily
+                id: field
+                width: parent.width
+                color: Style.text
+                font.pixelSize: Style.fontM
+                selectByMouse: true
+                // la selezione resta mentre si toccano i pulsanti qui sotto
+                persistentSelection: true
+                selectionColor: Style.accent
+                background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: field.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+                onAccepted: { nameDialog.close(); nameDialog.chosen("accept") }
+                // doppio tocco: la parola sotto il dito (poi le maniglie)
+                TapHandler {
+                    onDoubleTapped: function (ev) {
+                        field.cursorPosition = field.positionAt(ev.position.x, ev.position.y)
+                        field.selectWord()
+                    }
+                }
+            }
+            // le maniglie per scegliere col dito la parte da selezionare
+            SelectionHandles { field: field }
         }
-        // selezionare e copiare il nome (o una parte: trascinando o col doppio
-        // tocco su una parola), richiesta dell'utente dell'08/11
+        // selezionare e copiare il nome o una parte (doppio tocco su una parola
+        // o «Tutto», poi le maniglie), richiesta dell'utente dell'08/11
         Flow {
             width: parent.width
             spacing: 6 * Style.dp

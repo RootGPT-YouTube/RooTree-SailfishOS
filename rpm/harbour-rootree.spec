@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.4.0
-Release:    2
+Release:    3
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -74,6 +74,10 @@ install -D -m0644 %{stagingdir}/NOTICE.md %{buildroot}%{_defaultlicensedir}/%{na
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.4.0-3
+- Rename / New folder: two selection handles to pick with a finger which
+  part of the name to select (double tap selects a word).
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.4.0-2
 - Rename / New folder: buttons to select all (or the name without its
   extension), copy and paste; the selection stays while tapping them.
