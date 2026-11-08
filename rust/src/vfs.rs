@@ -118,9 +118,10 @@ impl Sink for ssh2::File {
     }
 }
 
-pub fn create(p: &Path, mode: u32) -> io::Result<Box<dyn Sink>> {
+/// `size`: la dimensione finale se si sa (OneDrive la vuole prima di caricare a pezzi).
+pub fn create(p: &Path, mode: u32, size: Option<u64>) -> io::Result<Box<dyn Sink>> {
     match rsplit(p) {
-        Some((id, inner)) => remote::create_any(&id, &inner, mode),
+        Some((id, inner)) => remote::create_any(&id, &inner, mode, size),
         None => {
             let f = File::create(p)?;
             Ok(Box::new(f))

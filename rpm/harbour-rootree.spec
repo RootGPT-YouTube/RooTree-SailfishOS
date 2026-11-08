@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.3
+Version:    0.6.4
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.4-1
+- OneDrive (personal and work accounts) joins Dropbox: sign-in in the
+  browser, browse, copy to and from, rename, delete. Big files are uploaded
+  in 10 MiB pieces while being copied. Needs your own free application ID
+  from the Microsoft portal (the wizard explains how).
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.3-1
 - Phase 5, step 4 (clouds, one at a time): Dropbox. Sign-in happens in the
   browser (OAuth with PKCE, return to 127.0.0.1: the password never goes

@@ -439,7 +439,7 @@ pub fn write_text(id: &str, path: &str, text: &str) -> io::Result<()> {
     let part_s = part.to_string_lossy().into_owned();
     let r = (|| -> io::Result<()> {
         let mode = old.map(|o| o.mode & 0o7777).filter(|m| *m != 0).unwrap_or(0o644);
-        let mut f = create_any(id, &part_s, mode)?;
+        let mut f = create_any(id, &part_s, mode, Some(text.len() as u64))?;
         f.write_all(text.as_bytes())?;
         f.sync()?;
         f.flush()?;
@@ -525,9 +525,9 @@ pub fn open_any(id: &str, path: &str) -> io::Result<Box<dyn io::Read + Send>> {
     }
 }
 
-pub fn create_any(id: &str, path: &str, mode: u32) -> io::Result<Box<dyn crate::vfs::Sink>> {
+pub fn create_any(id: &str, path: &str, mode: u32, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
     match cloud_of(id) {
-        Some(c) => crate::cloud::sink(c, path),
+        Some(c) => crate::cloud::sink(c, path, size),
         None => Ok(Box::new(create(id, path, (mode & 0o7777) as i32)?)),
     }
 }

@@ -347,3 +347,14 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     Microsoft e Google; col binario vero: indirizzo d'accesso, Annulla,
     collegamento senza token. ⏳ La prova con un account vero aspetta la App
     key dell'utente. OneDrive, Google Drive, Mega: «in arrivo».
+- **08/11 — Fase 5, step 4: OneDrive (0.6.4-1).** Microsoft Graph per
+  percorso (`/me/drive/root:/a/b:`), elenco a pagine (@odata.nextLink),
+  scaricamento seguendo il rinvio all'indirizzo già autorizzato,
+  caricamento fino a 4 MB con un PUT, sopra con una sessione e pezzi da
+  10 MiB (multipli di 320 KiB) sull'uploadUrl senza Bearer; Microsoft vuole
+  il totale nel Content-Range, quindi il motore ora passa la dimensione del
+  file fino al cloud (`vfs::create(…, size)`). Accesso con ritorno su
+  `http://localhost:<porta>` senza barra finale (registrato
+  «http://localhost», porta ignorata), ascolto anche su ::1. 32 test; col
+  binario vero: indirizzo d'accesso, scope, Annulla. ⏳ Prova con account
+  vero: serve l'ID dell'app dell'utente.

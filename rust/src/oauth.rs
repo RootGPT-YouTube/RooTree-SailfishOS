@@ -86,6 +86,9 @@ struct Pending {
     redirect: String,
     state: String,
     listener: TcpListener,
+    /// anche su ::1, alla stessa porta: un browser che risolve «localhost» in
+    /// IPv6 prima di IPv4 troverebbe la porta chiusa
+    listener6: Option<TcpListener>,
 }
 
 fn pending() -> &'static Mutex<HashMap<String, Pending>> {
@@ -118,7 +121,10 @@ pub fn begin(id: &str, kind: &str, client_id: &str) -> Result<String, String> {
     }
     let listener = TcpListener::bind(("127.0.0.1", p.port)).map_err(|e| format!("ascolto su 127.0.0.1:{}: {e}", p.port))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let redirect = format!("http://{}:{port}/", p.host);
+    let listener6 = if p.host == "localhost" { TcpListener::bind(("::1", port)).ok() } else { None };
+    // Microsoft: registrato «http://localhost» (senza percorso), porta ignorata;
+    // lo stesso indirizzo, carattere per carattere, torna nello scambio del codice
+    let redirect = if p.host == "localhost" { format!("http://localhost:{port}") } else { format!("http://{}:{port}/", p.host) };
     let verifier = random(48);
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
     let state = random(16);
@@ -141,7 +147,7 @@ pub fn begin(id: &str, kind: &str, client_id: &str) -> Result<String, String> {
         p.auth_url,
         q.iter().map(|(k, v)| format!("{k}={}", http::pct(v, false))).collect::<Vec<_>>().join("&")
     );
-    pending().lock().unwrap().insert(id.into(), Pending { verifier, redirect, state, listener });
+    pending().lock().unwrap().insert(id.into(), Pending { verifier, redirect, state, listener, listener6 });
     Ok(url)
 }
 
@@ -151,6 +157,9 @@ pub fn complete(id: &str, kind: &str, client_id: &str, client_secret: &str, time
     cancelled().lock().unwrap().remove(id);
     let pend = pending().lock().unwrap().remove(id).ok_or("nessun accesso in corso")?;
     pend.listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    if let Some(l6) = &pend.listener6 {
+        let _ = l6.set_nonblocking(true);
+    }
     let end = Instant::now() + timeout;
     let (code, mut stream) = loop {
         if Instant::now() > end {
@@ -159,7 +168,14 @@ pub fn complete(id: &str, kind: &str, client_id: &str, client_secret: &str, time
         if cancelled().lock().unwrap().remove(id) {
             return Err("CANCELLED:accesso annullato".into());
         }
-        match pend.listener.accept() {
+        let accepted = match pend.listener.accept() {
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => match &pend.listener6 {
+                Some(l6) => l6.accept(),
+                None => Err(e),
+            },
+            other => other,
+        };
+        match accepted {
             Ok((stream, _)) => {
                 let _ = stream.set_nonblocking(false);
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));

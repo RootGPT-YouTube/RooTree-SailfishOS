@@ -819,7 +819,7 @@ impl Run {
         let r = (|| -> Res<()> {
             let io = |e: io::Error| Stop::Failed(e.to_string());
             let mut from = vfs::open_read(src).map_err(io)?;
-            let mut to = vfs::create(&part, 0o600).map_err(io)?;
+            let mut to = vfs::create(&part, 0o600, Some(meta.len)).map_err(io)?;
             let mut buf = vec![0u8; CHUNK];
             let mut unsynced = 0usize;
             loop {
