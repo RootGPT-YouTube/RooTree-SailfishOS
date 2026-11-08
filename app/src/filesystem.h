@@ -41,6 +41,10 @@ public:
     Q_INVOKABLE bool isArchive(const QString &name) const;
     // il file dell'archivio che contiene path, o ""
     Q_INVOKABLE QString archiveOf(const QString &path) const;
+    // le chiavi SSH private in ~/.ssh (riconosciute dal contenuto, non dal nome)
+    Q_INVOKABLE QStringList sshKeys() const;
+    // è una chiave privata (inizia con «-----BEGIN … PRIVATE KEY-----»)?
+    Q_INVOKABLE bool isPrivateKey(const QString &path) const;
     Q_INVOKABLE bool canCreateArchive(const QString &name) const;
     Q_INVOKABLE QString archiveStem(const QString &name) const;
     // estrae una voce di un archivio nella cache (per aprirla); "" se non riesce,

@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.0
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -92,6 +92,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.0-2
+- SSH key in the connection wizard: besides typing the path (also with ~/),
+  "Browse…" opens a file chooser (hidden files shown, private keys marked),
+  and the private keys found in ~/.ssh, recognised by their content, are
+  offered as buttons. Warns about a public key or a file that is not a key.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.0-1
 - Phase 5, step 1: remote connections interface. A "Network and cloud"
   section in the storage menu lists the saved connections; "Add a

@@ -37,11 +37,15 @@ Popup {
     property int page: 0
     property string secret
     property bool showSecret: false
+    property var keys: []
+    onAboutToShow: keys = Fs.sshKeys()
     readonly property var pages: [Style.t("Tipo", "Type"), Style.t("Server", "Server"), Style.t("Accesso", "Sign-in"), Style.t("Nome", "Name")]
     readonly property bool hasServer: info.needsServer === true
 
     function set(key, value) { var c = Object.assign({}, p); c[key] = value; p = c }
     function v(key) { return p[key] === undefined ? "" : p[key] }
+    // il percorso della chiave con «~/» espanso (si può scrivere a mano)
+    function keyFile() { var k = v("keyPath"); return k.indexOf("~/") === 0 ? Fs.home + k.substring(1) : k }
 
     function openNew() {
         editing = false
@@ -64,7 +68,7 @@ Popup {
     function chooseType(t) {
         info = Remotes.typeInfo(t)
         var c = { type: t, port: info.port, auth: info.auths[0], secure: true }
-        if (t === "sftp") c.keyPath = Fs.home + "/.ssh/id_ed25519"
+        if (t === "sftp") c.keyPath = keys.length > 0 ? keys[0] : ""
         p = c
         page = hasServer ? 1 : 2
     }
@@ -101,6 +105,7 @@ Popup {
     }
     function save() {
         var c = Object.assign({}, p)
+        if (c.keyPath) c.keyPath = keyFile()
         if (secret !== "") c.secret = secret
         var id = Remotes.save(c)
         close()
@@ -162,6 +167,13 @@ Popup {
             font.pixelSize: 12.5 * Style.dp
         }
         MouseArea { id: tap; anchors.fill: parent; onClicked: wiz.chooseType(tile.t.type) }
+    }
+
+    FilePicker {
+        id: keyPicker
+        title: Style.t("Scegli la chiave privata", "Choose the private key")
+        markKeys: true
+        onPicked: function (path) { wiz.set("keyPath", path) }
     }
 
     contentItem: Item {
@@ -378,11 +390,62 @@ Popup {
                             visible: wiz.v("auth") === "key"
                             text: Style.t("Chiave privata", "Private key")
                         }
-                        Field { visible: wiz.v("auth") === "key"; key: "keyPath"; placeholderText: "~/.ssh/id_ed25519" }
+                        // il percorso si può scrivere, scegliere sfogliando, o
+                        // toccare fra le chiavi trovate in ~/.ssh (richiesta
+                        // dell'utente: «so di avere una chiave ma non dove»)
+                        Item {
+                            visible: wiz.v("auth") === "key"
+                            width: parent.width
+                            height: keyField.height
+                            Field {
+                                id: keyField
+                                width: parent.width - browseKey.width - 6 * Style.dp
+                                key: "keyPath"
+                                placeholderText: "~/.ssh/id_ed25519"
+                            }
+                            SteelPill {
+                                id: browseKey
+                                anchors { right: parent.right; verticalCenter: keyField.verticalCenter }
+                                text: Style.t("Sfoglia…", "Browse…")
+                                onClicked: {
+                                    var k = wiz.keyFile()
+                                    keyPicker.openAt(k && Fs.exists(Fs.parentOf(k)) ? Fs.parentOf(k) : Fs.home + "/.ssh")
+                                }
+                            }
+                        }
                         Label {
-                            visible: wiz.v("auth") === "key" && wiz.v("keyPath") !== "" && !Fs.exists(wiz.v("keyPath"))
+                            visible: wiz.v("auth") === "key" && wiz.v("keyPath") !== "" && !Fs.exists(wiz.keyFile())
                             text: Style.t("Questo file non c'è.", "This file does not exist.")
                             color: Style.danger
+                        }
+                        Label {
+                            visible: wiz.v("auth") === "key" && wiz.v("keyPath") !== "" && Fs.exists(wiz.keyFile()) && !Fs.isPrivateKey(wiz.keyFile())
+                            text: wiz.v("keyPath").slice(-4) === ".pub"
+                                  ? Style.t("Questa è la chiave pubblica: serve la privata (lo stesso nome senza .pub).", "This is the public key: the private one is needed (same name without .pub).")
+                                  : Style.t("Non sembra una chiave privata.", "This does not look like a private key.")
+                            color: Style.danger
+                        }
+                        Column {
+                            visible: wiz.v("auth") === "key" && wiz.keys.length > 0
+                            width: parent.width
+                            spacing: 6 * Style.dp
+                            Label { text: Style.t("Chiavi trovate in ~/.ssh:", "Keys found in ~/.ssh:") }
+                            Flow {
+                                width: parent.width
+                                spacing: 6 * Style.dp
+                                Repeater {
+                                    model: wiz.keys
+                                    delegate: SteelPill {
+                                        text: modelData.split("/").pop()
+                                        role: wiz.v("keyPath") === modelData ? "accept" : ""
+                                        onClicked: wiz.set("keyPath", modelData)
+                                    }
+                                }
+                            }
+                        }
+                        Label {
+                            visible: wiz.v("auth") === "key" && wiz.keys.length === 0
+                            text: Style.t("In ~/.ssh non ho trovato chiavi private: usa «Sfoglia…» per cercarla altrove.", "No private keys found in ~/.ssh: use “Browse…” to look elsewhere.")
                         }
                         Label {
                             text: wiz.v("auth") === "key" ? Style.t("Frase della chiave (se ne ha una)", "Key passphrase (if any)")

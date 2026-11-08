@@ -206,6 +206,26 @@ QString FileSystem::archiveOf(const QString &path) const
     return qtrust::qs(rootree::archive_of(qtrust::str(path)));
 }
 
+bool FileSystem::isPrivateKey(const QString &path) const
+{
+    QFile f(path);
+    if (QFileInfo(path).size() > 64 * 1024 || !f.open(QIODevice::ReadOnly))
+        return false;
+    const QByteArray head = f.read(80);
+    return head.startsWith("-----BEGIN ") && head.contains("PRIVATE KEY-----");
+}
+
+QStringList FileSystem::sshKeys() const
+{
+    QStringList out;
+    const QDir dir(QDir::homePath() + QStringLiteral("/.ssh"));
+    const auto files = dir.entryInfoList(QDir::Files | QDir::Hidden, QDir::Name);
+    for (const QFileInfo &f : files)
+        if (isPrivateKey(f.absoluteFilePath()))
+            out << f.absoluteFilePath();
+    return out;
+}
+
 bool FileSystem::canCreateArchive(const QString &name) const
 {
     return rootree::can_create_archive(qtrust::str(name));
