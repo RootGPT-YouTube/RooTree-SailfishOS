@@ -993,10 +993,17 @@ Window {
             visible: folder.remote !== ""
             readonly property string serverPath: folder.remote === "" ? "" : (folder.path.substring(("/@remote/" + folder.remote).length) || "/")
             readonly property bool already: folder.remote !== "" && (Remotes.get(folder.remote).path || "") === serverPath
-            text: already ? Style.t("È la cartella iniziale", "This is the start folder") : Style.t("Apri sempre da questa cartella", "Always open from this folder")
-            enabled: !already
+            // già quella: spunta e non grigio (grigia sembrava rotta, 08/11)
+            text: already ? Style.t("Questa è la cartella iniziale", "This is the start folder") : Style.t("Apri sempre da questa cartella", "Always open from this folder")
+            checkable: already
+            checked: already
             onClicked: {
                 mainMenu.close()
+                if (already) {
+                    toast.show(Style.t("«" + Remotes.get(folder.remote).name + "» si apre già da qui. Entra in un'altra cartella per cambiarla.",
+                                       "“" + Remotes.get(folder.remote).name + "” already opens from here. Go into another folder to change it."))
+                    return
+                }
                 Remotes.setStartPath(folder.remote, serverPath)
                 toast.show(Style.t("«" + Remotes.get(folder.remote).name + "» si aprirà da " + serverPath, "“" + Remotes.get(folder.remote).name + "” will open from " + serverPath))
             }
