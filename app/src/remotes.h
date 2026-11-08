@@ -52,6 +52,9 @@ public:
     Q_INVOKABLE bool isConnected(const QString &id) const;
     // la cartella da cui si entra: /@remote/<id> + percorso iniziale sul server
     Q_INVOKABLE QString entryPath(const QString &id) const { return m_entry.value(id); }
+    // «Apri sempre da questa cartella»: il percorso sul server diventa quello
+    // iniziale del profilo (e d'ingresso per la sessione)
+    Q_INVOKABLE void setStartPath(const QString &id, const QString &serverPath);
     Q_INVOKABLE bool connecting(const QString &id) const { return m_connecting.contains(id); }
 
     bool vaultExists() const;

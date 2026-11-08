@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.1
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-2
+- "Always open from this folder" in the menu while browsing a server makes
+  the current folder the connection's start folder; the wizard summary has
+  the start folder field too (servers imported from ~/.ssh/config skip the
+  Server page, so they had no way to set it).
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-1
 - Phase 5, step 2: SFTP connections work. Tapping a saved connection
   connects (password or SSH key, also with a passphrase) and opens its

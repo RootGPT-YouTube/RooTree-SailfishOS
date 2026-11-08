@@ -15,6 +15,9 @@ fn main() {
                 Ok(v) => println!("elenco: {} voci ({} cartelle)", v.len(), v.iter().filter(|e| e.kind == 1).count()),
                 Err(e) => println!("elenco: errore {e}"),
             }
+            if let Ok(extra) = std::env::var("PROVA_CARTELLA") {
+                println!("{extra}: {}", rootree_core::remote::list("prova", &extra, false).map(|v| format!("{} voci ({} cartelle)", v.len(), v.iter().filter(|e| e.kind == 1).count())).unwrap_or_else(|e| e.to_string()));
+            }
             let root = rootree_core::remote::list("prova", "/", true);
             println!("radice: {}", root.map(|v| format!("{} voci", v.len())).unwrap_or_else(|e| e.to_string()));
             println!("inesistente: {}", rootree_core::remote::list("prova", "/non/esiste/davvero", false).err().map(|e| e.to_string()).unwrap_or_default());

@@ -988,6 +988,19 @@ Window {
                 })
             }
         }
+        MenuRow {
+            icon: "home"
+            visible: folder.remote !== ""
+            readonly property string serverPath: folder.remote === "" ? "" : (folder.path.substring(("/@remote/" + folder.remote).length) || "/")
+            readonly property bool already: folder.remote !== "" && (Remotes.get(folder.remote).path || "") === serverPath
+            text: already ? Style.t("È la cartella iniziale", "This is the start folder") : Style.t("Apri sempre da questa cartella", "Always open from this folder")
+            enabled: !already
+            onClicked: {
+                mainMenu.close()
+                Remotes.setStartPath(folder.remote, serverPath)
+                toast.show(Style.t("«" + Remotes.get(folder.remote).name + "» si aprirà da " + serverPath, "“" + Remotes.get(folder.remote).name + "” will open from " + serverPath))
+            }
+        }
         MenuRow { icon: "select"; text: Style.t("Seleziona tutto", "Select all"); enabled: folder.count > 0; onClicked: { mainMenu.close(); folder.selectAll() } }
         MenuRow { icon: "info"; text: Style.t("Proprietà di questa cartella", "Folder properties"); onClicked: { mainMenu.close(); properties.openFor([folder.path]) } }
         MenuRow { icon: "refresh"; text: Style.t("Aggiorna", "Refresh"); onClicked: { mainMenu.close(); folder.refresh() } }

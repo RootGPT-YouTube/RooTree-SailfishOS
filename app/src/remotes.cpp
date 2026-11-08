@@ -85,6 +85,17 @@ void Remotes::connect(const QString &id)
     }).detach();
 }
 
+void Remotes::setStartPath(const QString &id, const QString &serverPath)
+{
+    QVariantMap p = get(id);
+    if (p.isEmpty())
+        return;
+    p.insert(QStringLiteral("path"), serverPath);
+    save(p);
+    if (m_entry.contains(id))
+        m_entry.insert(id, QStringLiteral("/@remote/") + id + (serverPath == QStringLiteral("/") ? QString() : serverPath));
+}
+
 QString Remotes::trust(const QString &id)
 {
     try {

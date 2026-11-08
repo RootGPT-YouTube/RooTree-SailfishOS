@@ -555,6 +555,16 @@ Popup {
                     spacing: 8 * Style.dp
                     Label { text: Style.t("Come la vuoi chiamare?", "What do you want to call it?"); color: Style.text; font.pixelSize: Style.fontM }
                     Field { key: "name" }
+                    // anche qui (chi arriva da ~/.ssh/config salta la pagina Server)
+                    Label {
+                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud"
+                        text: Style.t("Cartella da cui aprire (vuoto: la home sul server)", "Folder to open from (empty: home on the server)")
+                    }
+                    Field {
+                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud"
+                        key: "path"
+                        placeholderText: "/media/…"
+                    }
                     MenuSection { width: parent.width; text: Style.t("Riepilogo", "Summary") }
                     Rectangle {
                         width: parent.width
