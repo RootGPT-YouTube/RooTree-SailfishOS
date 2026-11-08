@@ -955,42 +955,28 @@ Window {
             checkable: true; checked: settings.sortPerFolder
             onClicked: win.setSortPerFolder(!settings.sortPerFolder)
         }
-        MenuSection { text: Style.t("Sistema", "System") }
+        // «Opzioni per Remoto» (richiesta dell'utente dell'08/11): tutto ciò che
+        // riguarda le connessioni in una sottosezione; aperta da sola quando
+        // si è dentro un server, chiusa altrimenti
         MenuRow {
-            icon: "root"
-            text: Fs.rootStarting ? Style.t("Modalità root: avvio…", "Root mode: starting…") : Style.t("Modalità root", "Root mode")
-            checkable: true
-            checked: Fs.rootActive
-            onClicked: {
-                mainMenu.close()
-                if (Fs.rootActive) win.rootOff()
-                else rootDialog.ask()
+            id: remoteOptions
+            property bool open: false
+            icon: "network"
+            text: Style.t("Opzioni per Remoto", "Remote options")
+            detail: folder.remote !== "" ? (Remotes.get(folder.remote).name || "") : ""
+            expandable: true
+            expanded: open
+            onClicked: open = !open
+            onToggled: open = !open
+            Connections {
+                target: mainMenu
+                function onAboutToShow() { remoteOptions.open = folder.remote !== "" }
             }
         }
         MenuRow {
-            icon: "lock"
-            visible: Remotes.vaultUnlocked
-            text: Style.t("Chiudi la cassaforte delle password", "Lock the password vault")
-            onClicked: { mainMenu.close(); Remotes.vaultLock(); toast.show(Style.t("Cassaforte chiusa", "Vault locked")) }
-        }
-        MenuSection { text: Style.t("Tema", "Theme") }
-        MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
-        MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
-        MenuSection { text: Style.t("Cartella", "Folder") }
-        MenuRow {
-            icon: "newfolder"
-            text: Style.t("Nuova cartella", "New folder")
-            enabled: Fs.isWritable(folder.path)
-            onClicked: {
-                mainMenu.close()
-                nameDialog.ask(Style.t("Nuova cartella", "New folder"), Style.t("Nuova cartella", "New folder"), function (name) {
-                    return Fs.makeDir(folder.path, name)
-                })
-            }
-        }
-        MenuRow {
+            depth: 1
             icon: "home"
-            visible: folder.remote !== ""
+            visible: remoteOptions.open && folder.remote !== ""
             readonly property string serverPath: folder.remote === "" ? "" : (folder.path.substring(("/@remote/" + folder.remote).length) || "/")
             readonly property bool already: folder.remote !== "" && (Remotes.get(folder.remote).path || "") === serverPath
             // già quella: spunta e non grigio (grigia sembrava rotta, 08/11)
@@ -1006,6 +992,67 @@ Window {
                 }
                 Remotes.setStartPath(folder.remote, serverPath)
                 toast.show(Style.t("«" + Remotes.get(folder.remote).name + "» si aprirà da " + serverPath, "“" + Remotes.get(folder.remote).name + "” will open from " + serverPath))
+            }
+        }
+        MenuRow {
+            depth: 1
+            icon: "rename"
+            visible: remoteOptions.open && folder.remote !== ""
+            text: Style.t("Modifica la connessione", "Edit the connection")
+            onClicked: { mainMenu.close(); wizard.openFor(Remotes.get(folder.remote)) }
+        }
+        MenuRow {
+            depth: 1
+            icon: "connect"
+            visible: remoteOptions.open && folder.remote !== ""
+            text: Style.t("Scollega", "Disconnect")
+            onClicked: {
+                mainMenu.close()
+                var id = folder.remote
+                win.go(Fs.home)
+                Remotes.disconnect(id)
+                toast.show(Style.t("Scollegato", "Disconnected"))
+            }
+        }
+        MenuRow {
+            depth: 1
+            icon: "add"
+            visible: remoteOptions.open
+            text: Style.t("Aggiungi una connessione…", "Add a connection…")
+            onClicked: { mainMenu.close(); wizard.openNew() }
+        }
+        MenuRow {
+            depth: 1
+            icon: "lock"
+            visible: remoteOptions.open && Remotes.vaultUnlocked
+            text: Style.t("Chiudi la cassaforte delle password", "Lock the password vault")
+            onClicked: { mainMenu.close(); Remotes.vaultLock(); toast.show(Style.t("Cassaforte chiusa", "Vault locked")) }
+        }
+        MenuSection { text: Style.t("Sistema", "System") }
+        MenuRow {
+            icon: "root"
+            text: Fs.rootStarting ? Style.t("Modalità root: avvio…", "Root mode: starting…") : Style.t("Modalità root", "Root mode")
+            checkable: true
+            checked: Fs.rootActive
+            onClicked: {
+                mainMenu.close()
+                if (Fs.rootActive) win.rootOff()
+                else rootDialog.ask()
+            }
+        }
+        MenuSection { text: Style.t("Tema", "Theme") }
+        MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
+        MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
+        MenuSection { text: Style.t("Cartella", "Folder") }
+        MenuRow {
+            icon: "newfolder"
+            text: Style.t("Nuova cartella", "New folder")
+            enabled: Fs.isWritable(folder.path)
+            onClicked: {
+                mainMenu.close()
+                nameDialog.ask(Style.t("Nuova cartella", "New folder"), Style.t("Nuova cartella", "New folder"), function (name) {
+                    return Fs.makeDir(folder.path, name)
+                })
             }
         }
         MenuRow { icon: "select"; text: Style.t("Seleziona tutto", "Select all"); enabled: folder.count > 0; onClicked: { mainMenu.close(); folder.selectAll() } }

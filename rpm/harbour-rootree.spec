@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.1
-Release:    3
+Release:    4
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,11 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-4
+- "Remote options" submenu in the menu: start folder, edit the connection
+  and disconnect (when inside a server; then it opens by itself), add a
+  connection and lock the password vault.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-3
 - In the start folder of a server the menu row is no longer greyed out: it
   shows a check mark and explains how to change it.
