@@ -333,3 +333,84 @@ pub fn stat(id: &str, path: &str) -> io::Result<Entry> {
     })?;
     Ok(entry(id, &dir, name, &st, target))
 }
+
+// ------------------------------------------------------------------ step 3: operazioni sui file
+
+/// Un'operazione SFTP sulla connessione `id` (con la ricollegata automatica).
+/// La connessione resta bloccata solo per la chiamata: un file aperto
+/// (ssh2::File) vive per conto suo, e la sessione libssh2 è thread-safe.
+pub fn op<T>(id: &str, f: impl Fn(&Sftp) -> Result<T, ssh2::Error>) -> io::Result<T> {
+    with_conn(id, |c| f(&c.sftp))
+}
+
+pub fn open_read(id: &str, path: &str) -> io::Result<ssh2::File> {
+    op(id, |s| s.open(Path::new(path)))
+}
+
+pub fn create(id: &str, path: &str, mode: i32) -> io::Result<ssh2::File> {
+    use ssh2::{OpenFlags, OpenType};
+    op(id, |s| s.open_mode(Path::new(path), OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE, mode, OpenType::File))
+}
+
+pub fn rename(id: &str, from: &str, to: &str) -> io::Result<()> {
+    op(id, |s| s.rename(Path::new(from), Path::new(to), None))
+}
+
+/// Rinomina una voce sulla stessa cartella del server (come rename_entry):
+/// mai sopra una voce che c'è già.
+pub fn rename_entry(id: &str, path: &str, new_name: &str) -> io::Result<String> {
+    fsops::valid_name(new_name)?;
+    let p = Path::new(path);
+    let to = p.with_file_name(new_name);
+    if op(id, |s| s.lstat(&to)).is_ok() {
+        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già un elemento con questo nome"));
+    }
+    op(id, |s| s.rename(p, &to, None))?;
+    Ok(format!("{PREFIX}{id}{}", to.to_string_lossy()))
+}
+
+pub fn make_dir(id: &str, parent: &str, name: &str) -> io::Result<String> {
+    fsops::valid_name(name)?;
+    let p = Path::new(parent).join(name);
+    op(id, |s| s.mkdir(&p, 0o755))?;
+    Ok(format!("{PREFIX}{id}{}", p.to_string_lossy()))
+}
+
+pub fn set_stat(id: &str, path: &str, mode: Option<u32>, mtime: Option<u64>) -> io::Result<()> {
+    let st = ssh2::FileStat { size: None, uid: None, gid: None, perm: mode, atime: mtime, mtime };
+    op(id, |s| s.setstat(Path::new(path), st.clone()))
+}
+
+/// Il testo di un file remoto (per il visore), al più `max` byte.
+pub fn read_head(id: &str, path: &str, max: u64) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    let mut f = open_read(id, path)?;
+    let mut buf = Vec::new();
+    (&mut f).take(max).read_to_end(&mut buf)?;
+    Ok(buf)
+}
+
+/// Salva un file di testo sul server senza lasciarlo a metà: .part accanto,
+/// stessi permessi dell'originale, poi al posto suo.
+pub fn write_text(id: &str, path: &str, text: &str) -> io::Result<()> {
+    use std::io::Write;
+    let p = Path::new(path);
+    let old = op(id, |s| s.stat(p)).ok();
+    let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let part = p.with_file_name(format!(".{name}.rootree-part"));
+    let part_s = part.to_string_lossy().into_owned();
+    let r = (|| -> io::Result<()> {
+        let mut f = create(id, &part_s, old.as_ref().and_then(|o| o.perm).map(|m| (m & 0o7777) as i32).unwrap_or(0o644))?;
+        f.write_all(text.as_bytes())?;
+        let _ = f.fsync();
+        drop(f);
+        if let Some(perm) = old.as_ref().and_then(|o| o.perm) {
+            let _ = set_stat(id, &part_s, Some(perm & 0o7777), None);
+        }
+        crate::vfs::rename(Path::new(&format!("{PREFIX}{id}{part_s}")), Path::new(&format!("{PREFIX}{id}{path}")))
+    })();
+    if r.is_err() {
+        let _ = op(id, |s| s.unlink(&part));
+    }
+    r
+}

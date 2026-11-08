@@ -28,7 +28,7 @@ class FolderModel : public QAbstractListModel
     Q_PROPERTY(QString archive READ archive NOTIFY pathChanged)
     // l'id della connessione se la cartella è remota (/@remote/<id>/…), o ""
     Q_PROPERTY(QString remote READ remote NOTIFY pathChanged)
-    // dentro un archivio o (per ora, Fase 5 step 2) su un server: sola lettura
+    // dentro un archivio: sola lettura (i server dallo step 3 si scrivono)
     Q_PROPERTY(bool readOnly READ readOnly NOTIFY pathChanged)
 
 public:
@@ -69,7 +69,7 @@ public:
     int selectedCount() const { return m_selected; }
     QString archive() const { return m_archive; }
     QString remote() const { return m_remote; }
-    bool readOnly() const { return !m_archive.isEmpty() || !m_remote.isEmpty(); }
+    bool readOnly() const { return !m_archive.isEmpty(); }
 
     Q_INVOKABLE void refresh();
     // l'ordinamento intero in una volta: una rilettura sola (cambiando cartella

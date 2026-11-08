@@ -296,3 +296,27 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     remoto, Scollega. Trappola: env-rust.sh dava pkg-config del target anche
     ai test (host i686): ora le variabili hanno il suffisso del target; nel
     motore serve `openssl-devel` (installato).
+- **08/11 — Fase 5, step 3: copia fra telefono e server (0.6.2-1).**
+  - `vfs.rs`: le operazioni di base (metadati, elenco, apri, crea, rinomina,
+    cancella, permessi, data, link) guardano il percorso: `/@remote/…` via
+    SFTP, il resto come prima. Il motore delle operazioni usa vfs al posto di
+    std::fs, quindi copia/sposta/elimina vanno fra telefono e server (e sullo
+    stesso server con rename) con la stessa coda, Annulla, conflitti e
+    `.rootree-part`. Rinomina fra filesystem diversi → EXDEV → copia.
+  - Sul server: rinomina, nuova cartella, permessi; il testo si legge e si
+    salva direttamente sul server (atomico: .part + rename, permessi tenuti);
+    gli altri file si scaricano nella cache (`…/remoti/<hash>`, pulita dopo
+    un giorno) e si aprono; Condividi scarica e condivide. Estrarre,
+    comprimere, ricerca e anteprime: non ancora sul server.
+  - Con la modalità root accesa, i lavori che toccano un server restano
+    nell'app (l'helper non ha le connessioni).
+  - **Criterio d'uscita: 1 GB andata e ritorno col NAS vero, SHA-256
+    identico** (anche gli altri file, permessi compresi); su 6,8 MB/s in su,
+    11,7 MB/s in giù via WiFi. Conflitto «tieni entrambi», rinomina e
+    spostamento sul server, spostamento server→telefono, Annulla a metà
+    senza resti, eliminazione ricorsiva: provati. Col binario vero e un QML
+    di prova: nuova cartella, incolla, rinomina, lettura e modifica del
+    testo sul server, permessi, download per aprire, eliminazione.
+  - ⛔ Trovato provando: OpenSSH scambia gli argomenti di SSH_FXP_SYMLINK.
+    La prima versione ha creato un link fuori posto nella home dell'utente
+    sul NAS (tolto subito); ora l'ordine è quello di OpenSSH, provato.

@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.1
-Release:    6
+Version:    0.6.2
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,16 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.2-1
+- Phase 5, step 3: files move between the phone and SFTP servers with the
+  same queue as local operations (progress, Cancel, conflicts): copy, cut
+  and paste in both directions and on the server, delete, rename, new
+  folder and permissions on the server. Interrupted transfers leave no
+  partial files behind.
+- Tapping a remote file opens it: text files are read and edited directly
+  on the server (saved without ever leaving them half written), the rest is
+  downloaded to the cache and opened. Share works from servers too.
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.1-6
 - Editing an open connection now takes effect: a new start folder is used
   at once, and a changed address, port, user, key or sign-in method closes

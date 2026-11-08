@@ -57,6 +57,9 @@ public:
     // estrae una voce di un archivio nella cache (per aprirla); "" se non riesce,
     // e il perché in lastError
     Q_INVOKABLE QString extractForOpen(const QString &path);
+    // una cartella vuota nella cache per scaricarci un file remoto (per aprirlo
+    // o condividerlo)
+    Q_INVOKABLE QString remoteCacheDir(const QString &path);
     Q_INVOKABLE QString lastError() const { return m_lastError; }
 
     // per il tema «SailfishOS classico»: i colori dell'ambience attiva e il

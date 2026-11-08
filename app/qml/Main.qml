@@ -189,11 +189,50 @@ Window {
             return
         }
         if (folder.remote !== "") {
-            toast.show(Style.t("Aprire e copiare i file remoti arriva con il prossimo passo (step 3).", "Opening and copying remote files comes with the next step (step 3)."))
+            openRemote(e)
             return
         }
         openFile(e)
     }
+    // un file su un server: il testo si legge (e si modifica) sul server; il
+    // resto si scarica nella cache e si apre da lì, con la stessa coda (si
+    // vede l'avanzamento e si può annullare)
+    property var pendingRemote: ({})
+    function openRemote(e) {
+        var mime = Opener.mimeType(e.name)
+        if (e.category === "text" || e.category === "code" || mime === "text/plain") {
+            textViewer.openFor(e.path)
+            return
+        }
+        downloadThen([e.path], "open", e)
+    }
+    function downloadThen(paths, action, entry) {
+        var dir = Fs.remoteCacheDir(paths[0])
+        var id = Jobs.copy(paths, dir)
+        var p = Object.assign({}, pendingRemote)
+        p[id] = { action: action, dir: dir, names: paths.map(function (x) { return x.split("/").pop() }), entry: entry || ({}) }
+        pendingRemote = p
+        toast.show(Style.t("Scarico dal server…", "Downloading from the server…"))
+    }
+    // un download per aprire o condividere è finito: true = gestito qui
+    function remoteDone(id, state, error) {
+        var r = pendingRemote[id]
+        if (!r) return false
+        var p = Object.assign({}, pendingRemote); delete p[id]; pendingRemote = p
+        Jobs.forget(id)
+        if (state === 6) toast.show(Style.t("Download non riuscito: ", "Download failed: ") + error, true)
+        if (state !== 5) return true
+        var files = r.names.map(function (n) { return Fs.join(r.dir, n) })
+        if (r.action === "share") {
+            if (!Opener.share(files) && Opener.lastError()) win.showSandboxError()
+        } else if (r.entry.category === "image") {
+            imageViewer.openAt([{ path: files[0], name: r.entry.name, size: r.entry.size, mtime: r.entry.mtime }], 0)
+        } else {
+            openFile({ path: files[0], name: r.entry.name, category: r.entry.category })
+        }
+        return true
+    }
+
     // un file dentro un archivio: si estrae nella cache e si apre da lì
     function openArchived(e) {
         var p = Fs.extractForOpen(e.path)
@@ -398,7 +437,7 @@ Window {
                     height: width
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails && !folder.readOnly
+                    thumbnails: settings.thumbnails && !folder.readOnly && folder.remote === ""
                     opacity: hidden ? 0.5 : 1
                     scale: gridArea.pressed ? 0.94 : 1
                     Behavior on scale { NumberAnimation { duration: 80 } }
@@ -447,7 +486,7 @@ Window {
                     small: true
                     path: model.path
                     category: model.category
-                    thumbnails: settings.thumbnails && !folder.readOnly
+                    thumbnails: settings.thumbnails && !folder.readOnly && folder.remote === ""
                     opacity: hidden ? 0.5 : 1
                 }
                 Icon {
@@ -594,7 +633,7 @@ Window {
             IconButton { width: parent.w; height: parent.height; icon: "back"; enabled: win.back.length > 0; onClicked: win.goBack() }
             IconButton { width: parent.w; height: parent.height; icon: "forward"; enabled: win.forward.length > 0; onClicked: win.goForward() }
             IconButton { width: parent.w; height: parent.height; icon: "up"; enabled: win.canGoUp; onClicked: win.goUp() }
-            IconButton { width: parent.w; height: parent.height; icon: "search"; enabled: !folder.readOnly; onClicked: searchPanel.openIn(folder.path) }
+            IconButton { width: parent.w; height: parent.height; icon: "search"; enabled: !folder.readOnly && folder.remote === ""; onClicked: searchPanel.openIn(folder.path) }
             IconButton { width: parent.w; height: parent.height; icon: settings.view === "grid" ? "list" : "grid"; onClicked: settings.view = settings.view === "grid" ? "list" : "grid" }
             IconButton {
                 width: parent.w; height: parent.height
@@ -619,14 +658,18 @@ Window {
             anchors.topMargin: 5 * Style.dp
             anchors.bottomMargin: 5 * Style.dp
             readonly property real w: width / 5
-            IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); enabled: folder.remote === ""; onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
+            IconButton { width: parent.w; height: parent.height; icon: "copy"; label: Style.t("Copia", "Copy"); onClicked: { Jobs.setClipboard(folder.selectedPaths(), false); folder.clearSelection() } }
             IconButton { width: parent.w; height: parent.height; icon: "cut"; label: Style.t("Taglia", "Cut"); enabled: !folder.readOnly; onClicked: { Jobs.setClipboard(folder.selectedPaths(), true); folder.clearSelection() } }
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "share"; label: Style.t("Condividi", "Share")
                 // si condividono i file, non le cartelle
                 enabled: !folder.readOnly && folder.selectedCount > 0 && folder.selectedPaths().every(function (p) { return !Fs.info(p).isDir })
-                onClicked: { if (!Opener.share(folder.selectedPaths()) && Opener.lastError()) win.showSandboxError(); folder.clearSelection() }
+                onClicked: {
+                    if (folder.remote !== "") win.downloadThen(folder.selectedPaths(), "share")
+                    else if (!Opener.share(folder.selectedPaths()) && Opener.lastError()) win.showSandboxError()
+                    folder.clearSelection()
+                }
             }
             IconButton { width: parent.w; height: parent.height; icon: "delete"; label: Style.t("Elimina", "Delete"); enabled: !folder.readOnly; onClicked: win.deleteSelected() }
             IconButton {
@@ -1098,13 +1141,13 @@ Window {
         MenuRow {
             icon: "extract"
             text: Style.t("Estrai qui", "Extract here")
-            visible: !folder.readOnly && folder.selectedCount === 1 && !moreMenu.one.isDir && Fs.isArchive(moreMenu.one.name || "")
+            visible: !folder.readOnly && folder.remote === "" && folder.selectedCount === 1 && !moreMenu.one.isDir && Fs.isArchive(moreMenu.one.name || "")
             onClicked: { moreMenu.close(); Jobs.extract(folder.selectedPaths()[0], folder.path); folder.clearSelection() }
         }
         MenuRow {
             icon: "compress"
             text: Style.t("Comprimi…", "Compress…")
-            visible: !folder.readOnly
+            visible: !folder.readOnly && folder.remote === ""
             enabled: Fs.isWritable(folder.path)
             onClicked: { moreMenu.close(); compressDialog.ask(folder.selectedPaths()) }
         }
@@ -1387,6 +1430,8 @@ Window {
         }
         function onFinished(id, kind, state, error) {
             if (kind === 3)
+                return
+            if (win.remoteDone(id, state, error))
                 return
             if (state === 6) {
                 toast.show(Style.t("Operazione non riuscita: ", "Operation failed: ") + error, true)

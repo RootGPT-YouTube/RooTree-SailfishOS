@@ -273,7 +273,15 @@ QVariantMap Opener::readText(const QString &path) const
 {
     try {
         const QString text = qtrust::qs(rootree::read_text(qtrust::str(path), uint64_t(maxText)));
-        return {{QStringLiteral("text"), text}, {QStringLiteral("truncated"), QFileInfo(path).size() > maxText}};
+        // un file su un server: la dimensione la sa il server, non il disco
+        qint64 size = QFileInfo(path).size();
+        if (path.startsWith(QStringLiteral("/@remote/"))) {
+            try {
+                size = qint64(rootree::stat_path(qtrust::str(path)).size);
+            } catch (const rust::Error &) {
+            }
+        }
+        return {{QStringLiteral("text"), text}, {QStringLiteral("truncated"), size > maxText}};
     } catch (const rust::Error &e) {
         const QString err = QString::fromUtf8(e.what());
         if (err == QLatin1String("binary"))

@@ -12,6 +12,17 @@ pub mod root;
 pub mod search;
 pub mod thumbs;
 pub mod vault;
+pub mod vfs;
+
+/// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
+pub mod ffi_status {
+    pub struct Status {
+        pub state: u8,
+        pub error: String,
+        pub bytes: u64,
+        pub ask_dst: String,
+    }
+}
 #[cfg(test)]
 mod tests;
 
@@ -262,6 +273,13 @@ fn stat_path(path: &str) -> Result<ffi::Entry, String> {
 }
 
 fn read_text(path: &str, max_bytes: u64) -> Result<String, String> {
+    if let Some((id, inner)) = remote::split(path) {
+        let data = remote::read_head(&id, &inner, max_bytes).map_err(|e| e.to_string())?;
+        if data[..data.len().min(8192)].contains(&0) {
+            return Err("binary".into());
+        }
+        return Ok(String::from_utf8_lossy(&data).into_owned());
+    }
     if root::active() {
         return root::call_as(&Request::ReadText { path: path.into(), max: max_bytes });
     }
@@ -269,6 +287,9 @@ fn read_text(path: &str, max_bytes: u64) -> Result<String, String> {
 }
 
 fn write_text(path: &str, text: &str) -> Result<String, String> {
+    if let Some((id, inner)) = remote::split(path) {
+        return remote::write_text(&id, &inner, text).map(|_| String::new()).map_err(|e| e.to_string());
+    }
     if root::active() {
         return root::call_as(&Request::WriteText { path: path.into(), text: text.into() });
     }
@@ -276,6 +297,9 @@ fn write_text(path: &str, text: &str) -> Result<String, String> {
 }
 
 fn make_dir(parent: &str, name: &str) -> Result<String, String> {
+    if let Some((id, inner)) = remote::split(parent) {
+        return remote::make_dir(&id, &inner, name).map_err(|e| e.to_string());
+    }
     if root::active() {
         return root::call_as(&Request::MakeDir { parent: parent.into(), name: name.into() });
     }
@@ -283,6 +307,9 @@ fn make_dir(parent: &str, name: &str) -> Result<String, String> {
 }
 
 fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
+    if let Some((id, inner)) = remote::split(path) {
+        return remote::rename_entry(&id, &inner, new_name).map_err(|e| e.to_string());
+    }
     if root::active() {
         return root::call_as(&Request::Rename { path: path.into(), name: new_name.into() });
     }
@@ -290,6 +317,9 @@ fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
 }
 
 fn set_mode(path: &str, mode: u32) -> Result<(), String> {
+    if let Some((id, inner)) = remote::split(path) {
+        return remote::set_stat(&id, &inner, Some(mode & 0o7777), None).map_err(|e| e.to_string());
+    }
     if root::active() {
         return root::call_as(&Request::SetMode { path: path.into(), mode });
     }
@@ -318,7 +348,11 @@ fn root_active() -> bool {
 /// Un lavoro dall'helper se la modalità root è accesa (con ripiego locale se
 /// l'helper non risponde), altrimenti locale.
 fn job_via(req: Request, local: impl FnOnce() -> u64) -> u64 {
+    // ⛔ l'helper root non ha le connessioni remote: un lavoro che tocca un
+    //    server si fa sempre nell'app
+    let touches_remote = serde_json::to_string(&req).map(|j| j.contains(remote::PREFIX)).unwrap_or(false);
     if root::active()
+        && !touches_remote
         && let Ok(id) = root::call_as::<u64>(&req)
     {
         return id | REMOTE;

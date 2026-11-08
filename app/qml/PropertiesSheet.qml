@@ -17,7 +17,9 @@ Sheet {
     readonly property bool single: paths.length === 1
     // i permessi si cambiano se l'elemento è tuo, o da root; il proprietario solo da root
     readonly property bool inArchive: single && info.path !== undefined && Fs.archiveOf(info.path) !== ""
-    readonly property bool canEdit: single && !inArchive && (info.mine === true || Fs.rootActive)
+    readonly property bool onServer: single && (info.path || "").indexOf("/@remote/") === 0
+    // sul server i permessi li giudica il server (uid locale e remoto non si confrontano)
+    readonly property bool canEdit: single && !inArchive && (info.mine === true || Fs.rootActive || onServer)
 
     title: single ? (info.name || "") : Style.count(paths.length, Style.t("elemento", "item"), Style.t("elementi", "items"))
 
@@ -181,7 +183,7 @@ Sheet {
 
     // il proprietario, solo da root (nomi o numeri)
     Row {
-        visible: sheet.single && Fs.rootActive && !sheet.inArchive
+        visible: sheet.single && Fs.rootActive && !sheet.inArchive && !sheet.onServer
         x: Style.margin
         spacing: 8 * Style.dp
         component OwnerField: TextField {
@@ -197,7 +199,7 @@ Sheet {
         OwnerField { id: ownerGroup; placeholderText: Style.t("Gruppo", "Group") }
     }
     MenuRow {
-        visible: sheet.single && Fs.rootActive && !sheet.inArchive
+        visible: sheet.single && Fs.rootActive && !sheet.inArchive && !sheet.onServer
                  && (ownerUser.text !== (sheet.info.user || "") || ownerGroup.text !== (sheet.info.group || ""))
         icon: "check"
         text: Style.t("Applica il proprietario", "Apply owner")

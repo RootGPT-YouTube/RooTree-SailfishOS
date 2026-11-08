@@ -108,6 +108,9 @@ bool FileSystem::exists(const QString &path) const
 
 bool FileSystem::isWritable(const QString &path) const
 {
+    // su un server lo decide il server (un rifiuto arriva come errore)
+    if (path.startsWith(QStringLiteral("/@remote/")))
+        return true;
     // da root si scrive dappertutto (tranne dentro un archivio)
     if (rootActive())
         return QFileInfo::exists(path) && rootree::archive_of(qtrust::str(path)).empty();
@@ -376,12 +379,25 @@ static QString archiveCache()
     if (!cleaned) {
         cleaned = true;
         const QDateTime limit = QDateTime::currentDateTime().addDays(-1);
-        const auto dirs = QDir(base).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QFileInfo &d : dirs)
-            if (d.lastModified() < limit)
-                QDir(d.absoluteFilePath()).removeRecursively();
+        for (const QString &kind : {QStringLiteral("/archivi"), QStringLiteral("/remoti")}) {
+            const QString b = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + kind;
+            const auto dirs = QDir(b).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QFileInfo &d : dirs)
+                if (d.lastModified() < limit)
+                    QDir(d.absoluteFilePath()).removeRecursively();
+        }
     }
     return base;
+}
+
+QString FileSystem::remoteCacheDir(const QString &path)
+{
+    // accanto alle voci aperte dagli archivi: stessa pulizia (più di un giorno)
+    const QString dir = archiveCache().section(QLatin1Char('/'), 0, -2) + QStringLiteral("/remoti/")
+        + QString::fromLatin1(QCryptographicHash::hash(path.toUtf8(), QCryptographicHash::Sha1).toHex().left(16));
+    QDir(dir).removeRecursively(); // sempre la versione di adesso
+    QDir().mkpath(dir);
+    return dir;
 }
 
 QString FileSystem::extractForOpen(const QString &path)

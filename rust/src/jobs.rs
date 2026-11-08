@@ -15,7 +15,6 @@
 use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
@@ -23,6 +22,7 @@ use std::thread;
 
 use crate::ffi::JobStatus;
 use crate::fsops;
+use crate::vfs;
 
 pub const JOB_COPY: u8 = 0;
 pub const JOB_MOVE: u8 = 1;
@@ -238,42 +238,42 @@ struct Totals {
 }
 
 fn scan(p: &Path, t: &mut Totals, cancel: &AtomicBool) {
-    let Ok(m) = fs::symlink_metadata(p) else { return };
-    if m.is_dir() {
+    let Ok(m) = vfs::lmeta(p) else { return };
+    if m.is_dir {
         t.dirs += 1;
-        if let Ok(rd) = fs::read_dir(p) {
-            for e in rd.flatten() {
+        if let Ok(rd) = vfs::read_dir(p) {
+            for e in rd {
                 if cancel.load(Ordering::Relaxed) {
                     return;
                 }
-                scan(&e.path(), t, cancel);
+                scan(&e, t, cancel);
             }
         }
     } else {
         t.files += 1;
-        if m.is_file() {
-            t.bytes += m.len();
+        if m.is_file {
+            t.bytes += m.len;
         }
     }
 }
 
 /// Il nome stesso se è libero, altrimenti il primo «nome (N)» libero.
 pub fn free_name(target: &Path) -> PathBuf {
-    if fs::symlink_metadata(target).is_err() { target.to_path_buf() } else { unique_name(target) }
+    if !vfs::exists(target) { target.to_path_buf() } else { unique_name(target) }
 }
 
 /// «nome (1).ext», «nome (2).ext»… il primo che non esiste.
 pub fn unique_name(target: &Path) -> PathBuf {
     let parent = target.parent().unwrap_or(Path::new("/"));
     let name = target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let is_dir = fs::symlink_metadata(target).map(|m| m.is_dir()).unwrap_or(false);
+    let is_dir = vfs::lmeta(target).map(|m| m.is_dir).unwrap_or(false);
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() && !is_dir => (s.to_string(), format!(".{e}")),
         _ => (name.clone(), String::new()),
     };
     (1..)
         .map(|n| parent.join(format!("{stem} ({n}){ext}")))
-        .find(|p| fs::symlink_metadata(p).is_err())
+        .find(|p| !vfs::exists(p))
         .unwrap()
 }
 
@@ -371,7 +371,7 @@ impl Run {
 
     /// La destinazione esiste: sovrascrivi, salta o tieni entrambi.
     fn on_conflict(&mut self, src: &Path, dst: &Path) -> Res<u8> {
-        let dst_is_dir = fs::symlink_metadata(dst).map(|m| m.is_dir()).unwrap_or(false);
+        let dst_is_dir = vfs::lmeta(dst).map(|m| m.is_dir).unwrap_or(false);
         if let Some(a) = self.conflict_all {
             // «sovrascrivi tutti» non vale per una cartella al posto di un file
             return Ok(if a == ANS_OVERWRITE && dst_is_dir { ANS_KEEP_BOTH } else { a });
@@ -396,7 +396,7 @@ impl Run {
 
     fn transfer(&mut self, sources: &[PathBuf], dest: &Path, is_move: bool) -> Res<()> {
         self.set(|s| s.state = ST_SCANNING);
-        if !dest.is_dir() {
+        if !vfs::is_dir(dest) {
             return Err(Stop::Failed(format!("la destinazione non è una cartella: {}", dest.display())));
         }
         let mut t = Totals::default();
@@ -404,7 +404,7 @@ impl Run {
         for src in sources {
             self.check()?;
             let real = fs::canonicalize(src).unwrap_or(src.clone());
-            let is_dir = fs::symlink_metadata(src).map(|m| m.is_dir()).unwrap_or(false);
+            let is_dir = vfs::lmeta(src).map(|m| m.is_dir).unwrap_or(false);
             if is_dir && dest_real.starts_with(&real) {
                 return Err(Stop::Failed(format!(
                     "impossibile copiare una cartella dentro sé stessa: {}",
@@ -434,7 +434,7 @@ impl Run {
             self.check()?;
             let Some(name) = src.file_name() else { continue };
             let mut target = dest.join(name);
-            if src.parent() == Some(dest) || fs::canonicalize(src).ok() == fs::canonicalize(&target).ok() && target.exists() {
+            if src.parent() == Some(dest) || fs::canonicalize(src).ok() == fs::canonicalize(&target).ok() && vfs::exists(&target) {
                 if is_move {
                     // spostare un elemento nella cartella dove già sta: niente da fare
                     let mut n = Totals::default();
@@ -479,6 +479,9 @@ impl Run {
     fn extract(&mut self, sources: &[PathBuf], dest: &Path) -> Res<()> {
         use crate::archive;
         self.set(|s| s.state = ST_SCANNING);
+        if crate::remote::split(&dest.to_string_lossy()).is_some() || sources.iter().any(|p| crate::remote::split(&p.to_string_lossy()).is_some()) {
+            return Err(Stop::Failed("estrarre da o verso un server arriverà più avanti: per ora copia l'archivio sul telefono".into()));
+        }
         if !dest.is_dir() {
             return Err(Stop::Failed(format!("la destinazione non è una cartella: {}", dest.display())));
         }
@@ -581,6 +584,9 @@ impl Run {
     fn compress(&mut self, sources: &[PathBuf], dest: &Path) -> Res<()> {
         use crate::archive;
         self.set(|s| s.state = ST_SCANNING);
+        if crate::remote::split(&dest.to_string_lossy()).is_some() || sources.iter().any(|p| crate::remote::split(&p.to_string_lossy()).is_some()) {
+            return Err(Stop::Failed("comprimere sul server arriverà più avanti".into()));
+        }
         let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let Some(fmt) = archive::creatable(&name) else {
             return Err(Stop::Failed(format!("formato non supportato per creare: {name}")));
@@ -618,14 +624,14 @@ impl Run {
     /// Spostamento veloce con rename() se la destinazione è libera e sullo
     /// stesso filesystem. `Ok(false)` = va copiato e poi cancellato.
     fn try_rename(&mut self, src: &Path, target: &Path) -> Res<bool> {
-        if fs::symlink_metadata(target).is_ok() {
+        if vfs::exists(target) {
             return Ok(false);
         }
         let mut n = Totals::default();
         scan(src, &mut n, &self.job.cancel);
         loop {
             self.set(|s| s.current = src.to_string_lossy().into_owned());
-            match fs::rename(src, target) {
+            match vfs::rename(src, target) {
                 Ok(()) => {
                     self.progress(n.files + n.dirs, n.bytes);
                     return Ok(true);
@@ -647,7 +653,7 @@ impl Run {
         self.check()?;
         self.set(|s| s.current = src.to_string_lossy().into_owned());
         let meta = loop {
-            match fs::symlink_metadata(src) {
+            match vfs::lmeta(src) {
                 Ok(m) => break m,
                 Err(e) => {
                     if !self.on_error(src, &e)? {
@@ -657,12 +663,12 @@ impl Run {
             }
         };
         let mut target = target.to_path_buf();
-        let exists = fs::symlink_metadata(&target).ok();
+        let exists = vfs::lmeta(&target).ok();
 
-        if meta.is_dir() {
+        if meta.is_dir {
             match exists {
                 // cartella su cartella: si fondono, i conflitti si vedono file per file
-                Some(m) if m.is_dir() => {}
+                Some(m) if m.is_dir => {}
                 Some(_) => match self.on_conflict(src, &target)? {
                     ANS_SKIP => {
                         let mut n = Totals::default();
@@ -675,9 +681,9 @@ impl Run {
                 },
                 None => {}
             }
-            if fs::symlink_metadata(&target).is_err() {
+            if !vfs::exists(&target) {
                 loop {
-                    match fs::create_dir(&target) {
+                    match vfs::create_dir(&target) {
                         Ok(()) => break,
                         Err(e) => {
                             if !self.on_error(&target, &e)? {
@@ -691,8 +697,8 @@ impl Run {
                 }
             }
             let mut all = true;
-            let children: Vec<PathBuf> = match fs::read_dir(src) {
-                Ok(rd) => rd.flatten().map(|e| e.path()).collect(),
+            let children: Vec<PathBuf> = match vfs::read_dir(src) {
+                Ok(rd) => rd,
                 Err(e) => {
                     self.on_error(src, &e)?;
                     Vec::new()
@@ -704,10 +710,8 @@ impl Run {
             }
             // i permessi dopo i figli: una cartella in sola lettura non
             // impedisce di riempirla
-            let _ = fs::set_permissions(&target, meta.permissions());
-            if let Ok(mt) = meta.modified() {
-                let _ = File::open(&target).and_then(|f| f.set_modified(mt));
-            }
+            let _ = vfs::set_mode(&target, meta.mode);
+            let _ = vfs::set_mtime(&target, meta.mtime);
             self.progress(1, 0);
             return Ok(all);
         }
@@ -715,7 +719,7 @@ impl Run {
         if exists.is_some() {
             match self.on_conflict(src, &target)? {
                 ANS_SKIP => {
-                    self.progress(1, if meta.is_file() { meta.len() } else { 0 });
+                    self.progress(1, if meta.is_file { meta.len } else { 0 });
                     return Ok(false);
                 }
                 ANS_OVERWRITE => {}
@@ -723,13 +727,13 @@ impl Run {
             }
         }
 
-        if meta.file_type().is_symlink() {
+        if meta.is_symlink {
             loop {
-                let r = fs::read_link(src).and_then(|to| {
-                    if fs::symlink_metadata(&target).is_ok() {
-                        fs::remove_file(&target)?;
+                let r = vfs::read_link(src).and_then(|to| {
+                    if vfs::exists(&target) {
+                        vfs::remove_file(&target)?;
                     }
-                    symlink(to, &target)
+                    vfs::symlink(&to, &target)
                 });
                 match r {
                     Ok(()) => break,
@@ -745,7 +749,7 @@ impl Run {
             return Ok(true);
         }
 
-        if !meta.is_file() {
+        if !meta.is_file {
             // fifo, socket, dispositivi: non si copiano
             self.progress(1, 0);
             return Ok(false);
@@ -764,7 +768,7 @@ impl Run {
                     self.set(|s| s.done_bytes = before);
                     let e = io::Error::other(msg);
                     if !self.on_error(src, &e)? {
-                        self.progress(1, meta.len());
+                        self.progress(1, meta.len);
                         return Ok(false);
                     }
                 }
@@ -772,13 +776,12 @@ impl Run {
         }
     }
 
-    fn copy_file(&mut self, src: &Path, target: &Path, meta: &fs::Metadata) -> Res<()> {
-        let name = target.file_name().unwrap().to_string_lossy();
-        let part = target.with_file_name(format!(".{name}.rootree-part"));
+    fn copy_file(&mut self, src: &Path, target: &Path, meta: &vfs::Meta) -> Res<()> {
+        let part = vfs::part_of(target);
         let r = (|| -> Res<()> {
             let io = |e: io::Error| Stop::Failed(e.to_string());
-            let mut from = File::open(src).map_err(io)?;
-            let mut to = File::create(&part).map_err(io)?;
+            let mut from = vfs::open_read(src).map_err(io)?;
+            let mut to = vfs::create(&part, 0o600).map_err(io)?;
             let mut buf = vec![0u8; CHUNK];
             let mut unsynced = 0usize;
             loop {
@@ -794,27 +797,26 @@ impl Run {
                 // arriva (visto sul POCO, 400 MB verso la SD: ~20 s fermi al 100%)
                 unsynced += n;
                 if unsynced >= SYNC_EVERY {
-                    to.sync_data().map_err(io)?;
+                    to.sync().map_err(io)?;
                     unsynced = 0;
                 }
                 self.progress(0, n as u64);
             }
+            // sync: su scheda SD, USB o server «copiato» deve voler dire «arrivato»
+            to.sync().map_err(io)?;
+            to.flush().map_err(io)?;
+            drop(to);
             // FAT ed exFAT non hanno i permessi Unix e il kernel può rifiutare il
             // chmod: il contenuto conta, i permessi no, quindi non è un errore
-            let _ = to.set_permissions(meta.permissions());
-            if let Ok(mt) = meta.modified() {
-                let _ = to.set_modified(mt);
-            }
-            // sync: su scheda SD o USB «copiato» deve voler dire «sul supporto»
-            to.sync_all().map_err(io)?;
-            drop(to);
-            if fs::symlink_metadata(target).map(|m| m.is_dir()).unwrap_or(false) {
+            let _ = vfs::set_mode(&part, meta.mode);
+            let _ = vfs::set_mtime(&part, meta.mtime);
+            if vfs::lmeta(target).map(|m| m.is_dir).unwrap_or(false) {
                 return Err(Stop::Failed(format!("{} è una cartella", target.display())));
             }
-            fs::rename(&part, target).map_err(io)
+            vfs::rename(&part, target).map_err(io)
         })();
         if r.is_err() {
-            let _ = fs::remove_file(&part);
+            let _ = vfs::remove_file(&part);
         }
         r
     }
@@ -822,7 +824,7 @@ impl Run {
     /// Cancella la sorgente di uno spostamento, già copiata per intero.
     fn remove_source(&mut self, src: &Path) -> Res<()> {
         loop {
-            match remove_all(src) {
+            match vfs::remove_all(src) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
                     if !self.on_error(src, &e)? {
@@ -835,7 +837,7 @@ impl Run {
 
     /// Toglie la destinazione che l'utente ha scelto di sovrascrivere.
     fn remove_quiet(&mut self, p: &Path) -> Res<()> {
-        remove_all(p).map_err(|e| Stop::Failed(format!("{}: {e}", p.display())))
+        vfs::remove_all(p).map_err(|e| Stop::Failed(format!("{}: {e}", p.display())))
     }
 
     fn delete(&mut self, paths: &[PathBuf]) -> Res<()> {
@@ -859,17 +861,16 @@ impl Run {
     fn delete_entry(&mut self, p: &Path) -> Res<()> {
         self.check()?;
         self.set(|s| s.current = p.to_string_lossy().into_owned());
-        let Ok(meta) = fs::symlink_metadata(p) else { return Ok(()) };
-        if meta.is_dir() {
-            if let Ok(rd) = fs::read_dir(p) {
-                let children: Vec<PathBuf> = rd.flatten().map(|e| e.path()).collect();
+        let Ok(meta) = vfs::lmeta(p) else { return Ok(()) };
+        if meta.is_dir {
+            if let Ok(children) = vfs::read_dir(p) {
                 for c in children {
                     self.delete_entry(&c)?;
                 }
             }
         }
         loop {
-            let r = if meta.is_dir() { fs::remove_dir(p) } else { fs::remove_file(p) };
+            let r = if meta.is_dir { vfs::remove_dir(p) } else { vfs::remove_file(p) };
             match r {
                 Ok(()) => break,
                 Err(e) => {
@@ -879,21 +880,13 @@ impl Run {
                 }
             }
         }
-        self.progress(1, if meta.is_file() { meta.len() } else { 0 });
+        self.progress(1, if meta.is_file { meta.len } else { 0 });
         Ok(())
     }
 }
 
 fn same_device(a: &Path, b: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    match (fs::symlink_metadata(a), fs::metadata(b)) {
-        (Ok(x), Ok(y)) => x.dev() == y.dev(),
-        _ => false,
-    }
-}
-
-fn remove_all(p: &Path) -> io::Result<()> {
-    if fs::symlink_metadata(p)?.is_dir() { fs::remove_dir_all(p) } else { fs::remove_file(p) }
+    vfs::same_device(a, b)
 }
 
 /// Aspetta la fine di un'operazione (per i test).
