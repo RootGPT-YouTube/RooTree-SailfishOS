@@ -354,4 +354,15 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   procedura; il parametro `size` di `vfs::create` resta. **Dropbox provato
   con account vero: funziona.** «Accedi con un account di lavoro» = app con
   permessi di team: la procedura ora elenca le caselle esatte.
-- **08/11 — Fase 5, step 4: Mega (0.6.7-1).** Crate `mega` 0.8 (MIT/Apache-2.0, asincrono, un runtime tokio e tubi `sluice` verso il motore sincrono); email e password, password nella cassaforte; albero ricordato 30 s; elimina/sovrascrive = cestino di Mega. Codice a 6 cifre della verifica in due passaggi chiesto a ogni collegamento (0.6.7-2), mai salvato; casella «non chiedere più» (0.6.7-3): sessione nella cassaforte, revoca da Opzioni per Remoto anche sui server di Mega. ⏳ Prova con account vero.
+- **08/11 — Fase 5, step 4: Mega (0.6.7-1).** Crate `mega` 0.8 (MIT/Apache-2.0, asincrono, un runtime tokio e tubi `sluice` verso il motore sincrono); email e password, password nella cassaforte; albero ricordato 30 s; elimina/sovrascrive = cestino di Mega. Codice a 6 cifre della verifica in due passaggi chiesto a ogni collegamento (0.6.7-2), mai salvato; casella «non chiedere più» (0.6.7-3): sessione nella cassaforte, revoca da Opzioni per Remoto anche sui server di Mega. **Provato con account vero (0.6.7-4): funziona.**
+- **08/11 — Google Drive TOLTO (0.6.6-2, decisione dell'utente):** registrare
+  l'app sulla console di Google è troppo complicato. Scritto e installato per
+  pochi minuti, mai committato. Niente cloud che chiedono di registrare
+  un'app su console complicate.
+- **08/11 — Fase 5, step 4 chiuso: restano Dropbox e Mega.** Sul POCO
+  harbour-rootree 0.6.7-4 + harbour-rootree-root, `rpm -V` pulito (controllato
+  il 09/11).
+  - Prossimo: step 5 (WebDAV/Nextcloud, FTP/FTPS, SMB, S3), quando lo decide
+    l'utente.
+  - Da correggere: il menù mostra ancora 0.6.4.
+  - RPM armv7hl dell'app fermi alla 0.3.1: si riprendono alla Fase 6.
