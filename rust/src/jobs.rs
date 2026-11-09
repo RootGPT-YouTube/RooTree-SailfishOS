@@ -242,14 +242,18 @@ struct Totals {
 
 fn scan(p: &Path, t: &mut Totals, cancel: &AtomicBool) {
     let Ok(m) = vfs::lmeta(p) else { return };
+    scan_known(p, m, t, cancel);
+}
+
+fn scan_known(p: &Path, m: vfs::Meta, t: &mut Totals, cancel: &AtomicBool) {
     if m.is_dir {
         t.dirs += 1;
-        if let Ok(rd) = vfs::read_dir(p) {
-            for e in rd {
+        if let Ok(rd) = vfs::read_dir_meta(p) {
+            for (e, em) in rd {
                 if cancel.load(Ordering::Relaxed) {
                     return;
                 }
-                scan(&e, t, cancel);
+                scan_known(&e, em, t, cancel);
             }
         }
     } else {
@@ -473,7 +477,7 @@ impl Run {
             if is_move && self.try_rename(src, &target)? {
                 continue;
             }
-            let copied = self.copy_entry(src, &target, false)?;
+            let copied = self.copy_entry(src, &target, false, None, None)?;
             fsops::adopt_tree(&target);
             if is_move && copied {
                 self.remove_source(src)?;
@@ -676,21 +680,33 @@ impl Run {
     /// sorgente si può cancellare); `Ok(false)` = qualcosa è stato saltato.
     /// `merging`: si è dentro una cartella che l'utente ha scelto di unire:
     /// le sottocartelle che ci sono già si uniscono senza richiedere.
-    fn copy_entry(&mut self, src: &Path, target: &Path, merging: bool) -> Res<bool> {
+    /// `known_src` e `known_target`: i dati già letti con l'elenco della
+    /// cartella, per non chiederli al server voce per voce.
+    fn copy_entry(
+        &mut self,
+        src: &Path,
+        target: &Path,
+        merging: bool,
+        known_src: Option<vfs::Meta>,
+        known_target: Option<Option<vfs::Meta>>,
+    ) -> Res<bool> {
         self.check()?;
         self.set(|s| s.current = src.to_string_lossy().into_owned());
-        let meta = loop {
-            match vfs::lmeta(src) {
-                Ok(m) => break m,
-                Err(e) => {
-                    if !self.on_error(src, &e)? {
-                        return Ok(false);
+        let meta = match known_src {
+            Some(m) => m,
+            None => loop {
+                match vfs::lmeta(src) {
+                    Ok(m) => break m,
+                    Err(e) => {
+                        if !self.on_error(src, &e)? {
+                            return Ok(false);
+                        }
                     }
                 }
-            }
+            },
         };
         let mut target = target.to_path_buf();
-        let exists = vfs::lmeta(&target).ok();
+        let exists = known_target.unwrap_or_else(|| vfs::lmeta(&target).ok());
 
         if meta.is_dir {
             match exists {
@@ -718,7 +734,7 @@ impl Run {
                 },
                 None => {}
             }
-            if !vfs::exists(&target) {
+            if exists.is_none() || !vfs::exists(&target) {
                 loop {
                     match vfs::create_dir(&target) {
                         Ok(()) => break,
@@ -734,17 +750,26 @@ impl Run {
                 }
             }
             let mut all = true;
-            let children: Vec<PathBuf> = match vfs::read_dir(src) {
+            let children: Vec<(PathBuf, vfs::Meta)> = match vfs::read_dir_meta(src) {
                 Ok(rd) => rd,
                 Err(e) => {
                     self.on_error(src, &e)?;
                     Vec::new()
                 }
             };
-            for child in children {
+            // cosa c'è già nella destinazione: una richiesta sola (appena creata: niente)
+            let present: Option<std::collections::HashMap<std::ffi::OsString, vfs::Meta>> = if exists.is_none() {
+                Some(Default::default())
+            } else {
+                vfs::read_dir_meta(&target)
+                    .ok()
+                    .map(|rd| rd.into_iter().filter_map(|(p, m)| Some((p.file_name()?.to_owned(), m))).collect())
+            };
+            for (child, child_meta) in children {
                 let name = child.file_name().unwrap().to_owned();
+                let known = present.as_ref().map(|h| h.get(&name).copied());
                 // dentro una cartella unita (o appena creata) le sottocartelle si uniscono
-                all &= self.copy_entry(&child, &target.join(name), true)?;
+                all &= self.copy_entry(&child, &target.join(name), true, Some(child_meta), known)?;
             }
             // i permessi dopo i figli: una cartella in sola lettura non
             // impedisce di riempirla
@@ -848,7 +873,8 @@ impl Run {
             // chmod: il contenuto conta, i permessi no, quindi non è un errore
             let _ = vfs::set_mode(&part, meta.mode);
             let _ = vfs::set_mtime(&part, meta.mtime);
-            if vfs::lmeta(target).map(|m| m.is_dir).unwrap_or(false) {
+            // su WebDAV e sui cloud la rinomina sopra una cartella viene rifiutata comunque
+            if !vfs::is_cloud(target) && vfs::lmeta(target).map(|m| m.is_dir).unwrap_or(false) {
                 return Err(Stop::Failed(format!("{} è una cartella", target.display())));
             }
             vfs::rename(&part, target).map_err(io)
@@ -882,7 +908,12 @@ impl Run {
         self.set(|s| s.state = ST_SCANNING);
         let mut t = Totals::default();
         for p in paths {
-            scan(p, &mut t, &self.job.cancel);
+            // su WebDAV e sui cloud una cartella se ne va con una richiesta: niente conteggio
+            if vfs::is_cloud(p) {
+                t.files += 1;
+            } else {
+                scan(p, &mut t, &self.job.cancel);
+            }
         }
         self.check()?;
         self.set(|s| {
@@ -899,6 +930,21 @@ impl Run {
     fn delete_entry(&mut self, p: &Path) -> Res<()> {
         self.check()?;
         self.set(|s| s.current = p.to_string_lossy().into_owned());
+        if vfs::is_cloud(p) {
+            loop {
+                match vfs::remove_file(p) {
+                    Ok(()) => break,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => break,
+                    Err(e) => {
+                        if !self.on_error(p, &e)? {
+                            break;
+                        }
+                    }
+                }
+            }
+            self.progress(1, 0);
+            return Ok(());
+        }
         let Ok(meta) = vfs::lmeta(p) else { return Ok(()) };
         if meta.is_dir {
             if let Ok(children) = vfs::read_dir(p) {

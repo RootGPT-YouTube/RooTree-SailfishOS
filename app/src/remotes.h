@@ -54,6 +54,8 @@ public:
     Q_INVOKABLE void disconnect(const QString &id);
     // Mega: toglie la sessione ricordata; esito con megaRevoked(id, errore)
     Q_INVOKABLE void megaRevoke(const QString &id);
+    // Il cestino (Nextcloud): action = list | restore | delete | empty; esito con trashDone
+    Q_INVOKABLE void trash(const QString &id, const QString &action, const QString &item);
     Q_INVOKABLE bool isConnected(const QString &id) const;
     // la cartella da cui si entra: /@remote/<id> + percorso iniziale sul server
     Q_INVOKABLE QString entryPath(const QString &id) const { return m_entry.value(id); }
@@ -83,6 +85,7 @@ public:
 
 signals:
     void megaRevoked(const QString &id, const QString &error);
+    void trashDone(const QString &id, const QString &action, const QString &error, const QString &json);
     void changed();
     void vaultChanged();
     void connectFinished(const QString &id, const QString &code, const QString &message, const QString &path);

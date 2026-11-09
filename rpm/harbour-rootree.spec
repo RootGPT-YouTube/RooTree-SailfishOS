@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.7
-Release:    4
+Version:    0.6.8
+Release:    5
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,21 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-5
+- Il cestino anche in Opzioni per Remoto
+
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-4
+- Nextcloud: il cestino, con Ripristina, Elimina definitivamente e Svuota
+
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-3
+- Eliminare e copiare cartelle su WebDAV e cloud con molte meno richieste
+
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-2
+- Nextcloud: icona propria e nome proposto «Nextcloud» al posto dell'indirizzo
+
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-1
+- WebDAV e Nextcloud/ownCloud: sfoglia, copia, rinomina, elimina (Fase 5, step 5)
+
 * Sun Nov 08 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.7-4
 - Connections list: the detail is hidden when the name already says it.
 

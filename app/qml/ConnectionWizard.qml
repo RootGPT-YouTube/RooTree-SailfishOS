@@ -113,6 +113,7 @@ Popup {
     function defaultName() {
         if (!hasServer) return info.label + (v("user") ? " · " + v("user") : "")
         if (info.type === "s3" && v("bucket")) return v("bucket")
+        if (info.type === "nextcloud") return "Nextcloud"
         return v("host") || info.label
     }
     function save() {
@@ -596,11 +597,11 @@ Popup {
                     Field { key: "name" }
                     // anche qui (chi arriva da ~/.ssh/config salta la pagina Server)
                     Label {
-                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud"
+                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud" && wiz.info.type !== "webdav"
                         text: Style.t("Cartella da cui aprire (vuoto: la home sul server)", "Folder to open from (empty: home on the server)")
                     }
                     Field {
-                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud"
+                        visible: wiz.hasServer && wiz.info.type !== "smb" && wiz.info.type !== "s3" && wiz.info.type !== "nextcloud" && wiz.info.type !== "webdav"
                         key: "path"
                         placeholderText: "/media/…"
                     }

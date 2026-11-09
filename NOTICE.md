@@ -11,6 +11,7 @@ Contiene o usa anche:
 | cxx (ponte Rust/C++), libc (crate) | MIT o Apache-2.0 | dipendenze di `rust/` |
 | image (crate Rust, WebP/TIFF/BMP) | MIT o Apache-2.0 | dipendenza di `rust/` |
 | mega, reqwest, futures (crate Rust) | MIT o Apache-2.0 | dipendenze di `rust/` |
+| quick-xml (crate Rust) | MIT | dipendenza di `rust/` |
 | tokio, sluice (crate Rust) | MIT | dipendenze di `rust/` |
 | GStreamer 1.x (anteprime dei video) | LGPL-2.1-or-later | non incluso: librerie di sistema di Sailfish OS, collegate dinamicamente |
 | poppler (anteprime dei PDF) | GPL-2.0-or-later | non incluso: libreria di sistema di Sailfish OS, collegata dinamicamente |

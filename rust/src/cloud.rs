@@ -31,10 +31,16 @@ pub trait Drive: Send + Sync {
     /// file o cartella (anche piena)
     fn delete(&self, path: &str) -> io::Result<()>;
     fn rename(&self, from: &str, to: &str) -> io::Result<()>;
+
+    /// Il cestino, per chi ce l'ha come cartella consultabile (Nextcloud).
+    /// `action`: list | restore | delete | empty; dà il JSON delle voci (list).
+    fn trash(&self, _action: &str, _item: &str) -> io::Result<String> {
+        Err(io::Error::new(io::ErrorKind::Unsupported, "questo servizio non ha un cestino consultabile"))
+    }
 }
 
 pub fn is_cloud_type(kind: &str) -> bool {
-    matches!(kind, "dropbox" | "mega")
+    matches!(kind, "dropbox" | "mega" | "webdav" | "nextcloud")
 }
 
 pub fn sink(d: Arc<dyn Drive>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
@@ -60,6 +66,9 @@ struct Profile {
 /// Collega un profilo cloud col suo token di rinnovo (`secret`).
 pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, String> {
     let p: Profile = serde_json::from_str(profile_json).map_err(|e| format!("profilo non valido: {e}"))?;
+    if p.kind == "webdav" || p.kind == "nextcloud" {
+        return crate::webdav::connect(profile_json, secret);
+    }
     if p.kind == "mega" {
         return Ok(Arc::new(Mega::connect(&p, secret)?));
     }

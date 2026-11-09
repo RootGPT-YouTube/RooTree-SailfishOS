@@ -777,3 +777,48 @@ fn accesso_dal_browser_ascolta_e_controlla_lo_state() {
     assert!(crate::oauth::begin("t2", "dropbox", "  ").unwrap_err().starts_with("CLIENTID:"));
 }
 
+
+#[test]
+fn webdav_multistatus() {
+    // come risponde Nextcloud: prefisso d:, nomi codificati, proprietà assenti in una propstat 404
+    let xml = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
+<d:response><d:href>/remote.php/dav/files/u/Citt%c3%a0%20nuova/</d:href>
+<d:propstat><d:prop><d:getlastmodified>Mon, 09 Nov 2026 11:01:32 GMT</d:getlastmodified><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+<d:propstat><d:prop><d:getcontentlength/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/files/u/Citt%c3%a0%20nuova/a%26b.txt</d:href>
+<d:propstat><d:prop><d:getlastmodified>Mon, 09 Nov 2026 11:01:33 GMT</d:getlastmodified><d:getcontentlength>42</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>"#;
+    let v = crate::webdav::parse_multistatus(xml).unwrap();
+    assert_eq!(v.len(), 2);
+    assert_eq!(v[0].0, "/remote.php/dav/files/u/Città nuova");
+    assert!(v[0].1.is_dir && !v[0].1.is_file);
+    assert_eq!(v[0].1.mtime, 1794222092);
+    assert_eq!(v[1].0, "/remote.php/dav/files/u/Città nuova/a&b.txt");
+    assert!(v[1].1.is_file && !v[1].1.is_dir);
+    assert_eq!(v[1].1.size, 42);
+    // altro server: prefisso diverso e URL completo
+    let v = crate::webdav::parse_multistatus(r#"<D:multistatus xmlns:D="DAV:"><D:response><D:href>https://s.example/dav/x.bin</D:href><D:propstat><D:prop><D:getcontentlength>7</D:getcontentlength><D:resourcetype></D:resourcetype></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>"#).unwrap();
+    assert_eq!(v[0].0, "/dav/x.bin");
+    assert_eq!(v[0].1.size, 7);
+    assert_eq!(crate::webdav::http_date("non è una data"), 0);
+}
+
+#[test]
+fn webdav_cestino() {
+    let xml = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns" xmlns:oc="http://owncloud.org/ns">
+<d:response><d:href>/remote.php/dav/trashbin/u/trash/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/trashbin/u/trash/Citt%c3%a0.txt.d1794222092</d:href><d:propstat><d:prop><nc:trashbin-filename>Città.txt</nc:trashbin-filename><nc:trashbin-original-location>Documenti/Città.txt</nc:trashbin-original-location><nc:trashbin-deletion-time>1794222092</nc:trashbin-deletion-time><d:getcontentlength>12</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/trashbin/u/trash/Foto.d5</d:href><d:propstat><d:prop><nc:trashbin-filename>Foto</nc:trashbin-filename><nc:trashbin-deletion-time>5</nc:trashbin-deletion-time><oc:size>99</oc:size><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>"#;
+    let v = crate::webdav::parse_trash(xml).unwrap();
+    let a = v.as_array().unwrap();
+    assert_eq!(a.len(), 2);
+    assert_eq!(a[0]["id"], "Città.txt.d1794222092");
+    assert_eq!(a[0]["name"], "Città.txt");
+    assert_eq!(a[0]["original"], "Documenti/Città.txt");
+    assert_eq!(a[0]["deleted"], 1794222092);
+    assert_eq!(a[0]["size"], 12);
+    assert_eq!(a[0]["dir"], false);
+    assert_eq!(a[1]["dir"], true);
+    assert_eq!(a[1]["size"], 99);
+}

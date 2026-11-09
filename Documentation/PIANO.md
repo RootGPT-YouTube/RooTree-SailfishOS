@@ -366,3 +366,13 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
     l'utente.
   - Da correggere: il menù mostra ancora 0.6.4.
   - RPM armv7hl dell'app fermi alla 0.3.1: si riprendono alla Fase 6.
+- **09/11 — Fase 5, step 5: WebDAV e Nextcloud/ownCloud (0.6.8-5).** `webdav.rs`
+  implementa `Drive` (PROPFIND, GET, PUT in streaming, MKCOL, MOVE, DELETE), quindi
+  copia, coda, Annulla e conflitti valgono come per gli altri remoti. Icona e nome
+  propri per Nextcloud. Cestino di Nextcloud (⋮ → Opzioni per Remoto): elenco,
+  ripristino, eliminazione definitiva, svuotamento. Su WebDAV e cloud una cartella
+  si elimina con una richiesta sola; il motore legge i dati con l'elenco della
+  cartella invece che voce per voce. Verifica: 33 test; col motore vero dal POCO
+  contro Nextcloud 34 (utente temporaneo): 30 MB andata e ritorno identici, nomi
+  con accenti e simboli, Annulla senza resti, 30 file in 3 cartelle, cestino.
+  Provato dall'utente col dito. Da provare: HTTPS. Restano FTP/FTPS, SMB, S3.

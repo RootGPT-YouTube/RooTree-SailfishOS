@@ -1060,6 +1060,12 @@ Window {
                 toast.show(Style.t("Scollegato", "Disconnected"))
             }
         }
+        MenuRow {
+            icon: "delete"
+            visible: connectionMenu.opened && connectionMenu.profile.type === "nextcloud" && Remotes.isConnected(connectionMenu.profile.id || "")
+            text: Style.t("Cestino", "Trash")
+            onClicked: { connectionMenu.close(); trashSheet.openFor(connectionMenu.profile) }
+        }
         MenuRow { icon: "rename"; text: Style.t("Modifica", "Edit"); onClicked: { connectionMenu.close(); wizard.openFor(connectionMenu.profile) } }
         MenuRow { icon: "copy"; text: Style.t("Duplica", "Duplicate"); onClicked: { connectionMenu.close(); Remotes.duplicate(connectionMenu.profile.id) } }
         MenuRow {
@@ -1159,6 +1165,13 @@ Window {
                     Remotes.megaRevoke(p.id)
                 })
             }
+        }
+        MenuRow {
+            depth: 1
+            icon: "delete"
+            visible: remoteOptions.open && folder.remote !== "" && Remotes.get(folder.remote).type === "nextcloud"
+            text: Style.t("Cestino", "Trash")
+            onClicked: { mainMenu.close(); trashSheet.openFor(Remotes.get(folder.remote)) }
         }
         MenuRow {
             depth: 1
@@ -1402,6 +1415,7 @@ Window {
     }
 
     OpenWithSheet { id: openWith }
+    TrashSheet { id: trashSheet; onRestored: folder.refresh() }
     ImageViewer {
         id: imageViewer
         onOpenWithRequested: function (p) { openWith.openFor(p) }

@@ -91,6 +91,35 @@ pub fn read_dir(p: &Path) -> io::Result<Vec<PathBuf>> {
     }
 }
 
+/// I figli con i loro dati: su un server basta una richiesta per cartella,
+/// invece di una per ogni voce.
+pub fn read_dir_meta(p: &Path) -> io::Result<Vec<(PathBuf, Meta)>> {
+    match rsplit(p) {
+        Some((id, inner)) => {
+            let dev = dev_of(&id);
+            Ok(remote::readdir(&id, &inner)?
+                .into_iter()
+                .map(|(name, st)| {
+                    (p.join(name), Meta { is_dir: st.is_dir, is_file: st.is_file, is_symlink: st.is_link, len: st.size, mode: st.mode, mtime: st.mtime, dev })
+                })
+                .collect())
+        }
+        None => Ok(fs::read_dir(p)?
+            .flatten()
+            .filter_map(|e| {
+                let path = e.path();
+                let m = fs::symlink_metadata(&path).ok()?;
+                Some((path, from_local(&m)))
+            })
+            .collect()),
+    }
+}
+
+/// Un percorso su WebDAV o su un cloud: una cartella si elimina con una sola richiesta.
+pub fn is_cloud(p: &Path) -> bool {
+    rsplit(p).map(|(id, _)| remote::is_cloud(&id)).unwrap_or(false)
+}
+
 pub fn open_read(p: &Path) -> io::Result<Box<dyn Read + Send>> {
     match rsplit(p) {
         Some((id, inner)) => remote::open_any(&id, &inner),
@@ -165,6 +194,9 @@ pub fn remove_dir(p: &Path) -> io::Result<()> {
 pub fn remove_all(p: &Path) -> io::Result<()> {
     if rsplit(p).is_none() {
         return if fs::symlink_metadata(p)?.is_dir() { fs::remove_dir_all(p) } else { fs::remove_file(p) };
+    }
+    if is_cloud(p) {
+        return remove_file(p);
     }
     let m = lmeta(p)?;
     if m.is_dir {

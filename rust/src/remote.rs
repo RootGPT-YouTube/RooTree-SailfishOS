@@ -594,6 +594,14 @@ pub fn symlink_any(id: &str, target: &Path, link: &str) -> io::Result<()> {
     }
 }
 
+/// Il cestino del servizio (Nextcloud): vedi `Drive::trash`.
+pub fn trash(id: &str, action: &str, item: &str) -> Result<String, String> {
+    let Some(c) = cloud_of(id) else {
+        return Err("NOTCONNECTED:connessione non aperta".into());
+    };
+    c.trash(action, item).map_err(|e| e.to_string())
+}
+
 pub fn is_cloud(id: &str) -> bool {
     cloud_of(id).is_some()
 }

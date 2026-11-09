@@ -16,6 +16,7 @@ pub mod search;
 pub mod thumbs;
 pub mod vault;
 pub mod vfs;
+pub mod webdav;
 
 /// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
 pub mod ffi_status {
@@ -160,6 +161,7 @@ mod ffi {
         fn vault_set(id: &str, secret: &str) -> Result<()>;
         fn vault_remove(id: &str) -> Result<()>;
         fn mega_revoke(id: &str) -> Result<()>;
+        fn remote_trash(id: &str, action: &str, item: &str) -> Result<String>;
         fn user_name(uid: u32) -> String;
         fn group_name(gid: u32) -> String;
 
@@ -482,6 +484,10 @@ fn vault_set(id: &str, secret: &str) -> Result<(), String> {
 
 fn vault_remove(id: &str) -> Result<(), String> {
     vault::remove(id).map_err(|e| e.to_string())
+}
+
+fn remote_trash(id: &str, action: &str, item: &str) -> Result<String, String> {
+    remote::trash(id, action, item)
 }
 
 fn mega_revoke(id: &str) -> Result<(), String> {

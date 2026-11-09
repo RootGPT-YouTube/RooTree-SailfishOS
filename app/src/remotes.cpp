@@ -175,6 +175,26 @@ void Remotes::megaRevoke(const QString &id)
     }).detach();
 }
 
+void Remotes::trash(const QString &id, const QString &action, const QString &item)
+{
+    const QByteArray bid = id.toUtf8(), bact = action.toUtf8(), bitem = item.toUtf8();
+    QPointer<Remotes> self(this);
+    std::thread([self, id, action, bid, bact, bitem] {
+        QString error, json;
+        try {
+            json = qtrust::qs(rootree::remote_trash(rust::Str(bid.constData(), size_t(bid.size())),
+                                                    rust::Str(bact.constData(), size_t(bact.size())),
+                                                    rust::Str(bitem.constData(), size_t(bitem.size()))));
+        } catch (const rust::Error &e) {
+            error = QString::fromUtf8(e.what());
+        }
+        QMetaObject::invokeMethod(qApp, [self, id, action, error, json] {
+            if (self)
+                emit self->trashDone(id, action, error, json);
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
 void Remotes::cancelAuth(const QString &id)
 {
     rootree::oauth_cancel(qtrust::str(id));
@@ -266,7 +286,7 @@ QVariantList Remotes::types() const
         type("sftp", QStringLiteral("SFTP (SSH)"), "server", "ssh", 22, {QStringLiteral("password"), QStringLiteral("key")}, true, false),
         type("ftp", QStringLiteral("FTP / FTPS"), "server", "server", 21, {QStringLiteral("password"), QStringLiteral("anonymous")}, true, false),
         type("webdav", QStringLiteral("WebDAV"), "server", "network", 443, pw, true, false),
-        type("nextcloud", QStringLiteral("Nextcloud / ownCloud"), "server", "cloud", 443, pw, true, false),
+        type("nextcloud", QStringLiteral("Nextcloud / ownCloud"), "server", "nextcloud", 443, pw, true, false),
         type("smb", QStringLiteral("SMB (Windows, Samba)"), "server", "smb", 445, {QStringLiteral("password"), QStringLiteral("guest")}, true, false),
         type("s3", QStringLiteral("S3 / compatibile"), "server", "s3", 443, pw, true, false),
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
