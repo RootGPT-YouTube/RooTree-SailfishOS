@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.8
-Release:    5
+Release:    6
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,9 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-6
+- WebDAV e Nextcloud: la procedura con la password per app e l'avviso sul TOTP, percorso copiabile con un tocco
+
 * Mon Nov 09 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.8-5
 - Il cestino anche in Opzioni per Remoto
 

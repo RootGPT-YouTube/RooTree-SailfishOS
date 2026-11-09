@@ -382,6 +382,74 @@ Popup {
                         text: Style.t("Il percorso dei file (/remote.php/dav/files/utente) RooTree lo ricava da solo.",
                                       "RooTree works out the files path (/remote.php/dav/files/user) by itself.")
                     }
+                    // la procedura per Nextcloud, solo alla creazione
+                    Rectangle {
+                        visible: !wiz.editing && (wiz.info.type === "webdav" || wiz.info.type === "nextcloud")
+                        width: parent.width
+                        height: guide.height + 20 * Style.dp
+                        radius: 8 * Style.dp
+                        color: Style.panel
+                        border.color: Style.line
+                        border.width: 1 * Style.dp
+                        Column {
+                            id: guide
+                            x: 10 * Style.dp
+                            y: 10 * Style.dp
+                            width: parent.width - 20 * Style.dp
+                            spacing: 8 * Style.dp
+                            Label { color: Style.text; font.bold: true; text: Style.t("Collegare un account Nextcloud", "Connecting a Nextcloud account") }
+                            Label {
+                                color: Style.danger
+                                text: Style.t("Se sull'account è attiva la verifica in due passaggi (TOTP), la password normale viene rifiutata: qui il codice non si può inserire. Serve una password per app. Troppi tentativi sbagliati possono far bloccare il tuo indirizzo dal server.",
+                                              "If two-factor authentication (TOTP) is on for the account, the normal password is refused: the code cannot be entered here. You need an app password. Too many failed attempts may get your address blocked by the server.")
+                            }
+                            Label {
+                                color: Style.text
+                                text: Style.t("1. Dal browser entra in https://indirizzo-server con password e codice.\n2. Vai in Impostazioni personali › Sicurezza › Dispositivi e sessioni e crea una password per app.\n3. Qui inserisci indirizzo-server, HTTPS e, nella pagina successiva, utente e password per app.",
+                                              "1. In the browser, sign in to https://server-address with password and code.\n2. Go to Personal settings › Security › Devices & sessions and create an app password.\n3. Here enter server-address, HTTPS and, on the next page, user and app password.")
+                            }
+                            Label {
+                                visible: wiz.info.type === "webdav"
+                                text: Style.t("Percorso sul server (tocca per copiare, poi sostituisci «utente» col tuo nome utente):",
+                                              "Path on the server (tap to copy, then replace “user” with your user name):")
+                            }
+                            Rectangle {
+                                id: pathCopy
+                                visible: wiz.info.type === "webdav"
+                                readonly property string davPath: Style.t("/remote.php/dav/files/utente/", "/remote.php/dav/files/user/")
+                                property bool copied: false
+                                width: parent.width
+                                height: 40 * Style.dp
+                                radius: 6 * Style.dp
+                                color: copyTap.pressed ? Style.pressed : Style.bg
+                                border.color: pathCopy.copied ? Style.ok : Style.line
+                                border.width: 1.5 * Style.dp
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 8 * Style.dp; right: copyIcon.left; rightMargin: 6 * Style.dp; verticalCenter: parent.verticalCenter }
+                                    font.family: Style.fontFamily
+                                    font.pixelSize: Style.fontS
+                                    color: pathCopy.copied ? Style.ok : Style.text
+                                    elide: Text.ElideMiddle
+                                    text: pathCopy.copied ? Style.t("Copiato", "Copied") : pathCopy.davPath
+                                }
+                                Icon { id: copyIcon; anchors { right: parent.right; rightMargin: 8 * Style.dp; verticalCenter: parent.verticalCenter } name: "copy"; size: 20 * Style.dp }
+                                // il testo passa dagli appunti di sistema
+                                TextEdit { id: copyBuffer; visible: false; text: pathCopy.davPath }
+                                Timer { id: copiedTimer; interval: 2000; onTriggered: pathCopy.copied = false }
+                                MouseArea {
+                                    id: copyTap
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        copyBuffer.selectAll()
+                                        copyBuffer.copy()
+                                        copyBuffer.deselect()
+                                        pathCopy.copied = true
+                                        copiedTimer.restart()
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // 3 · Accesso

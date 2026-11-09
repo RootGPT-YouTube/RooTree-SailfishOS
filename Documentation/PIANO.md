@@ -375,4 +375,5 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   cartella invece che voce per voce. Verifica: 33 test; col motore vero dal POCO
   contro Nextcloud 34 (utente temporaneo): 30 MB andata e ritorno identici, nomi
   con accenti e simboli, Annulla senza resti, 30 file in 3 cartelle, cestino.
-  Provato dall'utente col dito. Da provare: HTTPS. Restano FTP/FTPS, SMB, S3.
+  Provato dall'utente col dito, anche in HTTPS (0.6.8-6 aggiunge la procedura per la
+  password per app). Restano FTP/FTPS, SMB, S3.
