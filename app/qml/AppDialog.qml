@@ -61,7 +61,9 @@ Popup {
                 delegate: SteelPill {
                     text: modelData.text
                     role: modelData.role
-                    onClicked: { d.close(); d.chosen(modelData.role) }
+                    // la tastiera di Sailfish tiene l'ultima parola «in composizione»
+                    // finché non arriva uno spazio: senza commit() il campo non la ha
+                    onClicked: { Qt.inputMethod.commit(); d.close(); d.chosen(modelData.role) }
                 }
             }
         }

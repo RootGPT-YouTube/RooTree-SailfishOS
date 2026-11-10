@@ -41,6 +41,9 @@ Popup {
     }
 
     function save() {
+        // l'ultima parola scritta è ancora «in composizione» nella tastiera:
+        // senza commit() resterebbe fuori dal file (visto il 10/11)
+        Qt.inputMethod.commit()
         var r = Fs.writeText(path, body.text)
         if (r.error) {
             message(Style.t("Non salvato: ", "Not saved: ") + r.error, true)

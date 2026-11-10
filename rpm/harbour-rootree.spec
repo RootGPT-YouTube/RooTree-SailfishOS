@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.6.9
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,9 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.9-2
+- Editor di testo: l'ultima parola scritta prima di toccare ✓ ora viene salvata (la tastiera la teneva ancora in sospeso)
+
 * Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.9-1
 - FTP e FTPS (esplicito e implicito sulla porta 990), anche con accesso anonimo
 - Certificati fatti in casa dei NAS: la prima volta si mostra l'impronta e si chiede se fidarsi, poi un cambio viene rifiutato
