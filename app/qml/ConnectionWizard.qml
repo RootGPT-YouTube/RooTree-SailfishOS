@@ -116,6 +116,11 @@ Popup {
         if (info.type === "nextcloud") return "Nextcloud"
         return v("host") || info.label
     }
+    function hideKeyboard() {
+        Qt.inputMethod.commit()
+        flick.forceActiveFocus()
+        Qt.inputMethod.hide()
+    }
     function save() {
         var c = Object.assign({}, p)
         if (c.keyPath) c.keyPath = keyFile()
@@ -146,6 +151,8 @@ Popup {
         inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
         text: key ? wiz.v(key) : ""
         onTextEdited: if (key) wiz.set(key, text)
+        // Invio: la tastiera si chiude e ricompaiono i pulsanti
+        onAccepted: wiz.hideKeyboard()
         background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: tf.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
     }
     // un riquadro di un tipo: disco d'acciaio con il simbolo e il nome sotto
@@ -252,10 +259,16 @@ Popup {
         Flickable {
             id: flick
             anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: bottomBar.top }
-            anchors.bottomMargin: Qt.inputMethod.visible ? Math.max(0, Qt.inputMethod.keyboardRectangle.height - bottomBar.height) : 0
             contentHeight: pagesCol.implicitHeight + 2 * Style.margin
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            // un tocco fuori dalle caselle chiude la tastiera (sta sotto a tutto:
+            // caselle, pulsanti e riquadri ricevono i loro tocchi come prima)
+            MouseArea {
+                width: flick.width
+                height: Math.max(flick.height, flick.contentHeight)
+                onClicked: wiz.hideKeyboard()
+            }
             Column {
                 id: pagesCol
                 x: Style.margin
@@ -727,7 +740,9 @@ Popup {
         // ── in basso: indietro / avanti / salva ────────────────────────────
         SteelPanel {
             id: bottomBar
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: -border.width; rightMargin: -border.width; bottomMargin: -border.width }
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: -border.width; rightMargin: -border.width }
+            // con la tastiera aperta i pulsanti le stanno sopra, sempre a portata
+            anchors.bottomMargin: Qt.inputMethod.visible ? Style.keyboardHeight(wiz.height, wiz.width) : -border.width
             height: Style.bar + 10 * Style.dp
             led: ""
             SteelPill {

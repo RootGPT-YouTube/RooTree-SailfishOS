@@ -5,6 +5,15 @@ import QtQuick
 // della finestra: 1 dp = 1/400 del lato corto (2,7 px sul POCO).
 QtObject {
     property real dp: 2.7
+    // L'altezza della tastiera di sistema sopra una finestra alta h e larga w.
+    // ⛔ Con Qt 6 il plugin Maliit dice «visibile» ma dà un'area 0x0 (misurato
+    // il 10/11 sul POCO): allora si usa quella misurata sullo schermo, 886 px
+    // su 2400 in verticale (37 %); in orizzontale è una stima.
+    function keyboardHeight(h, w) {
+        if (!Qt.inputMethod.visible) return 0
+        var r = Qt.inputMethod.keyboardRectangle.height
+        return r > 0 ? r : Math.round(h * (h >= w ? 0.37 : 0.5))
+    }
 
     readonly property bool italiano: Qt.locale().name.substring(0, 2) === "it"
     function t(it, en) { return italiano ? it : en }

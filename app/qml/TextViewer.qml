@@ -85,7 +85,7 @@ Popup {
             id: flick
             anchors { left: parent.left; right: parent.right; top: bar.bottom; bottom: parent.bottom }
             // sopra la tastiera, quando c'è
-            anchors.bottomMargin: Qt.inputMethod.visible ? Qt.inputMethod.keyboardRectangle.height : 0
+            anchors.bottomMargin: Style.keyboardHeight(viewer.height, viewer.width)
             contentWidth: viewer.wrap ? width : Math.max(width, body.implicitWidth + 2 * Style.margin)
             contentHeight: body.implicitHeight + 2 * Style.margin
             clip: true
