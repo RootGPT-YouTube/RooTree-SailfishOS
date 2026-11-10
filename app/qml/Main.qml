@@ -1607,5 +1607,12 @@ Window {
         }
     }
 
-    Toast { id: toast; y: parent.height - bottomBar.height - height - 40 * Style.dp; z: 10 }
+    // sopra i pannelli a tutto schermo (editor, procedure) e sopra la tastiera:
+    // nella finestra principale l'esito di un salvataggio dall'editor non si vedeva
+    Toast {
+        id: toast
+        parent: Overlay.overlay
+        z: 1000
+        y: parent ? parent.height - Math.max(bottomBar.height, Style.keyboardHeight(parent.height, parent.width)) - height - 40 * Style.dp : 0
+    }
 }

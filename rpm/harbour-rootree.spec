@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.7.0
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,9 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.0-2
+- I messaggi brevi (es. «Non salvato: accesso negato» dall'editor) ora si vedono anche sopra l'editor e sopra la tastiera
+
 * Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.0-1
 - SMB 2 e 3: le cartelle condivise di Windows, Samba e dei NAS, con utente e password o come ospite; firma e cifratura SMB3
 - Senza condivisione nella connessione si parte dall'elenco di quelle del server
