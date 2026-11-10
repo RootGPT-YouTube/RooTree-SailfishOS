@@ -1001,8 +1001,13 @@ Window {
         property var profile: ({})
         property string keyType
         property string fingerprint
-        title: Style.t("Server nuovo", "New server")
-        message: Style.t("È la prima volta che RooTree si collega a «" + (profile.host || "") + "». Se vuoi essere sicuro che sia davvero il tuo server, confronta questa impronta con quella del server (ssh-keygen -lf sulla sua chiave).",
+        // FTPS: un certificato che nessuna autorità garantisce (normale per un NAS)
+        readonly property bool tls: keyType === "TLS"
+        title: tls ? Style.t("Certificato da confermare", "Certificate to confirm") : Style.t("Server nuovo", "New server")
+        message: tls
+            ? Style.t("Il certificato di «" + (profile.host || "") + "» non è garantito da un'autorità riconosciuta: per un NAS o un server di casa è normale. Se vuoi essere sicuro che sia davvero il tuo server, confronta questa impronta SHA-256 con quella del suo certificato (openssl x509 -noout -fingerprint -sha256 -in certificato.pem). RooTree la ricorderà.",
+                      "The certificate of “" + (profile.host || "") + "” is not vouched for by a recognised authority: for a NAS or a home server that is normal. To be sure it really is your server, compare this SHA-256 fingerprint with its certificate's (openssl x509 -noout -fingerprint -sha256 -in certificate.pem). RooTree will remember it.")
+            : Style.t("È la prima volta che RooTree si collega a «" + (profile.host || "") + "». Se vuoi essere sicuro che sia davvero il tuo server, confronta questa impronta con quella del server (ssh-keygen -lf sulla sua chiave).",
                          "This is the first time RooTree connects to “" + (profile.host || "") + "”. To be sure it really is your server, compare this fingerprint with the server's (ssh-keygen -lf on its key).")
         buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Fidati e collega", "Trust and connect"), role: "accept" }]
         onChosen: function (role) {
@@ -1015,7 +1020,7 @@ Window {
             font.family: "monospace"
             width: parent.width
             wrapMode: Text.WrapAnywhere
-            text: hostKeyDialog.keyType + "\n" + hostKeyDialog.fingerprint
+            text: (hostKeyDialog.tls ? Style.t("Certificato TLS (SHA-256)", "TLS certificate (SHA-256)") : hostKeyDialog.keyType) + "\n" + hostKeyDialog.fingerprint
             color: Style.accent
             font.pixelSize: Style.fontS
         }
@@ -1026,15 +1031,19 @@ Window {
         property var profile: ({})
         property string keyType
         property string fingerprint
+        readonly property bool tls: keyType === "TLS"
         title: Style.t("Attenzione: il server è cambiato", "Warning: the server has changed")
-        message: Style.t("L'impronta di «" + (profile.host || "") + "» non è quella salvata in ~/.ssh/known_hosts. Può essere un server reinstallato, oppure qualcuno che si spaccia per lui: RooTree non si collega. Se sai che è cambiato davvero, togli la sua riga da known_hosts (ssh-keygen -R) e riprova.",
+        message: tls
+            ? Style.t("Il certificato di «" + (profile.host || "") + "» non è quello che avevi confermato. Può essere un certificato rinnovato, oppure qualcuno che si spaccia per il server: RooTree non si collega. Se sai che è cambiato davvero, togli la riga di «" + (profile.host || "") + ":" + (profile.port || 21) + "» dal file ~/.config/com.github.RootGPT_YouTube/rootree/certificati-ftps.json (anche con l'editor di RooTree) e riprova.",
+                      "The certificate of “" + (profile.host || "") + "” is not the one you confirmed. It may be a renewed certificate, or someone impersonating the server: RooTree does not connect. If you know it really changed, remove the line of “" + (profile.host || "") + ":" + (profile.port || 21) + "” from ~/.config/com.github.RootGPT_YouTube/rootree/certificati-ftps.json (the RooTree editor works too) and try again.")
+            : Style.t("L'impronta di «" + (profile.host || "") + "» non è quella salvata in ~/.ssh/known_hosts. Può essere un server reinstallato, oppure qualcuno che si spaccia per lui: RooTree non si collega. Se sai che è cambiato davvero, togli la sua riga da known_hosts (ssh-keygen -R) e riprova.",
                          "The fingerprint of “" + (profile.host || "") + "” is not the one saved in ~/.ssh/known_hosts. It may be a reinstalled server, or someone impersonating it: RooTree does not connect. If you know it really changed, remove its line from known_hosts (ssh-keygen -R) and try again.")
         buttons: [{ text: "OK", role: "reject" }]
         Text {
             font.family: "monospace"
             width: parent.width
             wrapMode: Text.WrapAnywhere
-            text: hostChanged.keyType + "\n" + hostChanged.fingerprint
+            text: (hostChanged.tls ? Style.t("Certificato TLS (SHA-256)", "TLS certificate (SHA-256)") : hostChanged.keyType) + "\n" + hostChanged.fingerprint
             color: Style.danger
             font.pixelSize: Style.fontS
         }

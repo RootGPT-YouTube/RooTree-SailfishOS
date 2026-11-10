@@ -1,6 +1,6 @@
 [package]
 name = "rootree-core"
-version = "0.6.8"
+version = "0.6.9"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
@@ -41,6 +41,10 @@ sha2 = "0.10"
 # Mega: il crate ufficioso (MIT/Apache-2.0) è asincrono
 mega = "0.8"
 reqwest = "0.12"
+# Fase 5 step 5: FTP e FTPS. Il TLS lo fa un connettore nostro su OpenSSL (ftp.rs):
+# serve il riuso della sessione sul canale dati e la fiducia al primo uso
+suppaftp = { version = "12", default-features = false, features = ["secure", "deprecated"] }
+openssl = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 futures = "0.3"
 sluice = "0.5"

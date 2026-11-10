@@ -20,6 +20,10 @@ use crate::remote::RStat;
 
 /// Quello che RooTree chiede a un cloud. I percorsi sono «/a/b» (radice «/»).
 pub trait Drive: Send + Sync {
+    /// La cartella da cui si apre la connessione.
+    fn start(&self) -> String {
+        "/".into()
+    }
     fn stat(&self, path: &str) -> io::Result<RStat>;
     fn list(&self, path: &str) -> io::Result<Vec<(String, RStat)>>;
     fn read(&self, path: &str) -> io::Result<Box<dyn Read + Send>>;
@@ -40,7 +44,7 @@ pub trait Drive: Send + Sync {
 }
 
 pub fn is_cloud_type(kind: &str) -> bool {
-    matches!(kind, "dropbox" | "mega" | "webdav" | "nextcloud")
+    matches!(kind, "dropbox" | "mega" | "webdav" | "nextcloud" | "ftp")
 }
 
 pub fn sink(d: Arc<dyn Drive>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
@@ -68,6 +72,9 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, Strin
     let p: Profile = serde_json::from_str(profile_json).map_err(|e| format!("profilo non valido: {e}"))?;
     if p.kind == "webdav" || p.kind == "nextcloud" {
         return crate::webdav::connect(profile_json, secret);
+    }
+    if p.kind == "ftp" {
+        return crate::ftp::connect(profile_json, secret);
     }
     if p.kind == "mega" {
         return Ok(Arc::new(Mega::connect(&p, secret)?));

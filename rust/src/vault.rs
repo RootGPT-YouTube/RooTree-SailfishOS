@@ -60,6 +60,11 @@ fn path() -> io::Result<PathBuf> {
         .ok_or_else(|| io::Error::other("cassaforte senza percorso"))
 }
 
+/// La cartella di configurazione dell'app (quella della cassaforte).
+pub fn dir() -> Option<PathBuf> {
+    path().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()))
+}
+
 pub fn exists() -> bool {
     path().map(|p| p.exists()).unwrap_or(false)
 }

@@ -359,6 +359,16 @@ Popup {
                             }
                         }
                     }
+                    Label {
+                        visible: wiz.info.type === "ftp"
+                        text: wiz.p.secure !== false
+                            ? (Number(wiz.v("port")) === 990
+                               ? Style.t("Porta 990: FTPS «implicito», cifrato fin dal primo byte.", "Port 990: “implicit” FTPS, encrypted from the first byte.")
+                               : Style.t("FTPS esplicito: il collegamento si cifra prima di mandare la password. Se il server non offre FTPS, togli «Cifrata»; per l'FTPS «implicito» usa la porta 990.",
+                                         "Explicit FTPS: the connection is encrypted before the password is sent. If the server does not offer FTPS, untick “Encrypted”; for “implicit” FTPS use port 990."))
+                            : Style.t("⚠ Senza cifratura la password e i file viaggiano leggibili da chiunque sia sulla rete: va bene solo in casa.",
+                                      "⚠ Without encryption the password and the files travel readable by anyone on the network: fine only at home.")
+                    }
                     // il percorso, che cambia nome e senso col tipo
                     Label {
                         visible: wiz.info.type !== "nextcloud" && wiz.info.type !== "s3"

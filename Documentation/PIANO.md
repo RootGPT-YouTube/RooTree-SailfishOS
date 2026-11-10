@@ -377,3 +377,23 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   con accenti e simboli, Annulla senza resti, 30 file in 3 cartelle, cestino.
   Provato dall'utente col dito, anche in HTTPS (0.6.8-6 aggiunge la procedura per la
   password per app). Restano FTP/FTPS, SMB, S3.
+- **10/11 — Fase 5, step 5: FTP e FTPS (0.6.9-1).** `ftp.rs` implementa `Drive`
+  col crate `suppaftp` (MIT/Apache-2.0) e un connettore TLS nostro su OpenSSL:
+  FTPS esplicito (AUTH TLS) e implicito (porta 990), accesso anonimo. Il canale
+  dati riusa la sessione TLS del SUO controllo (vsftpd e ProFTPD la pretendono di
+  serie), TLS 1.2 al massimo (in TLS 1.3 OpenSSL usa ogni biglietto una volta
+  sola e il secondo canale dati veniva rifiutato). Certificati fatti in casa:
+  impronta SHA-256 da confermare la prima volta (`certificati-ftps.json` accanto
+  alla cassaforte), un cambio viene rifiutato senza mandare la password. Un
+  collegamento per sfogliare e uno per ogni trasferimento (si sfoglia durante una
+  copia), con fino a due collegamenti finiti tenuti pronti: 30 file piccoli in
+  0,7–0,95 s invece di 13–16. Annulla toglie dal server il file a metà; i
+  collegamenti chiusi dal server per inattività si riaprono da soli.
+  Verifica: 35 test; dal POCO col motore vero contro ProFTPD 1.3.8 in un
+  container sul PC, in FTPS e in chiaro: 30 MB andata e ritorno identici, nomi con
+  accenti e simboli, file nascosti, Annulla, 30 file in 3 cartelle andata, ritorno
+  ed eliminazione, anonimo in sola lettura, ricollegamento dopo TimeoutIdle,
+  certificato cambiato rifiutato. ⚠️ FTPS implicito NON provato (la porta 990
+  non si apre da un container senza root). vsftpd nel container crollava da solo
+  anche con curl (segfault del processo principale): non usato per le prove.
+  ⏳ prova dell'utente col dito.

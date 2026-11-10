@@ -107,8 +107,9 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
     let p: Profile = serde_json::from_str(profile_json).map_err(|e| format!("profilo non valido: {e}"))?;
     if crate::cloud::is_cloud_type(&p.kind) {
         let drive = crate::cloud::connect(profile_json, secret)?;
+        let start = drive.start();
         clouds().lock().unwrap().insert(p.id.clone(), drive);
-        return Ok("/".into());
+        return Ok(start);
     }
     if p.kind != "sftp" {
         return Err(format!("UNSUPPORTED:il collegamento a «{}» arriva in uno step successivo", p.kind));
@@ -186,6 +187,10 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
 /// Fidarsi del server appena visto (risposta a HOSTKEY_NEW): la sua chiave
 /// va in ~/.ssh/known_hosts, come farebbe ssh.
 pub fn trust(id: &str) -> Result<(), String> {
+    // un certificato FTPS in attesa di conferma?
+    if let Some(r) = crate::ftp::trust(id) {
+        return r;
+    }
     let Some((pid, name, key, fmt)) = pending().lock().unwrap().take() else {
         return Err("nessun server in attesa di conferma".into());
     };
