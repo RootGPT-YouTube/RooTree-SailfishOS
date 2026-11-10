@@ -396,4 +396,26 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   certificato cambiato rifiutato. ⚠️ FTPS implicito NON provato (la porta 990
   non si apre da un container senza root). vsftpd nel container crollava da solo
   anche con curl (segfault del processo principale): non usato per le prove.
-  ⏳ prova dell'utente col dito.
+  ✅ Collaudata coi tocchi sintetici dal POCO (0.6.9-2: l'editor perdeva l'ultima
+  parola, che la tastiera teneva ancora in composizione).
+- **10/11 — Fase 5, step 5: SMB 2 e 3 (0.7.0-1).** `smb.rs` implementa `Drive` col
+  crate `smb2` (MIT/Apache-2.0, Rust puro: nessuna libreria nuova nel pacchetto):
+  firma e cifratura SMB3, NTLM, utente o ospite, dominio facoltativo. Un collegamento
+  solo: SMB fa viaggiare più richieste insieme, e letture e scritture hanno la loro
+  copia della connessione, quindi si sfoglia durante una copia. Percorsi: `/` è
+  l'elenco delle condivisioni (la condivisione nella connessione ora è facoltativa),
+  `/Condivisione/…` è dentro. Lettura a flusso con richieste in parallelo; scrittura
+  a pezzi da 1 MB; Annulla toglie il file a metà; fra due condivisioni si copia.
+  Una password sbagliata su un Samba «map to guest» non diventa un ospite muto: è
+  «password rifiutata». Se il server si riavvia, il collegamento si riprende da solo.
+  Verifica: 37 test; dal POCO col motore vero contro Samba 4.17 in un container sul
+  PC (porta 4450): password sbagliata, condivisione assente, elenco delle
+  condivisioni, 30 MB andata e ritorno identici (~11 MB/s in Wi-Fi), elenco durante
+  una lettura, Annulla senza resti, nomi con accenti e simboli, file nascosti, 30
+  file in 3 cartelle andata, ritorno ed eliminazione, condivisione con cifratura
+  obbligatoria, ospite in sola lettura, Samba riavviato a metà (ripresa in 33 ms).
+  Poi coi tocchi sintetici: procedura guidata, elenco delle condivisioni, copia da
+  una condivisione a quella cifrata (md5 identici), eliminazione, modifica di un file.
+  Insieme: la tastiera nella procedura non copre più i pulsanti e si chiude con un
+  tocco fuori o con Invio (con Qt 6 il plugin Maliit dà un'area 0x0: si usa
+  l'altezza misurata). Resta S3: con quello, la 0.8 (decisione dell'utente).

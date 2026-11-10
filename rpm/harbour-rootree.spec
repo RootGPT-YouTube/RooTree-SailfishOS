@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.6.9
-Release:    2
+Version:    0.7.0
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.0-1
+- SMB 2 e 3: le cartelle condivise di Windows, Samba e dei NAS, con utente e password o come ospite; firma e cifratura SMB3
+- Senza condivisione nella connessione si parte dall'elenco di quelle del server
+- Se il server si riavvia o il Wi-Fi cambia, il collegamento si riprende da solo
+- Nuova connessione: i pulsanti restano sopra la tastiera, e un tocco fuori dalle caselle (o Invio) la chiude
+
 * Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.6.9-2
 - Editor di testo: l'ultima parola scritta prima di toccare ✓ ora viene salvata (la tastiera la teneva ancora in sospeso)
 

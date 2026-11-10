@@ -18,6 +18,7 @@ pub mod vault;
 pub mod vfs;
 pub mod webdav;
 pub mod ftp;
+pub mod smb;
 
 /// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
 pub mod ffi_status {

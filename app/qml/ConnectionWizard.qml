@@ -89,7 +89,7 @@ Popup {
         if (page === 0) return info.type !== undefined
         if (page === 1) {
             if (info.type === "s3") return v("bucket") !== "" || v("host") !== ""
-            if (info.type === "smb") return v("host") !== "" && v("share") !== ""
+            if (info.type === "smb") return v("host") !== ""
             return v("host") !== "" && Number(v("port")) > 0
         }
         if (page === 2) {
@@ -385,14 +385,19 @@ Popup {
                     // il percorso, che cambia nome e senso col tipo
                     Label {
                         visible: wiz.info.type !== "nextcloud" && wiz.info.type !== "s3"
-                        text: wiz.info.type === "smb" ? Style.t("Condivisione", "Share")
+                        text: wiz.info.type === "smb" ? Style.t("Condivisione (facoltativa)", "Share (optional)")
                             : wiz.info.type === "webdav" ? Style.t("Percorso sul server (es. /dav)", "Path on the server (e.g. /dav)")
                             : Style.t("Cartella iniziale (facoltativa)", "Start folder (optional)")
                     }
                     Field {
                         visible: wiz.info.type !== "nextcloud" && wiz.info.type !== "s3"
                         key: wiz.info.type === "smb" ? "share" : "path"
-                        placeholderText: wiz.info.type === "smb" ? Style.t("es. Documenti", "e.g. Documents") : "/"
+                        placeholderText: wiz.info.type === "smb" ? Style.t("vuota: le scegli dall'elenco del server", "empty: pick from the server's list") : "/"
+                    }
+                    Label {
+                        visible: wiz.info.type === "smb"
+                        text: Style.t("Le cartelle condivise di Windows, Samba e dei NAS (SMB 2 e 3, cifratura compresa). Senza condivisione si parte dall'elenco di quelle del server.",
+                                      "Shared folders of Windows, Samba and NAS devices (SMB 2 and 3, encryption included). Without a share you start from the server's list.")
                     }
                     Label { visible: wiz.info.type === "smb"; text: Style.t("Dominio o gruppo di lavoro (facoltativo)", "Domain or workgroup (optional)") }
                     Field { visible: wiz.info.type === "smb"; key: "domain"; placeholderText: "WORKGROUP" }

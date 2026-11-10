@@ -1,6 +1,6 @@
 [package]
 name = "rootree-core"
-version = "0.6.9"
+version = "0.7.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
@@ -45,6 +45,9 @@ reqwest = "0.12"
 # serve il riuso della sessione sul canale dati e la fiducia al primo uso
 suppaftp = { version = "12", default-features = false, features = ["secure", "deprecated"] }
 openssl = "0.10"
+# Fase 5 step 5: SMB 2/3 (Windows, Samba, NAS), Rust puro: firma, cifratura,
+# NTLM, elenco delle condivisioni. Asincrono: gira sul runtime tokio come Mega
+smb2 = "0.43"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 futures = "0.3"
 sluice = "0.5"
