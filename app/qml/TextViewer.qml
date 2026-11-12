@@ -76,6 +76,8 @@ Popup {
                       : viewer.content.truncated ? Style.t("Mostrati i primi 2 MB", "Showing the first 2 MB") : ""
             onCloseClicked: viewer.dirty ? unsaved.open() : viewer.close()
             IconButton { icon: "wrap"; checked: viewer.wrap; onClicked: viewer.wrap = !viewer.wrap }
+            // selezionare il testo anche solo guardandolo (richiesta dell'utente del 12/11)
+            IconButton { icon: "selectall"; onClicked: body.selectAll() }
             IconButton { visible: viewer.canEdit && !viewer.editing; icon: "rename"; onClicked: { viewer.editing = true; body.forceActiveFocus() } }
             IconButton { visible: viewer.editing; icon: "check"; checked: viewer.dirty; onClicked: viewer.save() }
             IconButton { visible: !viewer.editing; icon: "share"; onClicked: Opener.share([viewer.path]) }
@@ -99,7 +101,19 @@ Popup {
                 readOnly: !viewer.editing
                 selectByMouse: viewer.editing
                 persistentSelection: true
+                selectionColor: Style.accent
+                selectedTextColor: "#ffffff"
                 onTextChanged: if (viewer.editing) viewer.dirty = true
+                // su touch il trascinamento scorre o sposta il cursore, non
+                // seleziona: pressione lunga o doppio tocco = la parola, poi le maniglie
+                TapHandler {
+                    function word(ev) {
+                        body.cursorPosition = body.positionAt(ev.position.x, ev.position.y)
+                        body.selectWord()
+                    }
+                    onLongPressed: word(point)
+                    onDoubleTapped: function (ev) { word(ev) }
+                }
                 // il cursore resta in vista mentre si scrive
                 onCursorRectangleChanged: {
                     if (!viewer.editing) return
@@ -113,6 +127,48 @@ Popup {
                 color: Style.text
                 font.family: "monospace"
                 font.pixelSize: 12.5 * Style.dp
+            }
+            // dentro il contenuto: scorrono insieme al testo
+            SelectionHandles { field: body }
+        }
+        // cosa fare con la selezione: Tutto, Copia; in modifica anche Taglia e Incolla
+        Rectangle {
+            id: selBar
+            readonly property bool has: body.selectedText.length > 0
+            visible: has || (viewer.editing && body.canPaste)
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: flick.bottom; bottomMargin: 10 * Style.dp }
+            width: selRow.implicitWidth + 16 * Style.dp
+            height: selRow.implicitHeight + 12 * Style.dp
+            radius: height / 2
+            color: Style.alpha(Style.bg, 0.92)
+            border.color: Style.line
+            border.width: 1 * Style.dp
+            z: 10
+            Row {
+                id: selRow
+                anchors.centerIn: parent
+                spacing: 6 * Style.dp
+                SteelPill { text: Style.t("Tutto", "All"); onClicked: body.selectAll() }
+                SteelPill {
+                    visible: selBar.has
+                    text: Style.t("Copia", "Copy")
+                    onClicked: { body.copy(); viewer.message(Style.t("Copiato", "Copied"), false) }
+                }
+                SteelPill {
+                    visible: selBar.has && viewer.editing
+                    text: Style.t("Taglia", "Cut")
+                    onClicked: body.cut()
+                }
+                SteelPill {
+                    visible: viewer.editing && body.canPaste
+                    text: Style.t("Incolla", "Paste")
+                    onClicked: { body.forceActiveFocus(); body.paste() }
+                }
+                SteelPill {
+                    visible: selBar.has
+                    text: "✕"
+                    onClicked: body.deselect()
+                }
             }
         }
         Column {

@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.7.1
-Release:    2
+Release:    3
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-3
+- Visore ed editor di testo: pressione lunga o doppio tocco seleziona la parola, maniglie per allargare,
+  «Seleziona tutto» nella barra, fila Tutto/Copia/Taglia/Incolla
+
 * Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-2
 - Cestino: lo stesso filesystem della home va nel cestino della home anche fuori dalla home
 - Cestino: «Svuota il cestino» sempre in vista in cima alla pagina (grigio se è vuoto)
