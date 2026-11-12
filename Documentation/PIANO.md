@@ -419,3 +419,19 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Insieme: la tastiera nella procedura non copre più i pulsanti e si chiude con un
   tocco fuori o con Invio (con Qt 6 il plugin Maliit dà un'area 0x0: si usa
   l'altezza misurata). Resta S3: con quello, la 0.8 (decisione dell'utente).
+- **12/11 — Cestino in ogni memoria, editor di testo, Nuovo file (0.7.1-1 → -6).**
+  Fuori dal piano, su richiesta dell'utente. `trash.rs`: cestino freedesktop per la
+  home, per ogni altro montaggio (`.Trash-<uid>`: memoria Android, SD, USB), per
+  root (`.Trash-0`, di root e 700) e per i server senza cestino proprio
+  (`.Trash-rootree` nella cartella iniziale, in cima a ogni condivisione SMB);
+  Nextcloud, Mega e Dropbox usano il loro. Elimina = nel cestino, con la casella
+  «Elimina definitivamente»; svuotamento da solo dopo 30 giorni (7/30/90/mai).
+  Menù ⋮: «Nuovo file», «Cestino» nella sezione Cartella, «Opzioni per Remoto» in
+  una sezione sua. Il visore/editor di testo ora si comporta da editor: tocco =
+  cursore, tocco fuori = via la selezione, doppio tocco o pressione lunga = parola,
+  maniglie e pressione lunga + trascina per allargare anche su più righe, barra
+  Tutto/Copia/Taglia/Incolla agganciata in fondo.
+  Verifica: 40 test Rust (3 nuovi sul cestino); sul POCO senza schermo
+  (`tools/collaudo-cestino`) interna, Android, SD e root; l'editor sul PC con tocchi
+  veri (`tools/collaudo-editor`, PySide6, 15 controlli). Non provati sul vivo i
+  cestini dei server e dei cloud.
