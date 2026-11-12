@@ -15,6 +15,21 @@ Popup {
     property bool wrap: true
     property bool editing: false
     property bool dirty: false
+    // dove si era leggendo: passando a «Modifica» Qt porta il cursore in
+    // fondo al file (setReadOnly) e la pagina scorre fino alla fine; si torna
+    // qui (visto il 12/11 col banco di prova: il tocco dopo cadeva altrove)
+    property int readCursor: 0
+    property real readY: 0
+    onEditingChanged: if (editing) Qt.callLater(keepPlace)
+    function keepPlace() {
+        flick.contentY = readY
+        var r = body.positionToRectangle(readCursor)
+        var visible = r.y + body.y >= readY && r.y + body.y + r.height <= readY + flick.height
+        body.cursorPosition = visible ? readCursor : body.positionAt(0, readY - body.y + 2)
+        flick.contentY = readY
+        body.forceActiveFocus()
+        Qt.inputMethod.show()
+    }
     readonly property bool canEdit: content.text !== undefined && !content.truncated
                                     && (Fs.isWritable(path) || Fs.rootActive)
     signal openWithRequested(string path)
@@ -76,48 +91,41 @@ Popup {
                       : viewer.content.truncated ? Style.t("Mostrati i primi 2 MB", "Showing the first 2 MB") : ""
             onCloseClicked: viewer.dirty ? unsaved.open() : viewer.close()
             IconButton { icon: "wrap"; checked: viewer.wrap; onClicked: viewer.wrap = !viewer.wrap }
-            // selezionare il testo anche solo guardandolo (richiesta dell'utente del 12/11)
-            IconButton { icon: "selectall"; onClicked: body.selectAll() }
-            IconButton { visible: viewer.canEdit && !viewer.editing; icon: "rename"; onClicked: { viewer.editing = true; body.forceActiveFocus() } }
+            IconButton { visible: viewer.canEdit && !viewer.editing; icon: "rename"; onClicked: viewer.editing = true }
             IconButton { visible: viewer.editing; icon: "check"; checked: viewer.dirty; onClicked: viewer.save() }
             IconButton { visible: !viewer.editing; icon: "share"; onClicked: Opener.share([viewer.path]) }
             IconButton { visible: !viewer.editing; icon: "openwith"; onClicked: viewer.openWithRequested(viewer.path) }
         }
         Flickable {
             id: flick
+            objectName: "flick"
             anchors { left: parent.left; right: parent.right; top: bar.bottom; bottom: parent.bottom }
             // sopra la tastiera, quando c'è
             anchors.bottomMargin: Style.keyboardHeight(viewer.height, viewer.width)
             contentWidth: viewer.wrap ? width : Math.max(width, body.implicitWidth + 2 * Style.margin)
-            contentHeight: body.implicitHeight + 2 * Style.margin
+            // spazio in fondo: le ultime righe salgono sopra la fila Tutto/Copia/Incolla
+            contentHeight: body.implicitHeight + 2 * Style.margin + 60 * Style.dp
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             visible: viewer.content.text !== undefined
+            onContentYChanged: if (!viewer.editing) viewer.readY = contentY
             TextEdit {
                 id: body
+                objectName: "body"
                 x: Style.margin
                 y: Style.margin
                 width: viewer.wrap ? flick.width - 2 * Style.margin : implicitWidth
                 readOnly: !viewer.editing
-                selectByMouse: viewer.editing
+                // i tocchi li gestisce tutti `touch` qui sotto: il TextEdit da
+                // solo, dentro la Flickable, perdeva i tocchi appena il dito
+                // tremava (li prendeva lo scorrimento)
+                selectByMouse: false
+                activeFocusOnPress: false
                 persistentSelection: true
                 selectionColor: Style.accent
                 selectedTextColor: "#ffffff"
                 onTextChanged: if (viewer.editing) viewer.dirty = true
-                // su touch il trascinamento scorre o sposta il cursore, non
-                // seleziona: pressione lunga o doppio tocco = la parola, poi le maniglie
-                // ⛔ solo in lettura: in modifica si prendeva il tocco che dà il
-                // cursore e la tastiera all'editor, e non si scriveva più (12/11);
-                // lì il doppio tocco sulla parola lo fa il TextEdit da sé
-                TapHandler {
-                    enabled: !viewer.editing
-                    function word(ev) {
-                        body.cursorPosition = body.positionAt(ev.position.x, ev.position.y)
-                        body.selectWord()
-                    }
-                    onLongPressed: word(point)
-                    onDoubleTapped: function (ev) { word(ev) }
-                }
+                onCursorPositionChanged: if (!viewer.editing) viewer.readCursor = cursorPosition
                 // il cursore resta in vista mentre si scrive
                 onCursorRectangleChanged: {
                     if (!viewer.editing) return
@@ -132,14 +140,53 @@ Popup {
                 font.family: "monospace"
                 font.pixelSize: 12.5 * Style.dp
             }
-            // dentro il contenuto: scorrono insieme al testo
-            SelectionHandles { field: body }
+            // Tutti i tocchi sul testo, come in un editor qualunque (richiesta
+            // dell'utente del 12/11): un tocco mette il cursore lì e toglie la
+            // selezione; doppio tocco o pressione lunga = la parola. Una
+            // MouseArea (non un TapHandler): si prende il tocco intero, e la
+            // Flickable lo ruba solo se il dito scorre davvero.
+            MouseArea {
+                id: touch
+                objectName: "touch"
+                width: flick.contentWidth
+                height: Math.max(flick.contentHeight, flick.height)
+                z: 2
+                function posAt(m) {
+                    var p = mapToItem(body, m.x, m.y)
+                    return body.positionAt(p.x, p.y)
+                }
+                function place(m) {
+                    // la parola ancora «in composizione» va scritta prima di
+                    // spostarsi, sennò il tocco finisce dentro la tastiera
+                    // (l'ultima parola scritta non prendeva il cursore)
+                    Qt.inputMethod.commit()
+                    var pos = posAt(m)
+                    body.deselect()
+                    body.cursorPosition = pos
+                    if (viewer.editing) {
+                        body.forceActiveFocus()
+                        Qt.inputMethod.show()
+                    }
+                }
+                function word(m) {
+                    Qt.inputMethod.commit()
+                    body.cursorPosition = posAt(m)
+                    body.selectWord()
+                    if (viewer.editing) body.forceActiveFocus()
+                }
+                onClicked: function (m) { place(m) }
+                onDoubleClicked: function (m) { word(m) }
+                onPressAndHold: function (m) { word(m) }
+            }
+            // dentro il contenuto: scorrono insieme al testo, sopra i tocchi
+            SelectionHandles { field: body; z: 5; onTapped: function (x, y) { touch.place({ x: x, y: y }) } }
         }
         // cosa fare con la selezione: Tutto, Copia; in modifica anche Taglia e Incolla
         Rectangle {
             id: selBar
             readonly property bool has: body.selectedText.length > 0
-            visible: has || (viewer.editing && body.canPaste)
+            // in modifica sempre (c'è «Tutto», al posto del pulsante in alto tolto il 12/11)
+            visible: has || viewer.editing
             anchors { horizontalCenter: parent.horizontalCenter; bottom: flick.bottom; bottomMargin: 10 * Style.dp }
             width: selRow.implicitWidth + 16 * Style.dp
             height: selRow.implicitHeight + 12 * Style.dp

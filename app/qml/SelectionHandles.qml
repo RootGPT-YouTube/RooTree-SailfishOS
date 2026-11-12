@@ -12,6 +12,9 @@ Item {
     z: 5
 
     readonly property bool active: field && field.selectedText.length > 0
+    // un tocco su una maniglia senza trascinarla: per chi sta sotto è un tocco
+    // sul testo (la maniglia copre la riga sotto la selezione), coordinate di h
+    signal tapped(real x, real y)
     readonly property real knob: 22 * Style.dp
 
     // la posizione (nelle coordinate di h) di un capo della selezione
@@ -48,7 +51,18 @@ Item {
         MouseArea {
             anchors.fill: parent
             preventStealing: true
+            property bool moved: false
+            property point down
+            onPressed: function (m) { moved = false; down = Qt.point(m.x, m.y) }
+            onReleased: function (m) {
+                if (!moved) {
+                    var p = mapToItem(h, m.x, m.y)
+                    h.tapped(p.x, p.y)
+                }
+            }
             onPositionChanged: function (m) {
+                if (Math.abs(m.x - down.x) + Math.abs(m.y - down.y) > 8 * Style.dp) moved = true
+                if (!moved) return
                 var p = mapToItem(h, m.x, -h.knob * 0.8)
                 var pos = h.posAt(p.x, p.y)
                 var s = field.selectionStart, e = field.selectionEnd

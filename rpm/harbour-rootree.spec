@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.7.1
-Release:    4
+Release:    5
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-5
+- Editor come un editor: un tocco mette il cursore lì e toglie la selezione, anche col dito che trema;
+  doppio tocco o pressione lunga = parola; la parola in composizione si conferma prima di spostarsi;
+  «Modifica» non salta più in fondo al file; le maniglie non si prendono i tocchi della riga sotto;
+  tolto il pulsante «Seleziona tutto» in alto (c'è la pillola Tutto)
+
 * Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-4
 - Editor: di nuovo si scrive (la pressione lunga per selezionare vale solo in lettura)
 

@@ -1,0 +1,3 @@
+module RooTree
+singleton Fs 1.0 Fs.qml
+singleton Opener 1.0 Opener.qml
