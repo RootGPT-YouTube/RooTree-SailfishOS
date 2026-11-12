@@ -106,7 +106,11 @@ Popup {
                 onTextChanged: if (viewer.editing) viewer.dirty = true
                 // su touch il trascinamento scorre o sposta il cursore, non
                 // seleziona: pressione lunga o doppio tocco = la parola, poi le maniglie
+                // ⛔ solo in lettura: in modifica si prendeva il tocco che dà il
+                // cursore e la tastiera all'editor, e non si scriveva più (12/11);
+                // lì il doppio tocco sulla parola lo fa il TextEdit da sé
                 TapHandler {
+                    enabled: !viewer.editing
                     function word(ev) {
                         body.cursorPosition = body.positionAt(ev.position.x, ev.position.y)
                         body.selectWord()
