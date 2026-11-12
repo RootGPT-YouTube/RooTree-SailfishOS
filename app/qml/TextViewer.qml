@@ -30,6 +30,12 @@ Popup {
         body.forceActiveFocus()
         Qt.inputMethod.show()
     }
+    function showEnd() {
+        var r = body.positionToRectangle(body.selectionEnd)
+        var bottom = body.y + r.y + r.height + handles.knob * 2
+        if (bottom > flick.contentY + flick.height)
+            flick.contentY = Math.min(bottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
+    }
     readonly property bool canEdit: content.text !== undefined && !content.truncated
                                     && (Fs.isWritable(path) || Fs.rootActive)
     signal openWithRequested(string path)
@@ -99,12 +105,14 @@ Popup {
         Flickable {
             id: flick
             objectName: "flick"
-            anchors { left: parent.left; right: parent.right; top: bar.bottom; bottom: parent.bottom }
-            // sopra la tastiera, quando c'è
-            anchors.bottomMargin: Style.keyboardHeight(viewer.height, viewer.width)
+            // finisce sopra la barra della selezione (o sopra la tastiera): la
+            // barra non copre mai il testo (prima galleggiava sulle ultime
+            // righe e la sua ✕ si prendeva i tocchi delle maniglie, 12/11)
+            anchors { left: parent.left; right: parent.right; top: bar.bottom; bottom: selBar.visible ? selBar.top : parent.bottom }
+            anchors.bottomMargin: selBar.visible ? 0 : Style.keyboardHeight(viewer.height, viewer.width)
             contentWidth: viewer.wrap ? width : Math.max(width, body.implicitWidth + 2 * Style.margin)
-            // spazio in fondo: le ultime righe salgono sopra la fila Tutto/Copia/Incolla
-            contentHeight: body.implicitHeight + 2 * Style.margin + 60 * Style.dp
+            // spazio in fondo per il disco della maniglia sotto l'ultima riga
+            contentHeight: body.implicitHeight + 2 * Style.margin + handles.knob * 2
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             visible: viewer.content.text !== undefined
@@ -126,6 +134,9 @@ Popup {
                 selectedTextColor: "#ffffff"
                 onTextChanged: if (viewer.editing) viewer.dirty = true
                 onCursorPositionChanged: if (!viewer.editing) viewer.readCursor = cursorPosition
+                // la maniglia di fine (un disco sotto la riga) resta in vista:
+                // sull'ultima riga visibile finiva sotto la barra (12/11)
+                onSelectionEndChanged: if (selectedText.length > 0) Qt.callLater(viewer.showEnd)
                 // il cursore resta in vista mentre si scrive
                 onCursorRectangleChanged: {
                     if (!viewer.editing) return
@@ -174,12 +185,31 @@ Popup {
                     body.selectWord()
                     if (viewer.editing) body.forceActiveFocus()
                 }
+                // pressione lunga e poi, senza alzare il dito, si allarga la
+                // selezione (come su Android): finché si tiene, niente scorrimento
+                property bool extending: false
+                property int anchorStart: 0
+                property int anchorEnd: 0
                 onClicked: function (m) { place(m) }
                 onDoubleClicked: function (m) { word(m) }
-                onPressAndHold: function (m) { word(m) }
+                onPressAndHold: function (m) {
+                    word(m)
+                    anchorStart = body.selectionStart
+                    anchorEnd = body.selectionEnd
+                    extending = true
+                    preventStealing = true
+                }
+                onPositionChanged: function (m) {
+                    if (!extending) return
+                    var pos = posAt(m)
+                    if (pos < anchorStart) body.select(anchorEnd, pos)
+                    else body.select(anchorStart, Math.max(pos, anchorEnd))
+                }
+                onReleased: { extending = false; preventStealing = false }
+                onCanceled: { extending = false; preventStealing = false }
             }
             // dentro il contenuto: scorrono insieme al testo, sopra i tocchi
-            SelectionHandles { field: body; z: 5; onTapped: function (x, y) { touch.place({ x: x, y: y }) } }
+            SelectionHandles { id: handles; field: body; z: 5; onTapped: function (x, y) { touch.place({ x: x, y: y }) } }
         }
         // cosa fare con la selezione: Tutto, Copia; in modifica anche Taglia e Incolla
         Rectangle {
@@ -187,14 +217,11 @@ Popup {
             readonly property bool has: body.selectedText.length > 0
             // in modifica sempre (c'è «Tutto», al posto del pulsante in alto tolto il 12/11)
             visible: has || viewer.editing
-            anchors { horizontalCenter: parent.horizontalCenter; bottom: flick.bottom; bottomMargin: 10 * Style.dp }
-            width: selRow.implicitWidth + 16 * Style.dp
+            // una barra agganciata in fondo, sopra la tastiera
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: Style.keyboardHeight(viewer.height, viewer.width) }
             height: selRow.implicitHeight + 12 * Style.dp
-            radius: height / 2
-            color: Style.alpha(Style.bg, 0.92)
-            border.color: Style.line
-            border.width: 1 * Style.dp
-            z: 10
+            color: Style.bg2
+            Rectangle { anchors { left: parent.left; right: parent.right; top: parent.top } height: 1 * Style.dp; color: Style.line }
             Row {
                 id: selRow
                 anchors.centerIn: parent

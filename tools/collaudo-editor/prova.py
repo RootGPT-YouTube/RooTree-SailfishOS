@@ -90,8 +90,36 @@ s = st(); check(s["sel"] == "", "lettura: un tocco fuori toglie la selezione")
 tap(x, y); tap(x, y)  # doppio tocco
 s = st(); check(s["sel"] == "cinque", f"lettura: doppio tocco seleziona la parola ({s['sel']!r})")
 
+# trascinare la maniglia di fine una riga sotto
+def drag_from(x, y, dx, dy, hold=0):
+    QTest.touchEvent(w, dev).press(0, QPoint(int(x), int(y)), w).commit(); wait(hold or 30)
+    for k in range(1, 16):
+        QTest.touchEvent(w, dev).move(0, QPoint(int(x + dx * k / 15), int(y + dy * k / 15)), w).commit(); wait(16)
+    QTest.touchEvent(w, dev).release(0, QPoint(int(x + dx), int(y + dy)), w).commit(); wait(150)
+
+def handle_test(label):
+    wait(700)
+    tap(x, y); tap(x, y)  # «cinque»
+    h = call("handleOf", True)
+    print("PRIMA maniglia", label, h, repr(st()["sel"]), "contentY", st()["contentY"], "fondo flick", st()["flickBottom"])
+    drag_from(h["x"], h["y"], 0, h["line"] * 1.0)
+    s = st(); check("\n" in s["sel"] or len(s["sel"]) > 12, f"{label}: maniglia trascinata alla riga sotto allarga la selezione ({s['sel']!r})")
+    wait(700)
+    tap(x2, y2)
+    # pressione lunga e poi giù senza alzare il dito
+    QTest.touchEvent(w, dev).press(0, QPoint(int(x), int(y)), w).commit(); wait(900)
+    line = call("handleOf", True)["line"]
+    for k in range(1, 16):
+        QTest.touchEvent(w, dev).move(0, QPoint(int(x), int(y + line * 1.0 * k / 15)), w).commit(); wait(16)
+    QTest.touchEvent(w, dev).release(0, QPoint(int(x), int(y + line)), w).commit(); wait(150)
+    s = st(); check(len(s["sel"]) > 12, f"{label}: pressione lunga e giù col dito allarga la selezione ({s['sel']!r})")
+    wait(700)
+    tap(x2, y2)
+
+handle_test("lettura")
+
 # --- modifica
-viewer.setProperty("editing", True); wait(100)
+viewer.setProperty("editing", True); wait(800)
 print("DOPO editing:", {k: v for k, v in st().items() if k != "text"})
 tap(x2, y2)
 s = st(); check(s["sel"] == "" and abs(s["cursor"] - testo.index("otto")) <= 1 and s["focus"], f"modifica: tocco mette il cursore lì e toglie la selezione (cursore {s['cursor']}, atteso {testo.index('otto')}, fuoco {s['focus']})")
@@ -107,6 +135,10 @@ tap(x3, y3); tap(x3, y3)
 s = st(); check(s["sel"] == "sette", f"modifica: doppio tocco seleziona la parola ({s['sel']!r})")
 tap(x2, y2)
 s = st(); check(s["sel"] == "", "modifica: tocco fuori toglie la selezione")
+xs, ys = x, y
+x, y = x3, y3
+handle_test("modifica")
+x, y = xs, ys
 # scorrere non sposta il cursore
 c0 = st()["cursor"]; y0 = st()["contentY"]
 drag(200, 500, -300)

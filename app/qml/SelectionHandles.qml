@@ -53,7 +53,16 @@ Item {
             preventStealing: true
             property bool moved: false
             property point down
-            onPressed: function (m) { moved = false; down = Qt.point(m.x, m.y) }
+            // in coordinate della scena: la maniglia si sposta mentre la si
+            // trascina, quindi le coordinate locali non bastano
+            property point fingerAt
+            property point tipAt
+            onPressed: function (m) {
+                moved = false
+                down = Qt.point(m.x, m.y)
+                fingerAt = mapToItem(null, m.x, m.y)
+                tipAt = h.mapToItem(null, one.tip.x, one.tip.y)
+            }
             onReleased: function (m) {
                 if (!moved) {
                     var p = mapToItem(h, m.x, m.y)
@@ -63,7 +72,12 @@ Item {
             onPositionChanged: function (m) {
                 if (Math.abs(m.x - down.x) + Math.abs(m.y - down.y) > 8 * Style.dp) moved = true
                 if (!moved) return
-                var p = mapToItem(h, m.x, -h.knob * 0.8)
+                // ⛔ prima contava solo lo spostamento orizzontale (andava bene
+                // per Rinomina, una riga sola): nell'editor non si scendeva
+                // mai alla riga sotto (12/11). Ora: la punta di partenza più
+                // lo spostamento del dito, un filo sopra il fondo della riga
+                var f = mapToItem(null, m.x, m.y)
+                var p = h.mapFromItem(null, tipAt.x + f.x - fingerAt.x, tipAt.y + f.y - fingerAt.y - 3 * Style.dp)
                 var pos = h.posAt(p.x, p.y)
                 var s = field.selectionStart, e = field.selectionEnd
                 if (one.start) {

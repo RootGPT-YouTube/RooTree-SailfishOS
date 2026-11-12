@@ -16,6 +16,13 @@ ApplicationWindow {
         var p = b.mapToItem(null, r.x + 2, r.y + r.height / 2)
         return { x: p.x, y: p.y }
     }
+    // il centro del disco della maniglia di fine (o d'inizio) selezione
+    function handleOf(end) {
+        var b = findBody()
+        var r = b.positionToRectangle(end ? b.selectionEnd : b.selectionStart)
+        var p = b.mapToItem(null, r.x, r.y + r.height)
+        return { x: p.x, y: p.y - 4 * Style.dp + 22 * Style.dp, line: r.height }
+    }
     function findBody() { return find(v.contentItem, "body") }
     function find(it, name) {
         if (!it) return null
@@ -27,6 +34,6 @@ ApplicationWindow {
     }
     function state() {
         var b = findBody(), f = find(v.contentItem, "flick")
-        return { lines: b.lineCount, bh: b.height, bw: b.width, fh: f.height, ch: f.contentHeight, cursor: b.cursorPosition, sel: b.selectedText, focus: b.activeFocus, text: b.text, contentY: f.contentY, editing: v.editing }
+        var fp = f.mapToItem(null, 0, f.height); return { flickBottom: fp.y, lines: b.lineCount, bh: b.height, bw: b.width, fh: f.height, ch: f.contentHeight, cursor: b.cursorPosition, sel: b.selectedText, focus: b.activeFocus, text: b.text, contentY: f.contentY, editing: v.editing }
     }
 }
