@@ -35,6 +35,11 @@ pub trait Drive: Send + Sync {
     /// file o cartella (anche piena)
     fn delete(&self, path: &str) -> io::Result<()>;
     fn rename(&self, from: &str, to: &str) -> io::Result<()>;
+    /// Eliminare senza cestino (chi ce l'ha lo salta; Dropbox non lo permette
+    /// alle app comuni: resta nel suo cestino).
+    fn delete_forever(&self, path: &str) -> io::Result<()> {
+        self.delete(path)
+    }
 
     /// Il cestino, per chi ce l'ha come cartella consultabile (Nextcloud).
     /// `action`: list | restore | delete | empty; dà il JSON delle voci (list).
@@ -182,6 +187,44 @@ fn dbx_stat(e: &Value) -> RStat {
 const DBX_CHUNK: usize = 8 << 20;
 
 impl Dropbox {
+    /// Tutte le voci eliminate (path_lower, path_display), da tutto l'account.
+    fn deleted_entries(&self) -> io::Result<Vec<(String, String)>> {
+        let mut out = Vec::new();
+        let mut v = self.rpc("files/list_folder", json!({ "path": "", "recursive": true, "include_deleted": true, "limit": 2000 }))?;
+        loop {
+            for e in v["entries"].as_array().into_iter().flatten() {
+                if e[".tag"] == "deleted" {
+                    let shown = e["path_display"].as_str().unwrap_or("").to_string();
+                    let lower = e["path_lower"].as_str().map(str::to_string).unwrap_or_else(|| shown.to_lowercase());
+                    out.push((lower, shown));
+                }
+            }
+            if v["has_more"] != true {
+                break;
+            }
+            let cursor = v["cursor"].as_str().unwrap_or("").to_string();
+            v = self.rpc("files/list_folder/continue", json!({ "cursor": cursor }))?;
+        }
+        Ok(out)
+    }
+
+    /// Un file: la sua ultima versione torna dov'era. Una cartella vuota si ricrea.
+    fn restore_one(&self, path: &str) -> io::Result<()> {
+        match self.rpc("files/list_revisions", json!({ "path": path, "mode": "path", "limit": 1 })) {
+            Ok(v) => {
+                let rev = v["entries"][0]["rev"].as_str().unwrap_or("").to_string();
+                if rev.is_empty() {
+                    return Err(io::Error::other("Dropbox: nessuna versione da ripristinare"));
+                }
+                self.rpc("files/restore", json!({ "path": path, "rev": rev })).map(|_| ())
+            }
+            Err(e) if e.to_string().contains("not_file") => {
+                self.rpc("files/create_folder_v2", json!({ "path": path, "autorename": false })).map(|_| ())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     fn rpc(&self, endpoint: &str, arg: Value) -> io::Result<Value> {
         let url = format!("https://api.dropboxapi.com/2/{endpoint}");
         let body = arg.to_string();
@@ -265,6 +308,57 @@ impl Drive for Dropbox {
 
     fn delete(&self, path: &str) -> io::Result<()> {
         self.rpc("files/delete_v2", json!({ "path": dbx_path(path) })).map(|_| ())
+    }
+
+    /// Il cestino di Dropbox: le voci eliminate (le cartelle intere una volta
+    /// sola), da ripristinare. Il definitivo l'API lo dà solo ai team
+    /// (files.permanent_delete): Dropbox le toglie da solo dopo 30 giorni.
+    fn trash(&self, action: &str, item: &str) -> io::Result<String> {
+        match action {
+            "list" => {
+                let deleted = self.deleted_entries()?;
+                let lower: std::collections::HashSet<String> = deleted.iter().map(|(l, _)| l.clone()).collect();
+                let mut out = Vec::new();
+                for (l, shown) in &deleted {
+                    // dentro una cartella eliminata: la rappresenta la cartella
+                    let mut anc = l.as_str();
+                    let mut covered = false;
+                    while let Some(i) = anc.rfind('/') {
+                        anc = &anc[..i];
+                        if !anc.is_empty() && lower.contains(anc) {
+                            covered = true;
+                            break;
+                        }
+                    }
+                    if covered {
+                        continue;
+                    }
+                    let dir = deleted.iter().any(|(o, _)| o.starts_with(&format!("{l}/")));
+                    let name = shown.rsplit('/').next().unwrap_or(shown);
+                    out.push(json!({ "id": shown, "name": name, "original": shown, "deleted": 0, "size": 0, "dir": dir }));
+                }
+                Ok(Value::Array(out).to_string())
+            }
+            "restore" => {
+                let want = item.to_lowercase();
+                let deleted = self.deleted_entries()?;
+                let inside: Vec<&(String, String)> = deleted.iter().filter(|(l, _)| l.starts_with(&format!("{want}/"))).collect();
+                if inside.is_empty() {
+                    self.restore_one(item)?;
+                } else {
+                    // una cartella: si rimettono i suoi file (Dropbox ricrea le cartelle)
+                    for (l, shown) in &inside {
+                        if !deleted.iter().any(|(o, _)| o.starts_with(&format!("{l}/"))) {
+                            self.restore_one(shown)?;
+                        }
+                    }
+                }
+                Ok(String::new())
+            }
+            _ => Err(io::Error::other(
+                "Dropbox non permette alle app di eliminare definitivamente: i file eliminati li toglie da solo dopo 30 giorni, o si tolgono dal sito",
+            )),
+        }
     }
 
     fn rename(&self, from: &str, to: &str) -> io::Result<()> {
@@ -351,6 +445,36 @@ impl crate::vfs::Sink for DropboxSink {
 // browser né chiavi dell'app. L'API dà tutto l'albero in una volta: si ricorda
 // per poco e si dimentica a ogni modifica.
 // Eliminare e sovrascrivere = spostare nel cestino di Mega (si recupera dal sito).
+
+/// Dove stavano le voci messe nel cestino di Mega da RooTree (handle →
+/// percorso e data), accanto alla cassaforte.
+fn mega_bin_file() -> Option<std::path::PathBuf> {
+    crate::vault::dir().map(|d| d.join("cestino-mega.json"))
+}
+
+fn mega_bin_notes() -> Value {
+    mega_bin_file().and_then(|f| std::fs::read_to_string(f).ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_else(|| json!({}))
+}
+
+/// `Some(percorso)` annota, `None` dimentica.
+fn mega_bin_note(handle: &str, path: Option<&str>) {
+    let Some(f) = mega_bin_file() else { return };
+    let mut v = mega_bin_notes();
+    let Some(m) = v.as_object_mut() else { return };
+    match path {
+        Some(p) => {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            m.insert(handle.into(), json!({ "path": p, "deleted": now }));
+        }
+        None => {
+            m.remove(handle);
+        }
+    }
+    let tmp = f.with_extension("json.tmp");
+    if std::fs::write(&tmp, v.to_string()).is_ok() {
+        let _ = std::fs::rename(&tmp, &f);
+    }
+}
 
 const MEGA_CACHE: Duration = Duration::from_secs(30);
 
@@ -568,9 +692,86 @@ impl Drive for Mega {
 
     fn delete(&self, path: &str) -> io::Result<()> {
         let nodes = self.nodes()?;
-        self.to_bin(&nodes, mega_at(&nodes, path)?)?;
+        let node = mega_at(&nodes, path)?;
+        self.to_bin(&nodes, node)?;
+        // da dove veniva: Mega non lo ricorda per le app, lo ricorda RooTree
+        mega_bin_note(node.handle(), Some(path));
         self.forget();
         Ok(())
+    }
+
+    fn delete_forever(&self, path: &str) -> io::Result<()> {
+        let nodes = self.nodes()?;
+        self.rt.block_on(self.client.delete_node(mega_at(&nodes, path)?)).map_err(mega_err)?;
+        self.forget();
+        Ok(())
+    }
+
+    /// Il cestino di Mega (Rubbish Bin).
+    fn trash(&self, action: &str, item: &str) -> io::Result<String> {
+        let nodes = self.nodes()?;
+        let bin = nodes.rubbish_bin().ok_or_else(|| io::Error::other("Mega: cestino non trovato"))?;
+        let notes = mega_bin_notes();
+        let in_bin = |h: &str| nodes.get_node_by_handle(h).filter(|n| n.parent() == Some(bin.handle()));
+        match action {
+            "list" => {
+                let out: Vec<Value> = nodes
+                    .iter()
+                    .filter(|n| n.parent() == Some(bin.handle()))
+                    .map(|n| {
+                        let note = &notes[n.handle()];
+                        let dir = !matches!(n.kind(), mega::NodeKind::File);
+                        json!({
+                            "id": n.handle(), "name": n.name(),
+                            "original": note["path"].as_str().unwrap_or(""),
+                            "deleted": note["deleted"].as_i64().unwrap_or(0),
+                            "size": if dir { 0 } else { n.size() }, "dir": dir,
+                        })
+                    })
+                    .collect();
+                Ok(Value::Array(out).to_string())
+            }
+            "restore" => {
+                let node = in_bin(item).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "non è più nel cestino"))?;
+                let original = notes[item]["path"].as_str().map(str::to_string).unwrap_or_else(|| format!("/{}", node.name()));
+                let (parent_path, name) = mega_split(&original);
+                // la cartella di prima non c'è più: nella radice
+                let parent = mega_at(&nodes, &parent_path).or_else(|_| mega_at(&nodes, "/"))?;
+                let (stem, ext) = match name.rsplit_once('.') {
+                    Some((a, b)) if !a.is_empty() && !matches!(node.kind(), mega::NodeKind::Folder) => (a.to_string(), format!(".{b}")),
+                    _ => (name.clone(), String::new()),
+                };
+                let mut free = name.clone();
+                let mut n = 1;
+                while mega_child(&nodes, parent.handle(), &free).is_some() {
+                    free = format!("{stem} ({n}){ext}");
+                    n += 1;
+                }
+                if free != node.name() {
+                    self.rt.block_on(self.client.rename_node(node, &free)).map_err(mega_err)?;
+                }
+                self.rt.block_on(self.client.move_node(node, parent)).map_err(mega_err)?;
+                mega_bin_note(item, None);
+                self.forget();
+                Ok(String::new())
+            }
+            "delete" => {
+                let node = in_bin(item).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "non è più nel cestino"))?;
+                self.rt.block_on(self.client.delete_node(node)).map_err(mega_err)?;
+                mega_bin_note(item, None);
+                self.forget();
+                Ok(String::new())
+            }
+            "empty" => {
+                for n in nodes.iter().filter(|n| n.parent() == Some(bin.handle())) {
+                    self.rt.block_on(self.client.delete_node(n)).map_err(mega_err)?;
+                    mega_bin_note(n.handle(), None);
+                }
+                self.forget();
+                Ok(String::new())
+            }
+            a => Err(io::Error::other(format!("azione sconosciuta: {a}"))),
+        }
     }
 
     fn rename(&self, from: &str, to: &str) -> io::Result<()> {

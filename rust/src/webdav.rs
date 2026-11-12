@@ -323,6 +323,26 @@ impl Drive for WebDav {
         Err(status_err(status, &body))
     }
 
+    /// Nextcloud mette nel suo cestino anche con DELETE: per il definitivo si
+    /// toglie poi la voce appena nata (stesso percorso, la più recente).
+    fn delete_forever(&self, path: &str) -> io::Result<()> {
+        self.delete(path)?;
+        let Some(root) = &self.trash_root else { return Ok(()) };
+        let list: serde_json::Value = serde_json::from_str(&self.trash_list(root)?).unwrap_or_default();
+        let want = path.trim_matches('/');
+        let found = list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|v| v["original"].as_str().map(|o| o.trim_matches('/') == want).unwrap_or(false))
+            .max_by_key(|v| v["deleted"].as_i64().unwrap_or(0));
+        if let Some(v) = found {
+            let id = v["id"].as_str().unwrap_or("");
+            self.trash_call("DELETE", &format!("{root}/trash/{}", http::pct(id, false)), None)?;
+        }
+        Ok(())
+    }
+
     fn trash(&self, action: &str, item: &str) -> io::Result<String> {
         let Some(root) = &self.trash_root else {
             return Err(io::Error::new(io::ErrorKind::Unsupported, "questo server non ha un cestino consultabile"));

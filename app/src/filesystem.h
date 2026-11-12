@@ -30,6 +30,13 @@ public:
     Q_INVOKABLE QVariantMap info(const QString &path) const;
     // "" se riuscito, altrimenti il messaggio d'errore
     Q_INVOKABLE QString makeDir(const QString &parent, const QString &name) const;
+    Q_INVOKABLE QString makeFile(const QString &parent, const QString &name) const;
+    // prima di eliminare: "trash", "service:<tipo>" o "none:<perché>"
+    Q_INVOKABLE QString trashHint(const QStringList &paths) const;
+    // giorni dopo cui il cestino si svuota da solo (0 = mai)
+    Q_INVOKABLE void trashSetDays(int days);
+    // le voci vecchie dei cestini locali, in un filo
+    Q_INVOKABLE void trashPurge();
     Q_INVOKABLE QString rename(const QString &path, const QString &newName) const;
     Q_INVOKABLE QString setMode(const QString &path, int mode) const;
     Q_INVOKABLE bool exists(const QString &path) const;

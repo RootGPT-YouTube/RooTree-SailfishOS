@@ -28,6 +28,11 @@ int JobManager::move(const QStringList &sources, const QString &dest)
     return started(rootree::job_move(qtrust::vec(sources), qtrust::str(dest)));
 }
 
+int JobManager::trash(const QStringList &paths)
+{
+    return started(rootree::job_trash(qtrust::vec(paths)));
+}
+
 int JobManager::remove(const QStringList &paths)
 {
     return started(rootree::job_delete(qtrust::vec(paths)));

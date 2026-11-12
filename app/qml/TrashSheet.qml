@@ -2,24 +2,39 @@ import QtQuick
 import RooTree
 import "."
 
-// Il cestino di una connessione Nextcloud: i file eliminati, da ripristinare
-// o da togliere per sempre.
+// Il cestino di una memoria (locale) o di una connessione: i file eliminati,
+// da ripristinare o da togliere per sempre. `cid` = id della connessione, o
+// la cartella locale dove si è (comincia con «/»: il cestino della sua memoria).
 Sheet {
     id: sheet
     property string cid
+    property string where
+    // Dropbox: si ripristina soltanto (il definitivo l'API non lo concede)
+    property bool restoreOnly: false
+    // le impostazioni dell'app (trashDays)
+    property var store
     property var items: []
     property bool busy: false
     property string error
     signal restored()
-    title: Style.t("Cestino", "Trash")
+    title: Style.t("Cestino", "Trash") + (where !== "" ? " · " + where : "")
 
     function openFor(p) {
-        cid = p.id
+        start(p.id, p.name || "", p.type === "dropbox")
+    }
+    function openLocal(path, name) {
+        start(path, name, false)
+    }
+    function start(id, name, onlyRestore) {
+        cid = id
+        where = name
+        restoreOnly = onlyRestore
         items = []
         error = ""
         open()
         reload()
     }
+    readonly property var dayChoices: [7, 30, 90, 0]
     function reload() {
         busy = true
         Remotes.trash(cid, "list", "")
@@ -43,7 +58,8 @@ Sheet {
             sheet.busy = false
             if (err !== "") {
                 var c = err.indexOf(":")
-                sheet.error = /^[A-Z]+:/.test(err) ? err.substring(c + 1) : err
+                sheet.error = err.indexOf("NOTCONNECTED:") === 0 ? Style.t("Apri prima la connessione.", "Open the connection first.")
+                            : /^[A-Z]+:/.test(err) ? err.substring(c + 1) : err
                 return
             }
             if (action === "list") {
@@ -70,11 +86,37 @@ Sheet {
         font.pixelSize: Style.fontM
     }
     MenuRow {
-        enabled: !sheet.busy
-        visible: sheet.items.length > 0
+        // sempre in vista (da vuoto non si capiva che c'è, 12/11), grigio se non c'è niente
+        enabled: !sheet.busy && sheet.items.length > 0
+        visible: !sheet.restoreOnly
         icon: "delete"
         text: Style.t("Svuota il cestino", "Empty the trash")
         onClicked: { confirm.item = ""; confirm.label = ""; confirm.open() }
+    }
+    // quanto restano le voci: solo nei cestini di RooTree (memorie e server
+    // senza cestino proprio); Nextcloud, Mega e Dropbox hanno le loro regole
+    MenuRow {
+        readonly property bool own: sheet.cid.charAt(0) === "/" || ["nextcloud", "mega", "dropbox"].indexOf(Remotes.get(sheet.cid).type || "") < 0
+        visible: own
+        icon: "refresh"
+        text: Style.t("Svuotamento automatico", "Automatic emptying")
+        detail: sheet.store.trashDays > 0 ? Style.t("dopo " + sheet.store.trashDays + " giorni", "after " + sheet.store.trashDays + " days") : Style.t("mai", "never")
+        onClicked: {
+            var i = sheet.dayChoices.indexOf(sheet.store.trashDays)
+            sheet.store.trashDays = sheet.dayChoices[(i + 1) % sheet.dayChoices.length]
+        }
+    }
+    Text {
+        font.family: Style.fontFamily
+        visible: sheet.restoreOnly
+        x: Style.margin
+        width: parent.width - 2 * Style.margin
+        wrapMode: Text.Wrap
+        bottomPadding: 6 * Style.dp
+        text: Style.t("Dropbox toglie da solo i file eliminati dopo 30 giorni; prima si possono solo ripristinare (o togliere dal sito).",
+                      "Dropbox removes deleted files by itself after 30 days; until then they can only be restored (or removed on the website).")
+        color: Style.dim
+        font.pixelSize: Style.fontS
     }
     Repeater {
         model: sheet.items
@@ -99,8 +141,11 @@ Sheet {
                 Text {
                     font.family: Style.fontFamily
                     width: parent.width
-                    text: Qt.formatDateTime(new Date(modelData.deleted * 1000), "dd/MM/yyyy HH:mm")
-                          + (modelData.size > 0 ? " · " + sheet.sizeText(modelData.size) : "")
+                    // da dove viene, quando, quanto; «root» = cestino di root
+                    text: [modelData.root ? "root" : "",
+                           modelData.deleted > 0 ? Qt.formatDateTime(new Date(modelData.deleted * 1000), "dd/MM/yyyy HH:mm") : "",
+                           modelData.size > 0 ? sheet.sizeText(modelData.size) : "",
+                           modelData.original || ""].filter(function (x) { return x !== "" }).join(" · ")
                     color: Style.dim
                     font.pixelSize: Style.fontS
                     elide: Text.ElideRight
@@ -117,6 +162,8 @@ Sheet {
                 id: deleteBtn
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 icon: "delete"
+                visible: !sheet.restoreOnly
+                width: visible ? implicitWidth : 0
                 enabled: !sheet.busy
                 onClicked: { confirm.item = modelData.id; confirm.label = modelData.name; confirm.open() }
             }

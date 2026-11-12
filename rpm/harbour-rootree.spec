@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.7.0
+Version:    0.7.1
 Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,19 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-2
+- Cestino: lo stesso filesystem della home va nel cestino della home anche fuori dalla home
+- Cestino: «Svuota il cestino» sempre in vista in cima alla pagina (grigio se è vuoto)
+
+* Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-1
+- Cestino in ogni memoria: interna, Android, SD/USB (formato freedesktop),
+  root (.Trash-0), server SFTP/FTP/SMB/WebDAV (.Trash-rootree nella cartella
+  iniziale), Nextcloud, Mega e Dropbox (il loro cestino). Elimina = nel
+  cestino, con la casella «Elimina definitivamente»; svuotamento da solo
+  dopo 30 giorni (7/30/90/mai).
+- Menù: «Nuovo file» sotto «Nuova cartella», «Cestino» nella sezione
+  Cartella; «Opzioni per Remoto» in una sezione sua, fuori da «Ordina per».
+
 * Tue Nov 10 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.0-2
 - I messaggi brevi (es. «Non salvato: accesso negato» dall'editor) ora si vedono anche sopra l'editor e sopra la tastiera
 

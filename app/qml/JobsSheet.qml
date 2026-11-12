@@ -15,6 +15,7 @@ Sheet {
         case 0: return Style.t("Copia di " + what + " in «" + dest + "»", "Copying " + what + " to “" + dest + "”")
         case 1: return Style.t("Spostamento di " + what + " in «" + dest + "»", "Moving " + what + " to “" + dest + "”")
         case 2: return Style.t("Eliminazione di " + what, "Deleting " + what)
+        case 6: return Style.t("Nel cestino: " + what, "To trash: " + what)
         case 4: return Style.t("Estrazione di " + what + " in «" + dest + "»", "Extracting " + what + " to “" + dest + "”")
         case 5: return Style.t("Creazione di «" + j.dest.split("/").pop() + "»", "Creating “" + j.dest.split("/").pop() + "”")
         }

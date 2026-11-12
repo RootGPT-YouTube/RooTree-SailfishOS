@@ -183,6 +183,14 @@ pub fn remove_file(p: &Path) -> io::Result<()> {
     }
 }
 
+/// Eliminazione definitiva su un cloud (Nextcloud e Mega altrimenti mettono nel cestino).
+pub fn remove_forever(p: &Path) -> io::Result<()> {
+    match rsplit(p) {
+        Some((id, inner)) => remote::delete_forever_any(&id, &inner),
+        None => remove_all(p),
+    }
+}
+
 pub fn remove_dir(p: &Path) -> io::Result<()> {
     match rsplit(p) {
         Some((id, inner)) => remote::rmdir_any(&id, &inner),

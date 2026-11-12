@@ -268,6 +268,16 @@ pub fn make_dir(parent: &str, name: &str) -> io::Result<String> {
     Ok(p.to_string_lossy().into_owned())
 }
 
+pub fn make_file(parent: &str, name: &str) -> io::Result<String> {
+    valid_name(name)?;
+    let p = Path::new(parent).join(name);
+    fs::OpenOptions::new().write(true).create_new(true).open(&p).map_err(|e| {
+        if e.kind() == io::ErrorKind::AlreadyExists { io::Error::new(e.kind(), "esiste già un elemento con questo nome") } else { e }
+    })?;
+    adopt_tree(&p);
+    Ok(p.to_string_lossy().into_owned())
+}
+
 pub fn rename_entry(path: &str, new_name: &str) -> io::Result<String> {
     valid_name(new_name)?;
     let from = Path::new(path);

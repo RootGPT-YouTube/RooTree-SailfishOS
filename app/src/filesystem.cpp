@@ -71,6 +71,31 @@ QVariantMap FileSystem::info(const QString &path) const
     }
 }
 
+QString FileSystem::makeFile(const QString &parent, const QString &name) const
+{
+    try {
+        rootree::make_file(qtrust::str(parent), qtrust::str(name));
+        return {};
+    } catch (const rust::Error &e) {
+        return QString::fromUtf8(e.what());
+    }
+}
+
+QString FileSystem::trashHint(const QStringList &paths) const
+{
+    return qtrust::qs(rootree::trash_hint(qtrust::vec(paths)));
+}
+
+void FileSystem::trashSetDays(int days)
+{
+    rootree::trash_set_days(uint32_t(qMax(0, days)));
+}
+
+void FileSystem::trashPurge()
+{
+    rootree::trash_purge_local();
+}
+
 QString FileSystem::makeDir(const QString &parent, const QString &name) const
 {
     try {

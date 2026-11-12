@@ -182,9 +182,10 @@ void Remotes::trash(const QString &id, const QString &action, const QString &ite
     std::thread([self, id, action, bid, bact, bitem] {
         QString error, json;
         try {
-            json = qtrust::qs(rootree::remote_trash(rust::Str(bid.constData(), size_t(bid.size())),
-                                                    rust::Str(bact.constData(), size_t(bact.size())),
-                                                    rust::Str(bitem.constData(), size_t(bitem.size()))));
+            // un id che comincia con «/» è una cartella locale: il cestino della sua memoria
+            const rust::Str rid(bid.constData(), size_t(bid.size())), ract(bact.constData(), size_t(bact.size())),
+                ritem(bitem.constData(), size_t(bitem.size()));
+            json = qtrust::qs(bid.startsWith('/') ? rootree::trash_local(rid, ract, ritem) : rootree::remote_trash(rid, ract, ritem));
         } catch (const rust::Error &e) {
             error = QString::fromUtf8(e.what());
         }

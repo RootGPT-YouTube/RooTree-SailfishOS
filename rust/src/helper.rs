@@ -17,12 +17,21 @@ pub fn handle(req: Request) -> Response {
         ReadText { path, max } => Response::from(thumbs::read_text(&path, max)),
         WriteText { path, text } => Response::from(fsops::write_text(&path, &text, true)),
         MakeDir { parent, name } => Response::from(fsops::make_dir(&parent, &name)),
+        MakeFile { parent, name } => Response::from(fsops::make_file(&parent, &name)),
+        TrashOp { scope, action, item, days } => {
+            crate::trash::set_days(days);
+            Response::from(crate::trash::op(&scope, &action, &item))
+        }
         Rename { path, name } => Response::from(fsops::rename_entry(&path, &name)),
         SetMode { path, mode } => Response::from(fsops::set_mode(&path, mode)),
         SetOwner { path, user, group } => Response::from(fsops::set_owner(&path, &user, &group)),
         JobCopy { sources, dest } => Response::ok(jobs::copy(sources, &dest)),
         JobMove { sources, dest } => Response::ok(jobs::move_to(sources, &dest)),
         JobDelete { paths } => Response::ok(jobs::delete(paths)),
+        JobTrash { paths, days } => {
+            crate::trash::set_days(days);
+            Response::ok(jobs::trash(paths))
+        }
         JobSize { paths } => Response::ok(jobs::size(paths)),
         JobExtract { archive, dest } => Response::ok(jobs::extract(&archive, &dest)),
         JobCompress { sources, dest } => Response::ok(jobs::compress(sources, &dest)),

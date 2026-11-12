@@ -32,6 +32,8 @@ Window {
     Component.onCompleted: {
         updateDp()
         loadAmbience()
+        Fs.trashSetDays(settings.trashDays)
+        Fs.trashPurge()
         var s = sortOf(folder.path)
         folder.setSorting(s.k, s.d, s.f)
     }
@@ -52,6 +54,9 @@ Window {
         property bool sortPerFolder: true
         property string folderSorts: "{}"
         property string theme: "rootundra"
+        // il cestino si svuota da solo dopo questi giorni (0 = mai; scelta dell'utente del 12/11: 30)
+        property int trashDays: 30
+        onTrashDaysChanged: Fs.trashSetDays(trashDays)
     }
 
     // ── ordinamento: della cartella se ne ha uno suo, altrimenti di sistema ──
@@ -281,12 +286,12 @@ Window {
         imageViewer.openAt(list, at)
     }
 
+    // Elimina: nel cestino, o definitivo con la casella (scelta dell'utente del 12/11)
     function deleteSelected() {
         var list = folder.selectedPaths()
         confirm.paths = list
-        confirm.message = list.length === 1
-            ? Style.t("«" + list[0].split("/").pop() + "» verrà eliminato definitivamente.", "“" + list[0].split("/").pop() + "” will be permanently deleted.")
-            : Style.t(list.length + " elementi verranno eliminati definitivamente.", list.length + " items will be permanently deleted.")
+        confirm.hint = Fs.trashHint(list)
+        forever.checked = false
         confirm.open()
     }
 
@@ -1071,7 +1076,7 @@ Window {
         }
         MenuRow {
             icon: "delete"
-            visible: connectionMenu.opened && connectionMenu.profile.type === "nextcloud" && Remotes.isConnected(connectionMenu.profile.id || "")
+            visible: connectionMenu.opened && Remotes.isConnected(connectionMenu.profile.id || "")
             text: Style.t("Cestino", "Trash")
             onClicked: { connectionMenu.close(); trashSheet.openFor(connectionMenu.profile) }
         }
@@ -1119,6 +1124,8 @@ Window {
             checkable: true; checked: settings.sortPerFolder
             onClicked: win.setSortPerFolder(!settings.sortPerFolder)
         }
+        // fuori da «Ordina per» (richiesta dell'utente del 12/11)
+        MenuSection { text: Style.t("Remoto", "Remote") }
         // «Opzioni per Remoto» (richiesta dell'utente dell'08/11): tutto ciò che
         // riguarda le connessioni in una sottosezione; aperta da sola quando
         // si è dentro un server, chiusa altrimenti
@@ -1174,13 +1181,6 @@ Window {
                     Remotes.megaRevoke(p.id)
                 })
             }
-        }
-        MenuRow {
-            depth: 1
-            icon: "delete"
-            visible: remoteOptions.open && folder.remote !== "" && Remotes.get(folder.remote).type === "nextcloud"
-            text: Style.t("Cestino", "Trash")
-            onClicked: { mainMenu.close(); trashSheet.openFor(Remotes.get(folder.remote)) }
         }
         MenuRow {
             depth: 1
@@ -1241,6 +1241,30 @@ Window {
                 nameDialog.ask(Style.t("Nuova cartella", "New folder"), Style.t("Nuova cartella", "New folder"), function (name) {
                     return Fs.makeDir(folder.path, name)
                 })
+            }
+        }
+        // «Nuovo file» subito sotto «Nuova cartella» (richiesta dell'utente del 12/11)
+        MenuRow {
+            icon: "newfile"
+            text: Style.t("Nuovo file", "New file")
+            enabled: Fs.isWritable(folder.path)
+            onClicked: {
+                mainMenu.close()
+                nameDialog.ask(Style.t("Nuovo file", "New file"), Style.t("Nuovo file.txt", "New file.txt"), function (name) {
+                    return Fs.makeFile(folder.path, name)
+                })
+            }
+        }
+        // il cestino della memoria (o della connessione) dove si è, prima di
+        // «Seleziona tutto» (richiesta dell'utente del 12/11)
+        MenuRow {
+            icon: "trash"
+            text: Style.t("Cestino", "Trash")
+            detail: win.placeName(win.place)
+            onClicked: {
+                mainMenu.close()
+                if (folder.remote !== "") trashSheet.openFor(Remotes.get(folder.remote))
+                else trashSheet.openLocal(folder.path, win.placeName(win.place))
             }
         }
         MenuRow { icon: "select"; text: Style.t("Seleziona tutto", "Select all"); enabled: folder.count > 0; onClicked: { mainMenu.close(); folder.selectAll() } }
@@ -1424,7 +1448,7 @@ Window {
     }
 
     OpenWithSheet { id: openWith }
-    TrashSheet { id: trashSheet; onRestored: folder.refresh() }
+    TrashSheet { id: trashSheet; store: settings; onRestored: folder.refresh() }
     ImageViewer {
         id: imageViewer
         onOpenWithRequested: function (p) { openWith.openFor(p) }
@@ -1520,11 +1544,31 @@ Window {
     AppDialog {
         id: confirm
         property var paths: []
-        title: Style.t("Eliminare?", "Delete?")
-        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Elimina", "Delete"), role: "danger" }]
+        // "trash", "service:<tipo>" o "none:<perché>" (trash.rs)
+        property string hint: "trash"
+        readonly property bool canTrash: hint.indexOf("none:") !== 0
+        // Dropbox: il definitivo alle app non lo concede
+        readonly property bool canForever: hint !== "service:dropbox"
+        readonly property bool toTrash: canTrash && !forever.checked
+        readonly property string what: paths.length === 1 ? "«" + paths[0].split("/").pop() + "»" : Style.count(paths.length, Style.t("elemento", "item"), Style.t("elementi", "items"))
+        title: toTrash ? Style.t("Spostare nel cestino?", "Move to trash?") : Style.t("Eliminare definitivamente?", "Delete permanently?")
+        message: toTrash
+            ? (hint === "service:dropbox"
+               ? Style.t(what + " andrà nel cestino di Dropbox: si recupera per 30 giorni.", what + " will go to the Dropbox trash: recoverable for 30 days.")
+               : Style.t(what + " andrà nel cestino: si potrà ripristinare dalla voce Cestino del menù.", what + " will go to the trash: it can be restored from Trash in the menu."))
+            : (canTrash ? "" : Style.t("Qui il cestino non c'è (" + hint.substring(5) + "). ", "No trash here (" + hint.substring(5) + "). "))
+              + Style.t(what + " non si potrà più recuperare.", what + " can no longer be recovered.")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" },
+                  { text: toTrash ? Style.t("Nel cestino", "To trash") : Style.t("Elimina", "Delete"), role: "danger" }]
+        CheckRow {
+            id: forever
+            visible: confirm.canTrash && confirm.canForever
+            text: Style.t("Elimina definitivamente", "Delete permanently")
+        }
         onChosen: function (role) {
             if (role === "danger") {
-                Jobs.remove(paths)
+                if (toTrash) Jobs.trash(paths)
+                else Jobs.remove(paths)
                 folder.clearSelection()
             }
         }
@@ -1597,7 +1641,8 @@ Window {
             } else if (state === 5) {
                 toast.show([Style.t("Copia completata", "Copy finished"), Style.t("Spostamento completato", "Move finished"),
                             Style.t("Eliminazione completata", "Deleted"), "",
-                            Style.t("Estrazione completata", "Extraction finished"), Style.t("Archivio creato", "Archive created")][kind])
+                            Style.t("Estrazione completata", "Extraction finished"), Style.t("Archivio creato", "Archive created"),
+                            Style.t("Spostato nel cestino", "Moved to trash")][kind])
                 Jobs.forget(id)
             } else if (state === 7) {
                 Jobs.forget(id)

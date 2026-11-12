@@ -60,6 +60,7 @@ Item {
         case 0: return Style.t("Copia di " + w + " in " + d, "Copying " + w + " to " + d)
         case 1: return Style.t("Spostamento di " + w + " in " + d, "Moving " + w + " to " + d)
         case 2: return Style.t("Eliminazione di " + w, "Deleting " + w)
+        case 6: return Style.t("Nel cestino: " + w, "To trash: " + w)
         case 4: return Style.t("Estrazione di " + w + " in " + d, "Extracting " + w + " to " + d)
         case 5: return Style.t("Creazione di " + d, "Creating " + d)
         }

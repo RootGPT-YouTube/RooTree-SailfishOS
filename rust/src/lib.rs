@@ -14,6 +14,7 @@ pub mod remote;
 pub mod root;
 pub mod search;
 pub mod thumbs;
+pub mod trash;
 pub mod vault;
 pub mod vfs;
 pub mod webdav;
@@ -127,6 +128,8 @@ mod ffi {
         fn stat_path(path: &str) -> Result<Entry>;
         fn places(home: &str) -> Vec<Place>;
         fn make_dir(parent: &str, name: &str) -> Result<String>;
+        /// Un file vuoto nuovo (mai sopra uno che c'è).
+        fn make_file(parent: &str, name: &str) -> Result<String>;
         fn rename_entry(path: &str, new_name: &str) -> Result<String>;
         fn set_mode(path: &str, mode: u32) -> Result<()>;
         /// Proprietario e gruppo (nome o numero; vuoto = non cambiare): serve root.
@@ -170,6 +173,17 @@ mod ffi {
         fn job_copy(sources: Vec<String>, dest: &str) -> u64;
         fn job_move(sources: Vec<String>, dest: &str) -> u64;
         fn job_delete(paths: Vec<String>) -> u64;
+        /// Nel cestino (trash.rs).
+        fn job_trash(paths: Vec<String>) -> u64;
+        /// Prima di eliminare: "trash", "service:<tipo>" o "none:<perché>".
+        fn trash_hint(paths: Vec<String>) -> String;
+        /// Il cestino della memoria dove sta `scope` (una cartella locale):
+        /// list | restore | delete | empty (anche quello di root, se accesa).
+        fn trash_local(scope: &str, action: &str, item: &str) -> Result<String>;
+        /// Giorni dopo cui le voci si tolgono da sole (0 = mai).
+        fn trash_set_days(days: u32);
+        /// All'avvio, in un filo: le voci vecchie dei cestini locali.
+        fn trash_purge_local();
         fn job_size(paths: Vec<String>) -> u64;
         /// Estrae tutto l'archivio in `dest` («Estrai qui»).
         fn job_extract(archive: &str, dest: &str) -> u64;
@@ -321,6 +335,16 @@ fn make_dir(parent: &str, name: &str) -> Result<String, String> {
     fsops::make_dir(parent, name).map_err(|e| e.to_string())
 }
 
+fn make_file(parent: &str, name: &str) -> Result<String, String> {
+    if let Some((id, inner)) = remote::split(parent) {
+        return remote::make_file(&id, &inner, name).map_err(|e| e.to_string());
+    }
+    if root::active() {
+        return root::call_as(&Request::MakeFile { parent: parent.into(), name: name.into() });
+    }
+    fsops::make_file(parent, name).map_err(|e| e.to_string())
+}
+
 fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
     if let Some((id, inner)) = remote::split(path) {
         return remote::rename_entry(&id, &inner, new_name).map_err(|e| e.to_string());
@@ -385,6 +409,68 @@ fn job_move(sources: Vec<String>, dest: &str) -> u64 {
 
 fn job_delete(paths: Vec<String>) -> u64 {
     job_via(Request::JobDelete { paths: paths.clone() }, || jobs::delete(paths))
+}
+
+/// Nel cestino: dall'helper root solo se serve (una cartella dove l'utente
+/// non può scrivere), così i file dell'utente vanno nel SUO cestino anche
+/// con la modalità root accesa.
+fn job_trash(paths: Vec<String>) -> u64 {
+    let needs_root = paths.iter().any(|p| {
+        remote::split(p).is_none() && !std::path::Path::new(p).parent().map(trash::writable).unwrap_or(true)
+    });
+    if root::active()
+        && needs_root
+        && let Ok(id) = root::call_as::<u64>(&Request::JobTrash { paths: paths.clone(), days: trash::days() })
+    {
+        return id | REMOTE;
+    }
+    jobs::trash(paths)
+}
+
+fn trash_hint(paths: Vec<String>) -> String {
+    let h = trash::hint(&paths);
+    // in modalità root il cestino di root c'è (sulla scheda in sola lettura no, ma lì fallisce anche il resto)
+    if root::active() && h.starts_with("none:serve la modalità root") {
+        return "trash".into();
+    }
+    h
+}
+
+fn trash_local(scope: &str, action: &str, item: &str) -> Result<String, String> {
+    let via_root = |item: &str| root::call_as::<String>(&Request::TrashOp { scope: scope.into(), action: action.into(), item: item.into(), days: trash::days() });
+    match action {
+        "list" => {
+            let mut all: Vec<serde_json::Value> = serde_json::from_str(&trash::op(scope, "list", "").map_err(|e| e.to_string())?).unwrap_or_default();
+            if root::active()
+                && let Ok(j) = via_root("")
+            {
+                let more: Vec<serde_json::Value> = serde_json::from_str(&j).unwrap_or_default();
+                all.extend(more.into_iter().map(|mut v| {
+                    v["root"] = true.into();
+                    v
+                }));
+            }
+            all.sort_by_key(|v| -v["deleted"].as_i64().unwrap_or(0));
+            Ok(serde_json::Value::Array(all).to_string())
+        }
+        "empty" => {
+            trash::op(scope, "empty", "").map_err(|e| e.to_string())?;
+            if root::active() {
+                via_root("")?;
+            }
+            Ok(String::new())
+        }
+        _ if item.contains("/.Trash-0/") && root::active() => via_root(item),
+        _ => trash::op(scope, action, item).map_err(|e| e.to_string()),
+    }
+}
+
+fn trash_set_days(days: u32) {
+    trash::set_days(days)
+}
+
+fn trash_purge_local() {
+    std::thread::spawn(trash::purge_local);
 }
 
 fn job_size(paths: Vec<String>) -> u64 {

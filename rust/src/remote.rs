@@ -109,6 +109,7 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
         let drive = crate::cloud::connect(profile_json, secret)?;
         let start = drive.start();
         clouds().lock().unwrap().insert(p.id.clone(), drive);
+        crate::trash::remember(&p.id, &p.kind, &start);
         return Ok(start);
     }
     if p.kind != "sftp" {
@@ -180,6 +181,7 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
         p.path.trim().to_string()
     };
     let id = p.id.clone();
+    crate::trash::remember(&p.id, &p.kind, &start);
     conns().lock().unwrap().insert(id, Arc::new(Mutex::new(Conn { profile: p, secret: secret.to_string(), session: s, sftp })));
     Ok(start)
 }
@@ -537,6 +539,21 @@ pub fn create_any(id: &str, path: &str, mode: u32, size: Option<u64>) -> io::Res
     }
 }
 
+/// Un file vuoto nuovo sul server (mai sopra uno che c'è).
+pub fn make_file(id: &str, parent: &str, name: &str) -> io::Result<String> {
+    fsops::valid_name(name)?;
+    let p = Path::new(parent).join(name);
+    let ps = p.to_string_lossy().into_owned();
+    let full = PathBuf::from(format!("{PREFIX}{id}{ps}"));
+    if crate::vfs::exists(&full) {
+        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "esiste già un elemento con questo nome"));
+    }
+    let mut w = crate::vfs::create(&full, 0o644, Some(0))?;
+    std::io::Write::flush(&mut w)?;
+    drop(w);
+    Ok(full.to_string_lossy().into_owned())
+}
+
 pub fn mkdir_any(id: &str, path: &str) -> io::Result<()> {
     match cloud_of(id) {
         Some(c) => c.mkdir(path),
@@ -555,6 +572,13 @@ pub fn unlink_any(id: &str, path: &str) -> io::Result<()> {
     match cloud_of(id) {
         Some(c) => c.delete(path),
         None => op(id, |s| s.unlink(Path::new(path))),
+    }
+}
+
+pub fn delete_forever_any(id: &str, path: &str) -> io::Result<()> {
+    match cloud_of(id) {
+        Some(c) => c.delete_forever(path),
+        None => unlink_any(id, path),
     }
 }
 
@@ -599,12 +623,18 @@ pub fn symlink_any(id: &str, target: &Path, link: &str) -> io::Result<()> {
     }
 }
 
-/// Il cestino del servizio (Nextcloud): vedi `Drive::trash`.
+/// Il cestino della connessione: quello del servizio (Nextcloud, Mega,
+/// Dropbox: `Drive::trash`) o quello di RooTree sul server (trash.rs).
 pub fn trash(id: &str, action: &str, item: &str) -> Result<String, String> {
-    let Some(c) = cloud_of(id) else {
+    if !connected(id) {
         return Err("NOTCONNECTED:connessione non aperta".into());
-    };
-    c.trash(action, item).map_err(|e| e.to_string())
+    }
+    if crate::trash::service_kind(&crate::trash::kind_of(id))
+        && let Some(c) = cloud_of(id)
+    {
+        return c.trash(action, item).map_err(|e| e.to_string());
+    }
+    crate::trash::op(&format!("{PREFIX}{id}"), action, item).map_err(|e| e.to_string())
 }
 
 pub fn is_cloud(id: &str) -> bool {

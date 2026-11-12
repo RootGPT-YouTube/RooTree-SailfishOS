@@ -822,3 +822,81 @@ fn webdav_cestino() {
     assert_eq!(a[1]["dir"], true);
     assert_eq!(a[1]["size"], 99);
 }
+
+#[test]
+fn cestino_trashinfo() {
+    let t = Path::new("/run/media/u/SD/.Trash-1000");
+    let txt = crate::trash::info_text("/run/media/u/SD/Foto città/a b%.jpg", 1_800_000_000);
+    assert!(txt.contains("Path=/run/media/u/SD/Foto%20citt%C3%A0/a%20b%25.jpg"), "{txt}");
+    let (p, d) = crate::trash::parse_info(&txt, t);
+    assert_eq!(p, "/run/media/u/SD/Foto città/a b%.jpg");
+    assert_eq!(d, 1_800_000_000);
+    // Path relativo (permesso dalla specifica nei cestini di montaggio)
+    let (p, _) = crate::trash::parse_info("[Trash Info]\nPath=Doc/x.txt\nDeletionDate=2026-11-12T10:00:00\n", t);
+    assert_eq!(p, "/run/media/u/SD/Doc/x.txt");
+    assert!(crate::trash::inside_trash(Path::new("/run/media/u/SD/.Trash-1000/files/x")));
+    assert!(!crate::trash::inside_trash(Path::new("/run/media/u/SD/Trash/x")));
+}
+
+#[test]
+fn cestino_sposta_ripristina_svuota() {
+    let d = tmp(false);
+    let t = d.join(".Trash-prova");
+    let dirs = vec![t.clone()];
+    fs::create_dir_all(d.join("cartella/sotto")).unwrap();
+    fs::write(d.join("cartella/sotto/f.txt"), "ciao").unwrap();
+    fs::write(d.join("uno.txt"), "1").unwrap();
+    crate::trash::move_into(&d.join("cartella"), &t).unwrap();
+    crate::trash::move_into(&d.join("uno.txt"), &t).unwrap();
+    // stesso nome una seconda volta: un altro posto nel cestino
+    fs::write(d.join("uno.txt"), "2").unwrap();
+    crate::trash::move_into(&d.join("uno.txt"), &t).unwrap();
+    assert!(!d.join("cartella").exists() && !d.join("uno.txt").exists());
+    let list: serde_json::Value = serde_json::from_str(&crate::trash::op_in(&dirs, "list", "").unwrap()).unwrap();
+    let v = list.as_array().unwrap();
+    assert_eq!(v.len(), 3);
+    let uni: Vec<_> = v.iter().filter(|x| x["name"] == "uno.txt").collect();
+    assert_eq!(uni.len(), 2);
+    let cart = v.iter().find(|x| x["name"] == "cartella").unwrap();
+    assert_eq!(cart["dir"], true);
+    assert_eq!(cart["original"], d.join("cartella").to_string_lossy().as_ref());
+    // ripristino: torna dov'era, col contenuto
+    crate::trash::op_in(&dirs, "restore", cart["id"].as_str().unwrap()).unwrap();
+    assert_eq!(fs::read_to_string(d.join("cartella/sotto/f.txt")).unwrap(), "ciao");
+    // due «uno.txt»: il secondo accanto, senza sovrascrivere
+    for u in &uni {
+        crate::trash::op_in(&dirs, "restore", u["id"].as_str().unwrap()).unwrap();
+    }
+    assert!(d.join("uno.txt").exists() && d.join("uno (1).txt").exists());
+    // definitivo e svuota
+    crate::trash::move_into(&d.join("uno.txt"), &t).unwrap();
+    crate::trash::move_into(&d.join("cartella"), &t).unwrap();
+    let list: serde_json::Value = serde_json::from_str(&crate::trash::op_in(&dirs, "list", "").unwrap()).unwrap();
+    let primo = list[0]["id"].as_str().unwrap().to_string();
+    crate::trash::op_in(&dirs, "delete", &primo).unwrap();
+    assert!(!Path::new(&primo).exists());
+    crate::trash::op_in(&dirs, "empty", "").unwrap();
+    assert_eq!(fs::read_dir(t.join("files")).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(t.join("info")).unwrap().count(), 0);
+    // una voce che non sta in un cestino non si tocca
+    assert!(crate::trash::op_in(&dirs, "delete", &d.join("uno (1).txt").to_string_lossy()).is_err());
+    assert!(d.join("uno (1).txt").exists());
+    let _ = fs::remove_dir_all(&d);
+}
+
+#[test]
+fn cestino_vecchie_voci() {
+    let d = tmp(false);
+    let t = d.join(".Trash-prova");
+    fs::write(d.join("vecchio.txt"), "v").unwrap();
+    fs::write(d.join("nuovo.txt"), "n").unwrap();
+    crate::trash::move_into(&d.join("vecchio.txt"), &t).unwrap();
+    crate::trash::move_into(&d.join("nuovo.txt"), &t).unwrap();
+    // il vecchio retrodatato di 40 giorni
+    let info = t.join("info/vecchio.txt.trashinfo");
+    let old = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64 - 40 * 86_400;
+    fs::write(&info, crate::trash::info_text(&d.join("vecchio.txt").to_string_lossy(), old)).unwrap();
+    assert_eq!(crate::trash::purge(&t), 1);
+    assert!(!t.join("files/vecchio.txt").exists() && t.join("files/nuovo.txt").exists());
+    let _ = fs::remove_dir_all(&d);
+}

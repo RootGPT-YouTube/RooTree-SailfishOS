@@ -17,7 +17,7 @@ PULSANTI = {
     "menu": ("solid", "ellipsis-v"), "down": ("solid", "chevron-down"), "next": ("solid", "chevron-right"),
     "copy": ("regular", "copy"), "cut": ("solid", "cut"), "paste": ("regular", "clipboard"),
     "delete": ("regular", "trash-alt"), "rename": ("solid", "pen"), "info": ("solid", "info-circle"),
-    "newfolder": ("solid", "folder-plus"), "select": ("regular", "check-square"), "check": ("solid", "check"),
+    "newfolder": ("solid", "folder-plus"), "newfile": ("solid", "file-medical"), "trash": ("solid", "trash-restore-alt"), "select": ("regular", "check-square"), "check": ("solid", "check"),
     "sort": ("solid", "sort-amount-down"), "hidden": ("regular", "eye-slash"), "shown": ("regular", "eye"),
     "grid": ("solid", "th-large"), "list": ("solid", "list"), "bookmark": ("solid", "bookmark"),
     "close": ("solid", "times"), "home": ("solid", "home"), "refresh": ("solid", "sync-alt"),

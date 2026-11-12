@@ -30,6 +30,8 @@ pub const JOB_DELETE: u8 = 2;
 pub const JOB_SIZE: u8 = 3;
 pub const JOB_EXTRACT: u8 = 4;
 pub const JOB_COMPRESS: u8 = 5;
+/// nel cestino (trash.rs); JOB_DELETE è il definitivo
+pub const JOB_TRASH: u8 = 6;
 
 pub const ST_QUEUED: u8 = 0;
 pub const ST_SCANNING: u8 = 1;
@@ -91,6 +93,7 @@ fn worker() {
         let mut run = Run::new(job.clone());
         let result = match kind {
             JOB_DELETE => run.delete(&sources),
+            JOB_TRASH => run.trash(&sources),
             JOB_EXTRACT => run.extract(&sources, &dest),
             JOB_COMPRESS => run.compress(&sources, &dest),
             _ => run.transfer(&sources, &dest, kind == JOB_MOVE),
@@ -161,6 +164,10 @@ pub fn delete(paths: Vec<String>) -> u64 {
 }
 
 /// Dimensione e numero di file e cartelle (per «Proprietà»): non aspetta la coda.
+pub fn trash(paths: Vec<String>) -> u64 {
+    enqueue(JOB_TRASH, paths, "")
+}
+
 pub fn size(paths: Vec<String>) -> u64 {
     let job = new_job(JOB_SIZE, &paths, "");
     let id = job.status.lock().unwrap().id;
@@ -927,12 +934,49 @@ impl Run {
         Ok(())
     }
 
+    /// Nel cestino: un rinomina per elemento, niente conteggio dei file.
+    fn trash(&mut self, paths: &[PathBuf]) -> Res<()> {
+        self.set(|s| {
+            s.total_items = paths.len() as u64;
+            s.state = ST_RUNNING;
+        });
+        for p in paths {
+            self.check()?;
+            self.set(|s| s.current = p.to_string_lossy().into_owned());
+            loop {
+                match crate::trash::move_to_trash(p) {
+                    Ok(()) => break,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => break,
+                    Err(e) => {
+                        let msg = e.to_string();
+                        let e = match msg.strip_prefix(crate::trash::NO_TRASH) {
+                            Some(why) => io::Error::other(format!("non si può mettere nel cestino: {why}")),
+                            None => e,
+                        };
+                        if !self.on_error(p, &e)? {
+                            break;
+                        }
+                    }
+                }
+            }
+            self.progress(1, 0);
+        }
+        // le voci vecchie del cestino toccato
+        if let Some(t) = paths.first().and_then(|p| crate::trash::trash_for(p).ok())
+            && vfs::is_dir(&t)
+        {
+            crate::trash::purge(&t);
+        }
+        Ok(())
+    }
+
     fn delete_entry(&mut self, p: &Path) -> Res<()> {
         self.check()?;
         self.set(|s| s.current = p.to_string_lossy().into_owned());
         if vfs::is_cloud(p) {
             loop {
-                match vfs::remove_file(p) {
+                // definitivo: anche Nextcloud e Mega, che da soli metterebbero nel cestino
+                match vfs::remove_forever(p) {
                     Ok(()) => break,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => break,
                     Err(e) => {

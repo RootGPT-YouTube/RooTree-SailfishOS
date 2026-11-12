@@ -54,7 +54,8 @@ public:
     Q_INVOKABLE void disconnect(const QString &id);
     // Mega: toglie la sessione ricordata; esito con megaRevoked(id, errore)
     Q_INVOKABLE void megaRevoke(const QString &id);
-    // Il cestino (Nextcloud): action = list | restore | delete | empty; esito con trashDone
+    // Il cestino: action = list | restore | delete | empty; esito con trashDone.
+    // id = una connessione, o una cartella locale («/…»: il cestino della sua memoria)
     Q_INVOKABLE void trash(const QString &id, const QString &action, const QString &item);
     Q_INVOKABLE bool isConnected(const QString &id) const;
     // la cartella da cui si entra: /@remote/<id> + percorso iniziale sul server
