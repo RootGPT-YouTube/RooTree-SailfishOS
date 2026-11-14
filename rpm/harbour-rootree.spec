@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.8.0
+Version:    0.9.0
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.0-1
+- Versione 0.9: tutte le connessioni remote del piano sono pronte (SFTP, FTP/FTPS, WebDAV/Nextcloud,
+  SMB, S3, Dropbox, Mega); stesse funzioni della 0.8.0
+
 * Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.8.0-1
 - Connessioni S3: Amazon S3 e i servizi compatibili (MinIO, Garage, lo S3 dei NAS, Backblaze B2,
   Wasabi, Cloudflare R2). Con un bucket si parte da lì, senza bucket dall'elenco dei bucket
