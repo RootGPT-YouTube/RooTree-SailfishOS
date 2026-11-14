@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.0
+Version:    0.9.1
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.1-1
+- Versione 0.9.1: stesse funzioni della 0.9.0 (file del telefono, anteprime, archivi, modalità root,
+  cestino, editor di testo, connessioni SFTP, FTP/FTPS, WebDAV/Nextcloud, SMB, S3, Dropbox e Mega)
+
 * Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.0-1
 - Versione 0.9: tutte le connessioni remote del piano sono pronte (SFTP, FTP/FTPS, WebDAV/Nextcloud,
   SMB, S3, Dropbox, Mega); stesse funzioni della 0.8.0
