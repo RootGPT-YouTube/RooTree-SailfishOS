@@ -900,3 +900,55 @@ fn cestino_vecchie_voci() {
     assert!(!t.join("files/vecchio.txt").exists() && t.join("files/nuovo.txt").exists());
     let _ = fs::remove_dir_all(&d);
 }
+
+// ------------------------------------------------------------------ S3
+
+/// La firma SigV4 deve dare esattamente quella degli esempi della
+/// documentazione AWS («Signature Calculations for the Authorization Header»).
+#[test]
+fn s3_firma_esempi_aws() {
+    let (id, secret) = ("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    let empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    let h = |v: &[(&str, &str)]| v.iter().map(|(k, x)| (k.to_string(), x.to_string())).collect::<Vec<_>>();
+    // GET Object
+    let a = crate::s3::sign(id, secret, "us-east-1", "GET", "/test.txt", "",
+        &h(&[("host", "examplebucket.s3.amazonaws.com"), ("range", "bytes=0-9"), ("x-amz-content-sha256", empty), ("x-amz-date", "20130524T000000Z")]),
+        empty, "20130524T000000Z", "20130524");
+    assert!(a.ends_with("Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"), "{a}");
+    assert!(a.contains("SignedHeaders=host;range;x-amz-content-sha256;x-amz-date"));
+    // GET Bucket (elenco) con query
+    let b = crate::s3::sign(id, secret, "us-east-1", "GET", "/", "max-keys=2&prefix=J",
+        &h(&[("host", "examplebucket.s3.amazonaws.com"), ("x-amz-content-sha256", empty), ("x-amz-date", "20130524T000000Z")]),
+        empty, "20130524T000000Z", "20130524");
+    assert!(b.ends_with("Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"), "{b}");
+}
+
+#[test]
+fn s3_data_e_endpoint() {
+    assert_eq!(crate::s3::amz_date(1369353600), ("20130524T000000Z".into(), "20130524".into()));
+    assert_eq!(crate::s3::amz_date(1794663226).1, "20261114");
+    assert_eq!(crate::s3::split_endpoint("http://192.168.1.10:9000/"), ("http".into(), "192.168.1.10:9000".into()));
+    assert_eq!(crate::s3::split_endpoint("https://S3.example.com:443"), ("https".into(), "s3.example.com".into()));
+    assert_eq!(crate::s3::split_endpoint("minio.casa:9000"), ("https".into(), "minio.casa:9000".into()));
+    assert_eq!(crate::s3::split_endpoint(""), ("https".into(), "".into()));
+}
+
+#[test]
+fn s3_elenco_e_bucket() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>b</Name><Prefix>foto/</Prefix>
+<IsTruncated>true</IsTruncated><NextContinuationToken>tok&amp;1</NextContinuationToken>
+<Contents><Key>foto/</Key><Size>0</Size><LastModified>2026-11-14T10:00:00.000Z</LastModified></Contents>
+<Contents><Key>foto/mare &amp; sole.jpg</Key><Size>12345</Size><LastModified>2026-11-14T10:00:01.000Z</LastModified></Contents>
+<CommonPrefixes><Prefix>foto/2025/</Prefix></CommonPrefixes></ListBucketResult>"#;
+    let l = crate::s3::parse_list(xml).unwrap();
+    assert!(l.truncated);
+    assert_eq!(l.next.as_deref(), Some("tok&1"));
+    assert_eq!(l.objects.len(), 2);
+    assert_eq!(l.objects[1].key, "foto/mare & sole.jpg");
+    assert_eq!(l.objects[1].size, 12345);
+    assert!(l.objects[1].mtime > 1_700_000_000);
+    assert_eq!(l.prefixes, vec!["foto/2025/".to_string()]);
+    let b = crate::s3::parse_buckets(r#"<ListAllMyBucketsResult><Buckets><Bucket><Name>uno</Name><CreationDate>2026-01-02T03:04:05.000Z</CreationDate></Bucket><Bucket><Name>due</Name><CreationDate>2026-01-02T03:04:05Z</CreationDate></Bucket></Buckets></ListAllMyBucketsResult>"#).unwrap();
+    assert_eq!(b.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), vec!["uno", "due"]);
+}

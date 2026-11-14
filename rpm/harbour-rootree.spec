@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.7.1
-Release:    6
+Version:    0.8.0
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,13 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.8.0-1
+- Connessioni S3: Amazon S3 e i servizi compatibili (MinIO, Garage, lo S3 dei NAS, Backblaze B2,
+  Wasabi, Cloudflare R2). Con un bucket si parte da lì, senza bucket dall'elenco dei bucket
+  (si possono anche creare ed eliminare). Cartelle, rinomina, copia e spostamento come sugli altri
+  server; file grandi caricati a pezzi; Annulla non lascia resti né pezzi da pagare; la regione si
+  trova da sola; il cestino di RooTree anche su S3
+
 * Thu Nov 12 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.7.1-6
 - Editor: la selezione si allarga alle righe sotto, trascinando la maniglia o tenendo premuto e scorrendo
   col dito; la barra Tutto/Copia/Taglia/Incolla è agganciata in fondo e non copre più il testo;

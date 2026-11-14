@@ -1,6 +1,6 @@
 [package]
 name = "rootree-core"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Nucleo di RooTree: filesystem, operazioni, archivi, remoti"
@@ -48,6 +48,10 @@ openssl = "0.10"
 # Fase 5 step 5: SMB 2/3 (Windows, Samba, NAS), Rust puro: firma, cifratura,
 # NTLM, elenco delle condivisioni. Asincrono: gira sul runtime tokio come Mega
 smb2 = "0.43"
+# Fase 5 step 5: S3 e compatibili. La firma (SigV4) è scritta in s3.rs sopra
+# ureq; servono solo HMAC-SHA256 e MD5 (DeleteObjects lo vuole), Rust puro
+hmac = "0.12"
+md-5 = "0.11"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 futures = "0.3"
 sluice = "0.5"

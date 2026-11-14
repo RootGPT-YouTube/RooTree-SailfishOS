@@ -179,10 +179,10 @@ fn remote_trash_for(id: &str, inner: &str) -> io::Result<String> {
     if service_kind(&kind) {
         return Err(no_trash("cestino del servizio"));
     }
-    let base = if kind == "smb" {
+    let base = if kind == "smb" || kind == "s3-buckets" {
         let share = inner.trim_start_matches('/').split('/').next().unwrap_or("");
-        if share.is_empty() {
-            return Err(no_trash("una condivisione non si mette nel cestino"));
+        if share.is_empty() || inner.trim_matches('/') == share {
+            return Err(no_trash(if kind == "smb" { "una condivisione non si mette nel cestino" } else { "un bucket non si mette nel cestino" }));
         }
         format!("/{share}")
     } else {
@@ -450,7 +450,7 @@ pub fn dirs_for(scope: &str) -> Vec<PathBuf> {
     if let Some((id, _)) = remote::split(scope) {
         let Some((kind, start)) = conn_of(&id) else { return Vec::new() };
         let pre = format!("{}{id}", remote::PREFIX);
-        if kind == "smb" {
+        if kind == "smb" || kind == "s3-buckets" {
             let shares = vfs::read_dir(Path::new(&format!("{pre}/"))).unwrap_or_default();
             return shares.into_iter().map(|s| s.join(REMOTE_DIR)).filter(|t| vfs::is_dir(t)).collect();
         }

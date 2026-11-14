@@ -49,7 +49,7 @@ pub trait Drive: Send + Sync {
 }
 
 pub fn is_cloud_type(kind: &str) -> bool {
-    matches!(kind, "dropbox" | "mega" | "webdav" | "nextcloud" | "ftp" | "smb")
+    matches!(kind, "dropbox" | "mega" | "webdav" | "nextcloud" | "ftp" | "smb" | "s3")
 }
 
 pub fn sink(d: Arc<dyn Drive>, path: &str, size: Option<u64>) -> io::Result<Box<dyn crate::vfs::Sink>> {
@@ -83,6 +83,9 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<Arc<dyn Drive>, Strin
     }
     if p.kind == "smb" {
         return crate::smb::connect(profile_json, secret);
+    }
+    if p.kind == "s3" {
+        return crate::s3::connect(profile_json, secret);
     }
     if p.kind == "mega" {
         return Ok(Arc::new(Mega::connect(&p, secret)?));

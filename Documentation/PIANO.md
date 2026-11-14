@@ -435,3 +435,24 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   (`tools/collaudo-cestino`) interna, Android, SD e root; l'editor sul PC con tocchi
   veri (`tools/collaudo-editor`, PySide6, 15 controlli). Non provati sul vivo i
   cestini dei server e dei cloud.
+- **14/11 — Fase 5 chiusa: S3 e compatibili (0.8.0-1).** `s3.rs` implementa `Drive`
+  con la firma AWS SigV4 scritta a mano sopra ureq (nessuna libreria S3; solo `hmac`
+  e `md-5`, già nel lockfile). Endpoint vuoto = Amazon (indirizzo per regione, stile
+  «bucket.s3.regione», a percorso se il bucket ha punti); con endpoint (anche
+  `http://indirizzo:porta`) a percorso. Senza bucket la radice è l'elenco dei bucket:
+  «Nuova cartella» lì crea un bucket, eliminarlo toglie contenuto e bucket; il
+  cestino di RooTree va in cima a ogni bucket (come le condivisioni SMB). Cartelle =
+  prefissi, cartella vuota = oggetto «nome/»; rinomina = copia sul server + elimina
+  (oltre 5 GiB il motore scarica e ricarica); fino a 5 GiB una PUT a flusso, oltre a
+  pezzi (≥16 MiB, ≤10 000); Annulla annulla anche il caricamento a pezzi. Regione:
+  quella del profilo, o imparata da Amazon (intestazione o corpo dell'errore); vuota
+  su un servizio che la rifiuta senza dirla ⇒ si provano «garage» e «auto».
+  Verifica: 3 test nuovi (la firma dà esattamente quella dei due esempi della
+  documentazione AWS), 43 verdi; dal POCO col motore vero contro Garage 2.1 in un
+  container sul PC (MinIO non distribuisce più immagini): chiavi sbagliate (AUTH),
+  bucket assente, elenco/creazione/eliminazione di bucket, 30 MB andata e ritorno
+  identici (~11 MB/s in Wi-Fi), a pezzi 40 MB identici, Annulla senza resti (a flusso
+  e a pezzi), rinomina di file e cartelle, nomi con accenti e simboli, file vuoto,
+  cartella doppia = «esiste già», copia/ritorno/spostamento/eliminazione di 30 file
+  con una cartella vuota, cestino (dentro, elenco, ripristino). Non provati: Amazon
+  vero, B2, Wasabi, R2, file oltre 5 GiB.

@@ -88,7 +88,8 @@ Popup {
     readonly property bool pageOk: {
         if (page === 0) return info.type !== undefined
         if (page === 1) {
-            if (info.type === "s3") return v("bucket") !== "" || v("host") !== ""
+            // S3: Amazon con tutti i bucket ha endpoint e bucket vuoti, e va bene
+            if (info.type === "s3") return true
             if (info.type === "smb") return v("host") !== ""
             return v("host") !== "" && Number(v("port")) > 0
         }
@@ -112,7 +113,7 @@ Popup {
     }
     function defaultName() {
         if (!hasServer) return info.label + (v("user") ? " · " + v("user") : "")
-        if (info.type === "s3" && v("bucket")) return v("bucket")
+        if (info.type === "s3") return v("bucket") || (v("host") ? v("host").replace(/^https?:\/\//, "") : "Amazon S3")
         if (info.type === "nextcloud") return "Nextcloud"
         return v("host") || info.label
     }
@@ -404,7 +405,12 @@ Popup {
                     Label { visible: wiz.info.type === "s3"; text: "Bucket" }
                     Field { visible: wiz.info.type === "s3"; key: "bucket"; placeholderText: Style.t("vuoto: tutti i bucket", "empty: all buckets") }
                     Label { visible: wiz.info.type === "s3"; text: Style.t("Regione", "Region") }
-                    Field { visible: wiz.info.type === "s3"; key: "region"; placeholderText: "eu-central-1" }
+                    Field { visible: wiz.info.type === "s3"; key: "region"; placeholderText: Style.t("vuota: la cerca da sola", "empty: found by itself") }
+                    Label {
+                        visible: wiz.info.type === "s3"
+                        text: Style.t("Amazon S3: endpoint vuoto. MinIO, Garage o lo S3 di un NAS: http://indirizzo:porta (es. http://192.168.1.10:9000). Backblaze B2, Wasabi, Cloudflare R2: l'endpoint indicato dal servizio. Senza bucket si parte dall'elenco dei bucket.",
+                                      "Amazon S3: empty endpoint. MinIO, Garage or a NAS's S3: http://address:port (e.g. http://192.168.1.10:9000). Backblaze B2, Wasabi, Cloudflare R2: the endpoint the service gives. Without a bucket you start from the list of buckets.")
+                    }
                     Label {
                         visible: wiz.info.type === "nextcloud"
                         text: Style.t("Il percorso dei file (/remote.php/dav/files/utente) RooTree lo ricava da solo.",

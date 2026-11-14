@@ -109,7 +109,14 @@ pub fn connect(profile_json: &str, secret: &str) -> Result<String, String> {
         let drive = crate::cloud::connect(profile_json, secret)?;
         let start = drive.start();
         clouds().lock().unwrap().insert(p.id.clone(), drive);
-        crate::trash::remember(&p.id, &p.kind, &start);
+        // S3 senza bucket nel profilo: la radice è l'elenco dei bucket, e il
+        // cestino va in cima a ognuno (come le condivisioni di SMB)
+        let all_buckets = p.kind == "s3"
+            && serde_json::from_str::<serde_json::Value>(profile_json)
+                .ok()
+                .and_then(|v| v["bucket"].as_str().map(|b| b.trim().trim_matches('/').is_empty()))
+                .unwrap_or(true);
+        crate::trash::remember(&p.id, if all_buckets { "s3-buckets" } else { &p.kind }, &start);
         return Ok(start);
     }
     if p.kind != "sftp" {
