@@ -353,14 +353,6 @@ impl KDrive {
                 url.push_str(&format!("&cursor={}", http::pct(&cursor, false)));
             }
             let v = self.get(&url)?;
-            // ⏳ DIAGNOSI 15/11 (cestino vuoto): solo numeri, niente nomi
-            eprintln!(
-                "[kdrive] trash: result={} voci={} has_more={} chiavi={:?}",
-                v["result"],
-                v["data"].as_array().map(|a| a.len()).unwrap_or(0),
-                v["has_more"],
-                v.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default()
-            );
             for e in v["data"].as_array().into_iter().flatten() {
                 let name = e["name"].as_str().unwrap_or("");
                 let path = e["path"].as_str().unwrap_or(name);
@@ -429,9 +421,7 @@ impl Drive for KDrive {
     /// Nel cestino di kDrive (si recupera da RooTree o dalla web app).
     fn delete(&self, path: &str) -> io::Result<()> {
         let id = self.id(path)?;
-        let v = self.delete_req(&format!("/2/drive/{}/files/{id}", self.d()))?;
-        // ⏳ DIAGNOSI 15/11 (cestino vuoto): solo l'esito
-        eprintln!("[kdrive] delete id={id}: result={} data={}", v["result"], v["data"].to_string().chars().take(200).collect::<String>());
+        self.delete_req(&format!("/2/drive/{}/files/{id}", self.d()))?;
         self.forget(path);
         Ok(())
     }

@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.3
+Version:    0.9.4
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,13 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 15 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.4-1
+- Nuova connessione kDrive (Infomaniak), anche con kSuite gratuita: si collega con un token
+  personale creato nel Manager di Infomaniak (permesso «drive») e l'indirizzo del proprio kDrive;
+  cartelle, scaricare, caricare, rinominare, spostare e il cestino di kDrive
+- I cloud non mostrano più l'account: nel menù delle memorie compare il nome scelto e, accanto,
+  il servizio (Dropbox, Megasync, kDrive); nuova voce «Rinomina» nel menù di ogni connessione
+
 * Sun Nov 15 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.3-1
 - Nel menù delle memorie lo spazio libero insieme al totale («146 GB liberi su 191 GB»)
 - Nuovo tasto «i» su ogni memoria: una pagina con lo spazio diviso per tipo di file (immagini,
