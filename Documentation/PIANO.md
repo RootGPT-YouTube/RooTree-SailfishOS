@@ -456,3 +456,16 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   cartella doppia = «esiste già», copia/ritorno/spostamento/eliminazione di 30 file
   con una cartella vuota, cestino (dentro, elenco, ripristino). Non provati: Amazon
   vero, B2, Wasabi, R2, file oltre 5 GiB.
+- **15/11 — Pagina «i» delle memorie (0.9.3-1, f3b9867; prima versione QML di POCO Agent 74e90bd).**
+  Menù delle memorie con «liberi su totale». Tasto «i» su ogni memoria ⇒ `StorageSheet.qml`:
+  torta per tipo di file (motore `storage.rs`, `Jobs.types`: st_blocks, hardlink una volta,
+  niente altri montaggi né bind, 10 file più grandi per tipo, cartelle illeggibili; dall'helper
+  in modalità root; misura ricordata in Settings) o per cartella; `Fs.storageInfo` (statvfs,
+  riservato, inode, sorgente dei bind, catena LUKS→loop→partizione→disco, TRIM, superblocco ext4
+  da root, controllabilità); `Jobs.fsCheck` (udisks smonta come l'utente, fsck dall'helper con
+  programma scelto da lui e dispositivo smontato, rimonta sempre). exFAT: nessun fsck su SailfishOS,
+  la pagina spiega come controllarla da un PC. Verifica: 50 test; tocchi sintetici sul POCO su
+  tutte le memorie; helper da root su un'immagine ext4 rovinata (errori → riparati → pulita,
+  rifiuta montato e file); udisks smonta/rimonta la SD come utente. Non provati: il percorso
+  completo dal pulsante (serve scheda ext4/FAT + modalità root), chiavette USB.
+  Prossimo: kDrive ⇒ 0.9.4.
