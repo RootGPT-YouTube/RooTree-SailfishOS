@@ -469,3 +469,12 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   rifiuta montato e file); udisks smonta/rimonta la SD come utente. Non provati: il percorso
   completo dal pulsante (serve scheda ext4/FAT + modalità root), chiavette USB.
   Prossimo: kDrive ⇒ 0.9.4.
+- **15/11 — kDrive (Infomaniak) e cloud senza account in vista (0.9.4-1, 71f2357; lavoro in 8301f24).**
+  `kdrive.rs`: API REST con token personale (scope «drive», ok anche con kSuite gratuita) e ID del drive
+  OBBLIGATORIO (col solo «drive» /1/accounts è vietato: indirizzo di kDrive incollato o numero); percorso→id
+  ricordato, elenchi a cursore, scarica, carica (a pezzi sopra 8 MB), cartelle, rinomina/sposta, cestino di
+  kDrive, ≤55 richieste/min con attesa sui 429. Vassoio: per i cloud nome scelto + servizio (Dropbox, Megasync,
+  kDrive (Infomaniak)), mai l'account; «Rinomina» nel menù della connessione. Verifica: 54 test; utente sul POCO:
+  collegamento ed eliminazioni nel cestino. ⏳ Aperto: una cartella piena eliminata (~20:33) non era nel cestino
+  di kDrive (recuperata dal cestino del PC); non provati: caricamento grande, scaricamento, rinomina/sposta,
+  ripristino. Prossimo: autosync con procedura guidata + menù ⋮ a tendine (decisioni in memoria).
