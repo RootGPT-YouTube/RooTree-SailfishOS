@@ -96,7 +96,7 @@ Sheet {
     // quanto restano le voci: solo nei cestini di RooTree (memorie e server
     // senza cestino proprio); Nextcloud, Mega e Dropbox hanno le loro regole
     MenuRow {
-        readonly property bool own: sheet.cid.charAt(0) === "/" || ["nextcloud", "mega", "dropbox"].indexOf(Remotes.get(sheet.cid).type || "") < 0
+        readonly property bool own: sheet.cid.charAt(0) === "/" || ["nextcloud", "mega", "dropbox", "kdrive"].indexOf(Remotes.get(sheet.cid).type || "") < 0
         visible: own
         icon: "refresh"
         text: Style.t("Svuotamento automatico", "Automatic emptying")

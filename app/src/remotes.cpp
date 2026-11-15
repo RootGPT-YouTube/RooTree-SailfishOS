@@ -293,6 +293,8 @@ QVariantList Remotes::types() const
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
         // un cloud alla volta (scelta dell'utente, 08/11): questi arrivano dopo Dropbox
         type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false),
+        // API REST con un token personale (kSuite gratuita: WebDAV non c'è)
+        type("kdrive", QStringLiteral("kDrive (Infomaniak)"), "cloud", "cloud", 0, {QStringLiteral("token")}, false, false),
     };
 }
 
@@ -324,6 +326,23 @@ void Remotes::load()
     QFile f(file());
     if (f.open(QIODevice::ReadOnly))
         m_list = QJsonDocument::fromJson(f.readAll()).array().toVariantList();
+    // fino alla 0.9.3 il nome proposto per un cloud era «Mega · email»:
+    // l'account non si mostra più, il nome torna quello del servizio
+    bool changed = false;
+    for (QVariant &v : m_list) {
+        QVariantMap p = v.toMap();
+        const QVariantMap t = typeInfo(p.value(QStringLiteral("type")).toString());
+        const QString user = p.value(QStringLiteral("user")).toString();
+        const QString label = t.value(QStringLiteral("label")).toString();
+        if (!t.value(QStringLiteral("needsServer")).toBool() && !user.isEmpty()
+            && p.value(QStringLiteral("name")).toString() == label + QStringLiteral(" · ") + user) {
+            p.insert(QStringLiteral("name"), label);
+            v = p;
+            changed = true;
+        }
+    }
+    if (changed)
+        store();
 }
 
 void Remotes::store()
@@ -374,7 +393,8 @@ QString Remotes::save(const QVariantMap &profile)
             if (isConnected(id))
                 rootree::remote_disconnect(qtrust::str(id));
             m_entry.remove(id);
-        } else if (m_entry.contains(id)) {
+        } else if (m_entry.contains(id) && old.value(QStringLiteral("path")) != p.value(QStringLiteral("path"))) {
+            // solo se la cartella iniziale è cambiata: un nome nuovo non scollega
             const QString path = p.value(QStringLiteral("path")).toString().trimmed();
             m_entry.insert(id, QStringLiteral("/@remote/") + id + (path.isEmpty() || path == QStringLiteral("/") ? QString() : path));
             // vuota = la home sul server, che si sa solo collegandosi: si ricollega
@@ -416,9 +436,13 @@ QString Remotes::duplicate(const QString &id)
 QString Remotes::describe(const QVariantMap &p) const
 {
     const QVariantMap t = typeInfo(p.value(QStringLiteral("type")).toString());
+    // i cloud mostrano solo il servizio, mai l'account (utente 15/11: «non
+    // mostri mai così esplicitamente l'account del drive cloud»)
+    // nel vassoio, a destra del nome scelto dall'utente: il servizio (scelte
+    // dell'utente 15/11: «Dropbox», «Megasync», «kDrive (Infomaniak)»)
     if (!t.value(QStringLiteral("needsServer")).toBool())
-        return p.value(QStringLiteral("user")).toString().isEmpty() ? t.value(QStringLiteral("label")).toString()
-                                                                    : p.value(QStringLiteral("user")).toString();
+        return p.value(QStringLiteral("type")).toString() == QStringLiteral("mega") ? QStringLiteral("Megasync")
+                                                                                     : t.value(QStringLiteral("label")).toString();
     QString s;
     const QString user = p.value(QStringLiteral("user")).toString();
     if (!user.isEmpty() && p.value(QStringLiteral("auth")).toString() != QStringLiteral("anonymous"))

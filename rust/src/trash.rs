@@ -70,9 +70,9 @@ fn conn_of(id: &str) -> Option<(String, String)> {
     conns().lock().unwrap().get(id).cloned()
 }
 
-/// Nextcloud, Mega e Dropbox hanno un cestino loro: eliminare = cestino del servizio.
+/// Nextcloud, Mega, Dropbox e kDrive hanno un cestino loro: eliminare = cestino del servizio.
 pub fn service_kind(kind: &str) -> bool {
-    matches!(kind, "nextcloud" | "mega" | "dropbox")
+    matches!(kind, "nextcloud" | "mega" | "dropbox" | "kdrive")
 }
 
 /// Il tipo della connessione `id` ("" se non è aperta).

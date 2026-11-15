@@ -22,6 +22,7 @@ pub mod ftp;
 pub mod smb;
 pub mod s3;
 pub mod storage;
+pub mod kdrive;
 
 /// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
 pub mod ffi_status {

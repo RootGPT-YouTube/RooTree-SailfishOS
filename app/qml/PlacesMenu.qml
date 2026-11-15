@@ -150,8 +150,9 @@ Popup {
                         anchors { right: more.left; rightMargin: 2 * Style.dp; verticalCenter: parent.verticalCenter }
                         width: Math.min(implicitWidth, parent.width * 0.42)
                         text: Remotes.describe(modelData)
-                        // già scritto nel nome (Mega · email, Dropbox): due volte si accavallano
-                        visible: modelData.name.toLowerCase().indexOf(text.toLowerCase()) < 0
+                        // i cloud dicono sempre il servizio (mai l'account); per i server,
+                        // se è già scritto nel nome, due volte si accavallano
+                        visible: !Remotes.typeInfo(modelData.type).needsServer || modelData.name.toLowerCase().indexOf(text.toLowerCase()) < 0
                         color: Style.dim
                         font.pixelSize: Style.fontS
                         elide: Text.ElideMiddle

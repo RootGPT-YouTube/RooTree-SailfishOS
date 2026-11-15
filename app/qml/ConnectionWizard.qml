@@ -97,6 +97,9 @@ Popup {
             var a = v("auth")
             if (a === "oauth") return v("clientId").trim() !== ""
             if (a === "anonymous" || a === "guest") return true
+            // kDrive: l'indirizzo (o il numero) del drive è obbligatorio: col solo
+            // permesso «drive» il token non può cercarlo (utente 15/11)
+            if (a === "token") return /^\s*\d+\s*$/.test(v("drive")) || /\/drive\/\d+/.test(v("drive"))
             if (a === "key") return v("user") !== "" && v("keyPath") !== ""
             return v("user") !== ""
         }
@@ -112,7 +115,8 @@ Popup {
         page = (page === 2 && !hasServer) ? 0 : page - 1
     }
     function defaultName() {
-        if (!hasServer) return info.label + (v("user") ? " · " + v("user") : "")
+        // un cloud si chiama come il servizio: l'account non va in vista
+        if (!hasServer) return info.label
         if (info.type === "s3") return v("bucket") || (v("host") ? v("host").replace(/^https?:\/\//, "") : "Amazon S3")
         if (info.type === "nextcloud") return "Nextcloud"
         return v("host") || info.label
@@ -559,15 +563,41 @@ Popup {
                             onCheckedChanged: if (checked !== (wiz.p.remember !== false)) wiz.set("remember", checked)
                         }
                     }
-                    // utente e password / chiave
+                    // utente e password / chiave / token (kDrive)
                     Column {
-                        visible: wiz.v("auth") === "password" || wiz.v("auth") === "key"
+                        visible: wiz.v("auth") === "password" || wiz.v("auth") === "key" || wiz.v("auth") === "token"
                         width: parent.width
                         spacing: 8 * Style.dp
+                        // kDrive: come avere il token (gratis anche con kSuite gratuita, provato dall'utente il 15/11)
+                        Rectangle {
+                            visible: wiz.v("auth") === "token"
+                            width: parent.width
+                            height: tokenHowto.implicitHeight + 2 * Style.margin
+                            radius: 10 * Style.dp
+                            color: Style.panel
+                            border.color: Style.line
+                            border.width: 1 * Style.dp
+                            Text {
+                                id: tokenHowto
+                                x: Style.margin; y: Style.margin
+                                width: parent.width - 2 * Style.margin
+                                font.family: Style.fontFamily
+                                color: Style.dim
+                                font.pixelSize: Style.fontS
+                                wrapMode: Text.Wrap
+                                textFormat: Text.StyledText
+                                linkColor: Style.accent
+                                onLinkActivated: function (link) { Opener.openUrl(link) }
+                                readonly property string link: '<a href="https://manager.infomaniak.com/v3/ng/accounts/token/list">manager.infomaniak.com → Token API</a>'
+                                text: Style.t("Come avere il token (gratis, una volta sola):<br>1. Apri " + link + " e accedi.<br>2. «Crea un token»: un nome a piacere, permesso (scope) <b>drive</b>, durata a scelta.<br>3. Copialo qui: Infomaniak lo mostra una volta sola.<br>Il token apre il tuo kDrive: tienilo nella cassaforte e non darlo a nessuno.",
+                                              "How to get the token (free, once):<br>1. Open " + link + " and sign in.<br>2. “Create a token”: any name, scope <b>drive</b>, any duration.<br>3. Paste it here: Infomaniak shows it only once.<br>The token opens your kDrive: keep it in the vault and give it to no one.")
+                            }
+                        }
                         Label {
+                            visible: wiz.v("auth") !== "token"
                             text: wiz.info.type === "s3" ? "Access key ID" : wiz.info.type === "mega" ? "Email" : Style.t("Utente", "User")
                         }
-                        Field { key: "user"; inputMethodHints: wiz.info.type === "mega" ? Qt.ImhEmailCharactersOnly : (Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText) }
+                        Field { visible: wiz.v("auth") !== "token"; key: "user"; inputMethodHints: wiz.info.type === "mega" ? Qt.ImhEmailCharactersOnly : (Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText) }
                         Label {
                             visible: wiz.v("auth") === "key"
                             text: Style.t("Chiave privata", "Private key")
@@ -654,6 +684,7 @@ Popup {
                         }
                         Label {
                             text: wiz.v("auth") === "key" ? Style.t("Frase della chiave (se ne ha una)", "Key passphrase (if any)")
+                                : wiz.v("auth") === "token" ? Style.t("Token dell'API", "API token")
                                 : wiz.info.type === "s3" ? "Secret access key"
                                 : wiz.info.type === "nextcloud" ? Style.t("Password (meglio una «password per app» di Nextcloud)", "Password (better a Nextcloud “app password”)")
                                 : Style.t("Password", "Password")
@@ -672,14 +703,30 @@ Popup {
                             }
                             IconButton { id: eye; anchors { right: parent.right; verticalCenter: secretField.verticalCenter } icon: "eye"; checked: wiz.showSecret; onClicked: wiz.showSecret = !wiz.showSecret }
                         }
+                        Label { visible: wiz.v("auth") === "token"; text: Style.t("Indirizzo del tuo kDrive", "Your kDrive address") }
+                        Field {
+                            visible: wiz.v("auth") === "token"
+                            key: "drive"
+                            inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+                            placeholderText: "https://ksuite.infomaniak.com/…/drive/…"
+                        }
+                        Label {
+                            visible: wiz.v("auth") === "token"
+                            textFormat: Text.StyledText
+                            text: Style.t("Apri kDrive nel browser, copia l'indirizzo dalla barra e incollalo qui. Somiglia a:<br>https://ksuite.infomaniak.com/9999999/kdrive/app/drive/<b><font color=\"#4fa3ff\">1234567</font></b>/files/5<br>RooTree ne prende il numero dopo «/drive/» (qui <b>1234567</b>): puoi anche scrivere solo quello.",
+                                          "Open kDrive in a browser, copy the address from the bar and paste it here. It looks like:<br>https://ksuite.infomaniak.com/9999999/kdrive/app/drive/<b><font color=\"#4fa3ff\">1234567</font></b>/files/5<br>RooTree takes the number after “/drive/” (here <b>1234567</b>): you can also type just that.")
+                        }
                         CheckRow {
                             text: Style.t("Ricorda nella cassaforte", "Remember in the vault")
                             checked: wiz.p.remember !== false
                             onCheckedChanged: if (checked !== (wiz.p.remember !== false)) wiz.set("remember", checked)
                         }
                         Label {
-                            text: Style.t("La cassaforte è cifrata con una password principale tua. Vuota qui, la password verrà chiesta al collegamento.",
-                                          "The vault is encrypted with your own master password. Left empty here, the password is asked when connecting.")
+                            text: wiz.v("auth") === "token"
+                                  ? Style.t("La cassaforte è cifrata con una password principale tua. Vuoto qui, il token verrà chiesto al collegamento.",
+                                            "The vault is encrypted with your own master password. Left empty here, the token is asked when connecting.")
+                                  : Style.t("La cassaforte è cifrata con una password principale tua. Vuota qui, la password verrà chiesta al collegamento.",
+                                            "The vault is encrypted with your own master password. Left empty here, the password is asked when connecting.")
                         }
                     }
                     Label {
@@ -737,7 +784,7 @@ Popup {
                                     width: parent.width
                                     text: ({ password: Style.t("Con password", "With password"), key: Style.t("Con chiave SSH", "With SSH key"),
                                              anonymous: Style.t("Anonimo", "Anonymous"), guest: Style.t("Ospite", "Guest"),
-                                             oauth: Style.t("Accesso dal browser", "Browser sign-in") })[wiz.v("auth")] || ""
+                                             oauth: Style.t("Accesso dal browser", "Browser sign-in"), token: Style.t("Con token dell'API", "With API token") })[wiz.v("auth")] || ""
                                     color: Style.dim
                                     font.pixelSize: Style.fontS
                                 }

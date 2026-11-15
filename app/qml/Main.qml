@@ -745,13 +745,13 @@ Window {
             loginDialog.ask(p)
             return
         }
-        if (p.auth === "password" && !Remotes.hasSecret(p.id)) {
+        if ((p.auth === "password" || p.auth === "token") && !Remotes.hasSecret(p.id)) {
             // salvata nella cassaforte chiusa: prima si apre
             if (p.remember !== false && Remotes.vaultExists && !Remotes.vaultUnlocked) {
-                vaultDialog.ask("unlock", function () { win.connectTo(p) }, function () { secretDialog.ask(p, "password", "") })
+                vaultDialog.ask("unlock", function () { win.connectTo(p) }, function () { secretDialog.ask(p, p.auth, "") })
                 return
             }
-            secretDialog.ask(p, "password", "")
+            secretDialog.ask(p, p.auth, "")
             return
         }
         doConnect(p)
@@ -792,10 +792,16 @@ Window {
                 loginDialog.ask(p, Style.t("L'accesso a " + (Remotes.typeInfo(p.type).label || "") + " è scaduto o è stato revocato: rifallo.", "The sign-in has expired or been revoked: do it again."))
             } else if (code === "MFA") {
                 secretDialog.ask(p, "mfa", message === "wrong" ? Style.t("Codice sbagliato o scaduto: riprova.", "Wrong or expired code: try again.") : "")
+            } else if (code === "AUTH" && p.auth === "token") {
+                secretDialog.ask(p, "token", Style.t("Token rifiutato: " + message, "Token rejected: " + message))
             } else if (code === "AUTH" && p.auth === "password") {
                 secretDialog.ask(p, "password", Style.t("Password rifiutata dal server.", "Password rejected by the server."))
             } else if (code === "KEY" && message.indexOf("frase") >= 0) {
                 secretDialog.ask(p, "passphrase", "")
+            } else if (code === "DRIVEID") {
+                // kDrive col solo permesso «drive»: l'ID del drive lo scrive l'utente
+                toast.show(message, true)
+                wizard.openFor(p)
             } else if (code === "AUTH") {
                 connectError.show(p, Style.t("Il server ha rifiutato la chiave", "The server rejected the key"), message)
             } else if (code === "NET") {
@@ -883,6 +889,8 @@ Window {
         title: profile.name || ""
         message: what === "mfa"
             ? Style.t("Codice a 6 cifre della verifica in due passaggi di Mega (lo trovi nella tua app di autenticazione).", "6-digit two-step verification code for Mega (from your authenticator app).")
+            : what === "token"
+            ? Style.t("Token dell'API di kDrive (si crea nel Manager di Infomaniak, permesso «drive»).", "kDrive API token (created in the Infomaniak Manager, “drive” scope).")
             : what === "passphrase"
             ? Style.t("La chiave «" + (profile.keyPath || "").split("/").pop() + "» è protetta da una frase.", "The key “" + (profile.keyPath || "").split("/").pop() + "” is protected by a passphrase.")
             : Style.t("Password di " + Remotes.describe(profile), "Password for " + Remotes.describe(profile))
@@ -1085,7 +1093,22 @@ Window {
             text: Style.t("Cestino", "Trash")
             onClicked: { connectionMenu.close(); trashSheet.openFor(connectionMenu.profile) }
         }
-        MenuRow { icon: "rename"; text: Style.t("Modifica", "Edit"); onClicked: { connectionMenu.close(); wizard.openFor(connectionMenu.profile) } }
+        MenuRow {
+            icon: "rename"
+            text: Style.t("Rinomina", "Rename")
+            onClicked: {
+                connectionMenu.close()
+                var prof = connectionMenu.profile
+                nameDialog.ask(Style.t("Nome della connessione", "Connection name"), prof.name || "", function (name) {
+                    if (name === "") return Style.t("Il nome non può essere vuoto", "The name cannot be empty")
+                    var c = Object.assign({}, prof)
+                    c.name = name
+                    Remotes.save(c)
+                    return ""
+                })
+            }
+        }
+        MenuRow { icon: "openwith"; text: Style.t("Modifica", "Edit"); onClicked: { connectionMenu.close(); wizard.openFor(connectionMenu.profile) } }
         MenuRow { icon: "copy"; text: Style.t("Duplica", "Duplicate"); onClicked: { connectionMenu.close(); Remotes.duplicate(connectionMenu.profile.id) } }
         MenuRow {
             icon: "delete"

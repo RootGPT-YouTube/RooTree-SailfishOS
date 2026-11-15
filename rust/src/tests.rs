@@ -1068,3 +1068,46 @@ fn controllo_rifiuta_un_file() {
     assert!(st.error.contains("dispositivo a blocchi"), "{}", st.error);
     let _ = fs::remove_dir_all(root);
 }
+
+// ── kDrive (kdrive.rs, 0.9.4) ──────────────────────────────────────────────
+
+#[test]
+fn kdrive_percorsi() {
+    use crate::kdrive::t::*;
+    assert_eq!(norm(""), "/");
+    assert_eq!(norm("/a/b/"), "/a/b");
+    assert_eq!(norm("a"), "/a");
+    assert_eq!(split("/a"), ("/".to_string(), "a".to_string()));
+    assert_eq!(split("/a/b c"), ("/a".to_string(), "b c".to_string()));
+    assert_eq!(join("/", "x"), "/x");
+    assert_eq!(join("/a", "x"), "/a/x");
+}
+
+/// Il limitatore lascia passare subito le prime richieste della finestra.
+#[test]
+fn kdrive_ritmo() {
+    let p = crate::kdrive::t::Pace::default();
+    let mut waited = std::time::Duration::ZERO;
+    for _ in 0..55 {
+        waited += p.wait();
+    }
+    assert!(waited.is_zero());
+}
+
+#[test]
+fn kdrive_senza_token() {
+    let e = crate::cloud::connect(r#"{"id":"k","type":"kdrive"}"#, "  ").err().unwrap();
+    assert!(e.starts_with("AUTH:"), "{e}");
+    assert!(crate::cloud::is_cloud_type("kdrive"));
+    assert!(crate::trash::service_kind("kdrive"));
+}
+
+#[test]
+fn kdrive_id_dal_testo() {
+    use crate::kdrive::drive_id;
+    assert_eq!(drive_id("1234567"), Some(1234567));
+    assert_eq!(drive_id(" https://ksuite.infomaniak.com/9999999/kdrive/app/drive/1234567/files/5 "), Some(1234567));
+    assert_eq!(drive_id("https://ksuite.infomaniak.com/9999999/kdrive/app/drive/1234567"), Some(1234567));
+    assert_eq!(drive_id("https://ksuite.infomaniak.com/9999999/kdrive"), None);
+    assert_eq!(drive_id("abc"), None);
+}
