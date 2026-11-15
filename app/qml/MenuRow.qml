@@ -17,8 +17,14 @@ Rectangle {
     property string image
     property bool expandable: false
     property bool expanded: false
+    // senza freccia ma con lo spazio della freccia, per allineare il dettaglio
+    // alle righe vicine che ce l'hanno (es. «File system (/)»)
+    property bool reserveToggle: false
+    // la «i» cerchiata prima della freccia: apre la pagina della memoria
+    property bool infoButton: false
     signal clicked()
     signal toggled()
+    signal infoClicked()
 
     width: parent ? parent.width : 0
     height: Style.row
@@ -43,7 +49,7 @@ Rectangle {
         anchors.left: m.hasIcon ? ic.right : parent.left
         anchors.leftMargin: m.hasIcon ? Style.margin : Style.margin + m.depth * 22 * Style.dp
         anchors.right: right.left
-        anchors.rightMargin: 8 * Style.dp
+        anchors.rightMargin: (m.infoButton ? 6 : 8) * Style.dp
         anchors.verticalCenter: parent.verticalCenter
         text: m.text
         color: Style.text
@@ -52,8 +58,8 @@ Rectangle {
     }
     Item {
         id: right
-        anchors.right: m.expandable ? toggle.left : parent.right
-        anchors.rightMargin: m.expandable ? 0 : Style.margin
+        anchors.right: m.infoButton ? info.left : (m.expandable ? toggle.left : parent.right)
+        anchors.rightMargin: (m.expandable || m.infoButton) ? 0 : (m.reserveToggle ? Style.row : Style.margin)
         anchors.verticalCenter: parent.verticalCenter
         width: m.checkable ? 22 * Style.dp : detailText.implicitWidth
         height: parent.height
@@ -78,6 +84,29 @@ Rectangle {
         id: area
         anchors.fill: parent
         onClicked: m.clicked()
+    }
+    // la «i», con una zona di tocco sua come la freccia
+    Rectangle {
+        id: info
+        visible: m.infoButton
+        anchors.right: m.expandable ? toggle.left : parent.right
+        // entra di 8 dp nel margine vuoto della freccia (54 dp con la freccia
+        // di 14 al centro), così il nome della memoria non si taglia
+        anchors.rightMargin: m.expandable ? -8 * Style.dp : (m.reserveToggle ? Style.row - 8 * Style.dp : Style.margin)
+        width: m.infoButton ? 26 * Style.dp : 0
+        height: parent.height
+        color: infoArea.pressed ? Style.pressed : "transparent"
+        Icon {
+            anchors.centerIn: parent
+            name: "info"
+            size: 17 * Style.dp
+            opacity: 0.85
+        }
+        MouseArea {
+            id: infoArea
+            anchors.fill: parent
+            onClicked: m.infoClicked()
+        }
     }
     // la freccia ha una zona di tocco sua, larga quanto un pulsante
     Rectangle {

@@ -20,6 +20,8 @@ Popup {
     signal addConnection()
     signal openConnection(var profile)
     signal connectionActions(var profile)
+    // la «i» di una memoria: la pagina con spazio, file system e stato
+    signal placeInfo(var place)
 
     parent: Overlay.overlay
     modal: true
@@ -41,7 +43,8 @@ Popup {
     }
 
     function go(path) { close(); navigate(path) }
-    function freeText(p) { return p.total > 0 ? Style.t(Style.size(p.free) + " liberi", Style.size(p.free) + " free") : "" }
+    function info(p) { close(); placeInfo(p) }
+    function freeText(p) { return p.total > 0 ? Style.freeOf(p.free, p.total) : "" }
     // le cartelle predefinite che ci sono davvero; su Android e sulle schede
     // si chiamano anche Download e Movies
     readonly property var standardDirs: [
@@ -110,7 +113,8 @@ Popup {
                         depth: 1
                         place: modelData
                         icon: modelData.kind === 2 ? "sdcard" : "usb"
-                        text: (modelData.kind === 2 ? Style.t("Scheda SD", "SD card") : "USB") + (modelData.label ? " · " + modelData.label : "")
+                        // il codice della scheda (UUID) non si mostra qui: è nella pagina della «i»
+                        text: modelData.kind === 2 ? Style.t("Scheda SD", "SD card") : "USB" + (modelData.label ? " · " + modelData.label : "")
                     }
                 }
                 MenuRow {
@@ -119,6 +123,9 @@ Popup {
                     icon: "root"
                     text: Style.t("File system (/)", "File system (/)")
                     detail: p ? menu.freeText(p) : ""
+                    reserveToggle: true
+                    infoButton: p !== null
+                    onInfoClicked: menu.info(p)
                     onClicked: menu.go("/")
                 }
             }

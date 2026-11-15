@@ -23,6 +23,8 @@ Column {
         expanded: pr.open
         onClicked: pr.owner.go(pr.place.path)
         onToggled: pr.owner.toggle(pr.place.path)
+        infoButton: true
+        onInfoClicked: pr.owner.info(pr.place)
     }
     Repeater {
         model: pr.open ? pr.dirs : []

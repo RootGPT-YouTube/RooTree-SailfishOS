@@ -89,5 +89,9 @@ QtObject {
         return s
     }
 
+    // «146 GB liberi su 191 GB»
+    function freeOf(free, total) {
+        return italiano ? size(free) + " liberi su " + size(total) : size(free) + " free of " + size(total)
+    }
     function count(n, one, many) { return n + " " + (n === 1 ? one : many) }
 }

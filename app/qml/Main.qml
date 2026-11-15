@@ -585,7 +585,7 @@ Window {
             if (folder.fileCount > 0)
                 s += " (" + Style.size(folder.filesSize) + ")"
             if (win.place.total > 0)
-                s += " · " + Style.t(Style.size(win.place.free) + " liberi", Style.size(win.place.free) + " free")
+                s += " · " + Style.freeOf(win.place.free, win.place.total)
             return s
         }
     }
@@ -702,7 +702,9 @@ Window {
         onAddConnection: wizard.openNew()
         onOpenConnection: function (p) { win.connectTo(p) }
         onConnectionActions: function (p) { connectionMenu.profile = p; connectionMenu.open() }
+        onPlaceInfo: function (p) { storageSheet.openFor(p) }
     }
+    StorageSheet { id: storageSheet }
 
     // ── connessioni remote ──────────────────────────────────────────────────
     ConnectionWizard {
