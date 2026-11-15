@@ -57,7 +57,7 @@ Sheet {
     // rilascio, e Annulla non arrivava (visto sul POCO, 25/10)
     ListModel { id: rows }
     function sync() {
-        var list = Jobs.jobs.filter(function (j) { return j.kind !== 3 })
+        var list = Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.kind < 7 })
         for (var i = rows.count - 1; i >= 0; --i) {
             var id = rows.get(i).job.id
             if (!list.some(function (j) { return j.id === id }))
@@ -131,7 +131,7 @@ Sheet {
         }
     }
     MenuRow {
-        visible: Jobs.jobs.some(function (j) { return j.kind !== 3 && j.state >= 5 })
+        visible: Jobs.jobs.some(function (j) { return j.kind !== 3 && j.kind < 7 && j.state >= 5 })
         icon: "delete"
         text: Style.t("Togli dall'elenco quelle finite", "Clear finished")
         onClicked: Jobs.forgetFinished()

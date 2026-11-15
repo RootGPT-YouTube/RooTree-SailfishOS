@@ -1,5 +1,7 @@
 #include "filesystem.h"
 
+#include <QJsonDocument>
+
 #include <QDir>
 #include <QHash>
 #include <QFileInfo>
@@ -41,6 +43,12 @@ QVariantList FileSystem::places() const
         };
     }
     return out;
+}
+
+QVariantMap FileSystem::storageInfo(const QString &path) const
+{
+    const rust::String j = rootree::storage_info(qtrust::str(path));
+    return QJsonDocument::fromJson(QByteArray(j.data(), qsizetype(j.size()))).toVariant().toMap();
 }
 
 QVariantMap FileSystem::info(const QString &path) const

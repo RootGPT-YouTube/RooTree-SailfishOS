@@ -12,7 +12,7 @@ Item {
     signal openJobs()
 
     // la prima operazione aperta (le dimensioni per Proprietà non contano)
-    readonly property var open: Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.state < 5 })
+    readonly property var open: Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.kind < 7 && j.state < 5 })
     readonly property var job: open.length > 0 ? open[0] : null
     readonly property bool preparing: job !== null && (job.state === 0 || job.state === 1 || (job.totalBytes === 0 && job.totalItems === 0))
     readonly property real fraction: !job ? 0 : (job.totalBytes > 0 ? job.doneBytes / job.totalBytes

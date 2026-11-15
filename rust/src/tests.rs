@@ -952,3 +952,119 @@ fn s3_elenco_e_bucket() {
     let b = crate::s3::parse_buckets(r#"<ListAllMyBucketsResult><Buckets><Bucket><Name>uno</Name><CreationDate>2026-01-02T03:04:05.000Z</CreationDate></Bucket><Bucket><Name>due</Name><CreationDate>2026-01-02T03:04:05Z</CreationDate></Bucket></Buckets></ListAllMyBucketsResult>"#).unwrap();
     assert_eq!(b.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), vec!["uno", "due"]);
 }
+
+// ── pagina «i» delle memorie (storage.rs, 0.9.3) ───────────────────────────
+
+#[test]
+fn tipi_dal_nome() {
+    use crate::storage::ext_category as c;
+    assert_eq!(c("foto.JPG"), "images");
+    assert_eq!(c("film.mkv"), "video");
+    assert_eq!(c("canzone.flac"), "audio");
+    assert_eq!(c("conto.pdf"), "documents");
+    assert_eq!(c("copia.tar.zst"), "archives");
+    assert_eq!(c("app.apk"), "packages");
+    assert_eq!(c(".bashrc"), "other"); // un nome nascosto non è un'estensione
+    assert_eq!(c("senza"), "other");
+}
+
+#[test]
+fn tipi_dalla_cartella() {
+    use crate::storage::dir_category as d;
+    let p = Path::new;
+    assert_eq!(d("", "defaultuser", ".cache", p("/home/defaultuser/.cache")), "cache");
+    assert_eq!(d("", ".local", "share", p("/home/defaultuser/.local/share")), "apps");
+    // la cache dentro i dati di un'app resta cache
+    assert_eq!(d("apps", "org.app", "cache", p("/x/org.app/cache")), "cache");
+    assert_eq!(d("apps", "org.app", "files", p("/x/org.app/files")), "apps");
+    // la memoria di Android dentro Waydroid torna dell'utente…
+    assert_eq!(d("apps", "data", "media", p("/home/u/.local/share/waydroid/data/media")), "");
+    // …tranne i dati delle app
+    assert_eq!(d("", "Android", "data", p("/home/u/android_storage/Android/data")), "apps");
+    assert_eq!(d("", "", "usr", p("/usr")), "system");
+    assert_eq!(d("", "defaultuser", "Pictures", p("/home/defaultuser/Pictures")), "");
+}
+
+#[test]
+fn tipi_lavoro() {
+    use std::os::unix::fs::MetadataExt;
+    let root = tmp(false);
+    fs::create_dir_all(root.join(".cache/app")).unwrap();
+    fs::create_dir_all(root.join("Pictures")).unwrap();
+    fs::write(root.join("Pictures/a.jpg"), vec![1u8; 100_000]).unwrap();
+    fs::hard_link(root.join("Pictures/a.jpg"), root.join("Pictures/stessa.jpg")).unwrap();
+    fs::write(root.join(".cache/app/x.jpg"), vec![2u8; 50_000]).unwrap();
+    fs::write(root.join("doc.pdf"), vec![3u8; 10_000]).unwrap();
+    let st = wait(crate::storage::types(vec![s(&root)]));
+    assert_eq!(st.state, ST_DONE);
+    let d: serde_json::Value = serde_json::from_str(&st.detail).unwrap();
+    let on_disk = |p: &Path| fs::metadata(p).unwrap().blocks() * 512;
+    // l'hardlink conta una volta, e lo spazio è quello vero su disco
+    assert_eq!(d["byType"]["images"]["count"], 1);
+    assert_eq!(d["byType"]["images"]["bytes"], on_disk(&root.join("Pictures/a.jpg")));
+    // un'immagine nella cache è cache
+    assert_eq!(d["byType"]["cache"]["count"], 1);
+    assert_eq!(d["byType"]["documents"]["count"], 1);
+    assert_eq!(d["largest"]["images"][0]["size"], on_disk(&root.join("Pictures/a.jpg")));
+    assert_eq!(d["done"], true);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn montaggi_e_bind() {
+    use crate::storage::*;
+    let t = "36 25 253:5 / /home rw,noatime shared:2 - ext4 /dev/mapper/home_cifrata rw,data=ordered\n\
+             40 36 253:5 /defaultuser/.local/share/waydroid/data/media/0 /home/defaultuser/android_storage rw,noatime shared:2 - ext4 /dev/mapper/home_cifrata rw\n\
+             50 25 179:1 / /run/media/defaultuser/3438\\0406134 rw,nosuid - exfat /dev/mmcblk0p1 rw,errors=remount-ro\n\
+             1 0 259:43 / / rw - ext4 /dev/block/sdc59 rw\n";
+    let all = parse_mountinfo(t);
+    assert_eq!(all.len(), 4);
+    assert_eq!(all[2].mount, "/run/media/defaultuser/3438 6134");
+    let m = mount_of(&all, "/home/defaultuser/android_storage/DCIM").unwrap();
+    assert_eq!(m.mount, "/home/defaultuser/android_storage");
+    assert_eq!(bind_source(&all, m).unwrap(), "/home/defaultuser/.local/share/waydroid/data/media/0");
+    assert_eq!(mount_of(&all, "/usr/bin").unwrap().mount, "/");
+    assert!(bind_source(&all, mount_of(&all, "/home/x").unwrap()).is_none());
+}
+
+#[test]
+fn superblocco_ext4() {
+    let mut b = [0u8; 1024];
+    b[0x38..0x3A].copy_from_slice(&0xEF53u16.to_le_bytes());
+    b[0x3A..0x3C].copy_from_slice(&1u16.to_le_bytes());
+    b[0x34..0x36].copy_from_slice(&17u16.to_le_bytes());
+    b[0x194..0x198].copy_from_slice(&304u32.to_le_bytes());
+    b[0x1CC..0x1D0].copy_from_slice(&1_761_909_120u32.to_le_bytes());
+    let v = crate::storage::parse_ext4_super(&b).unwrap();
+    assert_eq!(v["clean"], true);
+    assert_eq!(v["mountCount"], 17);
+    assert_eq!(v["errorCount"], 304);
+    assert_eq!(v["lastErrorTime"], 1_761_909_120u32);
+    b[0x38] = 0;
+    assert!(crate::storage::parse_ext4_super(&b).is_none());
+}
+
+#[test]
+fn esito_del_controllo() {
+    use crate::storage::verdict as v;
+    assert_eq!(v("e2fsck", 0, false), "clean");
+    assert_eq!(v("e2fsck", 4, false), "errors");
+    assert_eq!(v("e2fsck", 1, true), "fixed");
+    assert_eq!(v("e2fsck", 8, false), "failed");
+    assert_eq!(v("fsck.fat", 1, false), "errors");
+    assert_eq!(v("fsck.fat", 1, true), "fixed");
+    assert_eq!(v("fsck.exfat", -1, false), "failed");
+}
+
+/// fsck vero su un'immagine FAT o ext4 in un file (niente root: il file non è
+/// un dispositivo a blocchi, quindi l'helper deve rifiutarlo).
+#[test]
+fn controllo_rifiuta_un_file() {
+    let root = tmp(false);
+    let img = root.join("disco.img");
+    fs::write(&img, vec![0u8; 4096]).unwrap();
+    let st = wait(crate::storage::fsck(s(&img), "ext4".into(), false));
+    assert_eq!(st.state, ST_FAILED);
+    assert!(st.error.contains("dispositivo a blocchi"), "{}", st.error);
+    let _ = fs::remove_dir_all(root);
+}

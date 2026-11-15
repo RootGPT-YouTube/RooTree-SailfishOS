@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.2
+Version:    0.9.3
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,15 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 15 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.3-1
+- Nel menù delle memorie lo spazio libero insieme al totale («146 GB liberi su 191 GB»)
+- Nuovo tasto «i» su ogni memoria: una pagina con lo spazio diviso per tipo di file (immagini,
+  video, musica, documenti, archivi, pacchetti, app, cache, sistema) o per cartella, i file più
+  grandi di ogni tipo, i dati del file system (cifratura, spazio riservato, TRIM), la memoria fisica
+  (tipo, modello, usura) e lo stato (errori, ultimo controllo)
+- Controllo e riparazione delle schede e chiavette ext4 o FAT (con la modalità root); per le schede
+  exFAT la pagina spiega come controllarle da un computer
+
 * Sat Nov 14 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.2-1
 - Versione 0.9.2: stesse funzioni della 0.9.1 (file del telefono, anteprime, archivi, modalità root,
   cestino, editor di testo, connessioni SFTP, FTP/FTPS, WebDAV/Nextcloud, SMB, S3, Dropbox e Mega)

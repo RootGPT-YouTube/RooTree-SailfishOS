@@ -21,7 +21,7 @@ class JobManager : public QObject
 
 public:
     // come in jobs.rs
-    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6 };
+    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6, Types = 7, Check = 8 };
     enum State { Queued = 0, Scanning, Running, AskConflict, AskError, Done, Failed, Cancelled };
     enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry, Merge };
     Q_ENUM(Kind)
@@ -43,6 +43,10 @@ public:
     // nel cestino
     Q_INVOKABLE int trash(const QStringList &paths);
     Q_INVOKABLE int size(const QStringList &paths);
+    // la pagina «i»: l'occupato per tipo di file (status(id).info.byType…)
+    Q_INVOKABLE int types(const QStringList &paths);
+    // controlla (o ripara) la scheda montata in mount: smonta, fsck da root, rimonta
+    Q_INVOKABLE int fsCheck(const QString &mount, bool repair);
     // «Estrai qui»: tutto l'archivio in dest
     Q_INVOKABLE int extract(const QString &archive, const QString &dest);
     // crea l'archivio dest (il formato dal nome) con sources

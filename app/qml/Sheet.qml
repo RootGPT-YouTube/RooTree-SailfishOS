@@ -21,6 +21,10 @@ Popup {
 
     Overlay.modal: Rectangle { color: "#99000000" }
 
+    // un pannello riusato (la pagina «i» delle memorie) si riapre dall'inizio,
+    // non dove lo si era lasciato
+    onAboutToShow: flick.contentY = 0
+
     // dissolvenza e non scorrimento: un'animazione su y ne romperebbe il
     // legame con l'altezza, che si conosce solo dopo aver steso il contenuto
     // (il pannello restava a metà fuori dallo schermo)

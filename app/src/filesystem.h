@@ -28,6 +28,9 @@ public:
     // [{kind, label, path, total, free}], kind come Place in lib.rs
     Q_INVOKABLE QVariantList places() const;
     Q_INVOKABLE QVariantMap info(const QString &path) const;
+    // la pagina «i» di una memoria: statvfs, catena dei dispositivi, TRIM,
+    // superblocco ext4 (da root), se e come si può controllare (vedi storage.rs)
+    Q_INVOKABLE QVariantMap storageInfo(const QString &path) const;
     // "" se riuscito, altrimenti il messaggio d'errore
     Q_INVOKABLE QString makeDir(const QString &parent, const QString &name) const;
     Q_INVOKABLE QString makeFile(const QString &parent, const QString &name) const;

@@ -32,6 +32,10 @@ pub const JOB_EXTRACT: u8 = 4;
 pub const JOB_COMPRESS: u8 = 5;
 /// nel cestino (trash.rs); JOB_DELETE è il definitivo
 pub const JOB_TRASH: u8 = 6;
+/// l'occupato diviso per tipo di file (storage.rs): parte subito come la dimensione
+pub const JOB_TYPES: u8 = 7;
+/// il controllo di un file system smontato (fsck, storage.rs)
+pub const JOB_CHECK: u8 = 8;
 
 pub const ST_QUEUED: u8 = 0;
 pub const ST_SCANNING: u8 = 1;
@@ -121,6 +125,7 @@ fn new_job(kind: u8, sources: &[String], dest: &str) -> Arc<Job> {
         dest: dest.into(),
         first_source: sources.first().cloned().unwrap_or_default(),
         sources: sources.len() as u64,
+        detail: String::new(),
     };
     Arc::new(Job { status: Mutex::new(status), cancel: AtomicBool::new(false), answer: Mutex::new(None), cv: Condvar::new() })
 }
@@ -188,6 +193,37 @@ pub fn size(paths: Vec<String>) -> u64 {
             s.dirs = t.dirs;
         });
         run.finish(Ok(()));
+    });
+    id
+}
+
+/// La maniglia di un lavoro che non va in coda (storage.rs): aggiorna lo
+/// stato e dice se l'interfaccia l'ha annullato.
+pub struct Handle(Arc<Job>);
+
+impl Handle {
+    pub fn set(&self, f: impl FnOnce(&mut JobStatus)) {
+        f(&mut self.0.status.lock().unwrap());
+    }
+    pub fn cancelled(&self) -> bool {
+        self.0.cancel.load(Ordering::Relaxed)
+    }
+    pub fn id(&self) -> u64 {
+        self.0.status.lock().unwrap().id
+    }
+}
+
+/// Un lavoro sul suo thread, senza aspettare la coda (come la dimensione):
+/// `f` fa il lavoro; un `Err` lo chiude come fallito con quel messaggio.
+pub fn side_job(kind: u8, paths: Vec<String>, f: impl FnOnce(&Handle) -> Result<(), String> + Send + 'static) -> u64 {
+    let job = new_job(kind, &paths, "");
+    let id = job.status.lock().unwrap().id;
+    manager().0.lock().unwrap().jobs.push(job.clone());
+    thread::spawn(move || {
+        let h = Handle(job.clone());
+        h.set(|s| s.state = ST_RUNNING);
+        let r = f(&h).map_err(Stop::Failed);
+        Run::new(job).finish(r);
     });
     id
 }

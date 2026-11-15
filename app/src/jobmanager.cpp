@@ -2,6 +2,8 @@
 
 #include "qtrust.h"
 
+#include <QJsonDocument>
+
 JobManager::JobManager(QObject *parent)
     : QObject(parent)
 {
@@ -41,6 +43,16 @@ int JobManager::remove(const QStringList &paths)
 int JobManager::size(const QStringList &paths)
 {
     return started(rootree::job_size(qtrust::vec(paths)));
+}
+
+int JobManager::types(const QStringList &paths)
+{
+    return started(rootree::job_types(qtrust::vec(paths)));
+}
+
+int JobManager::fsCheck(const QString &mount, bool repair)
+{
+    return started(rootree::job_fs_check(qtrust::str(mount), repair));
 }
 
 int JobManager::extract(const QString &archive, const QString &dest)
@@ -88,7 +100,7 @@ void JobManager::poll()
     int active = 0;
     for (const auto &s : rootree::job_statuses()) {
         const int state = int(s.state);
-        list << QVariantMap{
+        QVariantMap job{
             {QStringLiteral("id"), int(s.id)},
             {QStringLiteral("kind"), int(s.kind)},
             {QStringLiteral("state"), state},
@@ -107,8 +119,13 @@ void JobManager::poll()
             {QStringLiteral("firstSource"), qtrust::qs(s.first_source)},
             {QStringLiteral("sources"), qint64(s.sources)},
         };
+        // i dati in più (per tipo di file, esito del controllo), già decodificati
+        if (!s.detail.empty())
+            job.insert(QStringLiteral("info"), QJsonDocument::fromJson(QByteArray(s.detail.data(), qsizetype(s.detail.size()))).toVariant());
+        list << job;
         if (state < Done) {
-            if (s.kind != Size)
+            // quelli della pagina «i» non sono operazioni dell'utente sui file
+            if (s.kind != Size && s.kind != Types && s.kind != Check)
                 ++active;
         } else if (m_lastState.value(s.id, -1) != state) {
             emit finished(int(s.id), int(s.kind), state, qtrust::qs(s.error));

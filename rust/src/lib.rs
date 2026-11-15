@@ -21,6 +21,7 @@ pub mod webdav;
 pub mod ftp;
 pub mod smb;
 pub mod s3;
+pub mod storage;
 
 /// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
 pub mod ffi_status {
@@ -90,6 +91,8 @@ mod ffi {
         dest: String,
         first_source: String,
         sources: u64,
+        /// i dati in più di un lavoro, in JSON (per tipo di file, esito del controllo)
+        detail: String,
     }
 
     /// Un risultato della ricerca; `snippet`: la riga trovata (ricerca nel contenuto).
@@ -187,6 +190,11 @@ mod ffi {
         fn trash_purge_local();
         fn job_size(paths: Vec<String>) -> u64;
         /// Estrae tutto l'archivio in `dest` («Estrai qui»).
+        /// la pagina «i» di una memoria: l'occupato per tipo di file (lavoro),
+        /// i dati del file system (JSON), il controllo di una scheda (lavoro)
+        fn job_types(paths: Vec<String>) -> u64;
+        fn storage_info(path: &str) -> String;
+        fn job_fs_check(mount: &str, repair: bool) -> u64;
         fn job_extract(archive: &str, dest: &str) -> u64;
         /// Crea l'archivio `dest` (formato dal nome: .zip .tar .tar.gz .tar.bz2 .tar.xz .tar.zst .7z).
         fn job_compress(sources: Vec<String>, dest: &str) -> u64;
@@ -476,6 +484,25 @@ fn trash_purge_local() {
 
 fn job_size(paths: Vec<String>) -> u64 {
     job_via(Request::JobSize { paths: paths.clone() }, || jobs::size(paths))
+}
+
+fn job_types(paths: Vec<String>) -> u64 {
+    job_via(Request::JobTypes { paths: paths.clone() }, || storage::types(paths))
+}
+
+/// Da root si legge anche il superblocco ext4; senza, quello che si può.
+fn storage_info(path: &str) -> String {
+    if root::active()
+        && let Ok(v) = root::call(&Request::StorageInfo { path: path.into() })
+    {
+        return v.to_string();
+    }
+    storage::info(path).to_string()
+}
+
+/// Sempre nell'app: smonta e rimonta come l'utente, il controllo lo chiede all'helper.
+fn job_fs_check(mount: &str, repair: bool) -> u64 {
+    storage::check(mount.into(), repair)
 }
 
 fn job_extract(archive: &str, dest: &str) -> u64 {

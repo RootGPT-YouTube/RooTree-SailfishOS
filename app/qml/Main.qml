@@ -626,7 +626,7 @@ Window {
         led: ""
 
         // l'avanzamento della prima operazione aperta, come un filo sul bordo
-        readonly property var running: Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.state < 5 })[0]
+        readonly property var running: Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.kind < 7 && j.state < 5 })[0]
         Rectangle {
             visible: !!bottomBar.running
             anchors { left: parent.left; top: parent.top }
@@ -650,7 +650,7 @@ Window {
             IconButton {
                 width: parent.w; height: parent.height
                 icon: "jobs"
-                opacity: Jobs.jobs.some(function (j) { return j.kind !== 3 }) ? 1 : 0.35
+                opacity: Jobs.jobs.some(function (j) { return j.kind !== 3 && j.kind < 7 }) ? 1 : 0.35
                 onClicked: jobsSheet.open()
                 Rectangle {
                     visible: Jobs.activeCount > 0
@@ -704,7 +704,10 @@ Window {
         onConnectionActions: function (p) { connectionMenu.profile = p; connectionMenu.open() }
         onPlaceInfo: function (p) { storageSheet.openFor(p) }
     }
-    StorageSheet { id: storageSheet }
+    StorageSheet {
+        id: storageSheet
+        onOpenFolder: function (p) { win.go(p) }
+    }
 
     // ── connessioni remote ──────────────────────────────────────────────────
     ConnectionWizard {
@@ -1634,7 +1637,8 @@ Window {
             }
         }
         function onFinished(id, kind, state, error) {
-            if (kind === 3)
+            // dimensione e pagina «i» (per tipo, controllo): li segue chi li ha chiesti
+            if (kind === 3 || kind >= 7)
                 return
             if (win.remoteDone(id, state, error))
                 return
