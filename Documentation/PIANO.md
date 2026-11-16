@@ -478,3 +478,19 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   collegamento ed eliminazioni nel cestino. ⏳ Aperto: una cartella piena eliminata (~20:33) non era nel cestino
   di kDrive (recuperata dal cestino del PC); non provati: caricamento grande, scaricamento, rinomina/sposta,
   ripristino. Prossimo: autosync con procedura guidata + menù ⋮ a tendine (decisioni in memoria).
+- **16/11 — Sincronizzazioni, menù ⋮ a tendine, nuvole con la lettera (0.9.5-1, edcb1fe).**
+  `sync.rs` sullo strato vfs (ogni server e cloud): cartella del telefono ↔ cartella di una connessione,
+  direzione (su/giù/due sensi) ed eliminazioni (nessuna/su/giù/due sensi) per ognuna; stato dell'ultimo
+  giro in `~/.local/share/…/sync/<id>.json` per distinguere nuovo/cambiato/eliminato; primo incontro =
+  uguali se stessa dimensione (i cloud non tengono la data), poi dimensione + data (±2 s); cambiato dalle
+  due parti: vince il più recente, il perdente nel cestino (telefono) o rinominato «(conflitto …)» (remoto).
+  Salvaguardie: eliminazioni sempre nei cestini, conferma oltre 50 e con una parte vuota tutta insieme.
+  `Syncs` (C++): sincronizzazioni.json, QFileSystemWatcher sulle cartelle (10 s di calma, zitto durante e
+  subito dopo un giro). QML: SyncWizard (5 passi), SyncSheet, giro all'apertura / al cambio / «Sincronizza
+  ora», cassaforte chiesta una volta per giro (rifiutata ⇒ i giri automatici non la richiedono),
+  irraggiungibile ⇒ avviso di 5 s. Menù ⋮: «Visualizzazione» e «Opzioni cartella» a tendina. Nuvole di
+  Mega e kDrive con M e K (tools/icone-cloud.py). `--remap-path-prefix`/`-ffile-prefix-map`: 0 percorsi
+  del PC nel binario (erano 840). Verifica: 55 test (nuovo «sincronizzazione»), banco tools/collaudo-sync
+  con tocchi veri sul Main.qml vero (TUTTO OK, scatti guardati). Installata sul POCO, rpm -V vuoto.
+  ⏳ Non provato: un giro vero contro NAS/cloud dal telefono, la sorveglianza delle cartelle sul telefono.
+  Niente opzione «solo Wi-Fi» (servirebbe sapere la rete dall'app: rimandata).
