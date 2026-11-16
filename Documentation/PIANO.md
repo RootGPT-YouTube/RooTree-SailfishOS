@@ -494,3 +494,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   con tocchi veri sul Main.qml vero (TUTTO OK, scatti guardati). Installata sul POCO, rpm -V vuoto.
   ⏳ Non provato: un giro vero contro NAS/cloud dal telefono, la sorveglianza delle cartelle sul telefono.
   Niente opzione «solo Wi-Fi» (servirebbe sapere la rete dall'app: rimandata).
+- **16/11 — 0.9.5-2 (33ef482): direzione spiegata.** Richiesta dell'utente: Bivalente / Da Locale / Da
+  Remoto coi loro nomi, verso disegnato, chi comanda e a cosa serve; riquadro «Cosa succederà» (sei casi:
+  aggiungo/modifico/elimino da una parte o dall'altra) calcolato dalle stesse regole di plan() in
+  sync.rs. Banco: TUTTO OK. Installata sul POCO, rpm -V vuoto.
