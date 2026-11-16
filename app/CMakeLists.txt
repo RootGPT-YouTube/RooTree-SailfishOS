@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(harbour-rootree VERSION 0.9.4 LANGUAGES CXX)
+project(harbour-rootree VERSION 0.9.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,6 +27,7 @@ qt_add_executable(harbour-rootree
     src/opener.cpp src/opener.h
     src/searchmodel.cpp src/searchmodel.h
     src/remotes.cpp src/remotes.h
+    src/syncs.cpp src/syncs.h
     src/thumbnailer.cpp src/thumbnailer.h
     src/qtrust.h
 )

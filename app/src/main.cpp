@@ -12,6 +12,7 @@
 #include "opener.h"
 #include "remotes.h"
 #include "searchmodel.h"
+#include "syncs.h"
 #include "thumbnailer.h"
 
 int main(int argc, char *argv[])
@@ -39,6 +40,8 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Jobs", &jobs);
     Remotes remotes;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Remotes", &remotes);
+    Syncs syncs(&jobs);
+    qmlRegisterSingletonInstance("RooTree", 1, 0, "Syncs", &syncs);
     Opener opener;
     qmlRegisterSingletonInstance("RooTree", 1, 0, "Opener", &opener);
 

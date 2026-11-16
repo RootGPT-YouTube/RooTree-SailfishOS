@@ -12,7 +12,8 @@ Item {
     signal openJobs()
 
     // la prima operazione aperta (le dimensioni per Proprietà non contano)
-    readonly property var open: Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.kind < 7 && j.state < 5 })
+    // le sincronizzazioni solo quando copiano o eliminano davvero (non mentre confrontano)
+    readonly property var open: Jobs.jobs.filter(function (j) { return (j.kind !== 3 && j.kind < 7 && j.state < 5) || (j.kind === 9 && j.state === 2 && j.totalItems > 0) })
     readonly property var job: open.length > 0 ? open[0] : null
     readonly property bool preparing: job !== null && (job.state === 0 || job.state === 1 || (job.totalBytes === 0 && job.totalItems === 0))
     readonly property real fraction: !job ? 0 : (job.totalBytes > 0 ? job.doneBytes / job.totalBytes
@@ -63,6 +64,7 @@ Item {
         case 6: return Style.t("Nel cestino: " + w, "To trash: " + w)
         case 4: return Style.t("Estrazione di " + w + " in " + d, "Extracting " + w + " to " + d)
         case 5: return Style.t("Creazione di " + d, "Creating " + d)
+        case 9: return Style.t("Sincronizzazione di «" + (j.firstSource.split("/").pop() || "/") + "» con " + d, "Syncing “" + (j.firstSource.split("/").pop() || "/") + "” with " + d)
         }
         return ""
     }

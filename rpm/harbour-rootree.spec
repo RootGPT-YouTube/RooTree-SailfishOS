@@ -12,7 +12,7 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.4
+Version:    0.9.5
 Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
@@ -98,6 +98,19 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Mon Nov 16 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-1
+- Sincronizzazioni: una cartella del telefono (memoria interna, Android o scheda SD, con o senza
+  sottocartelle) tenuta allineata con una cartella di un NAS, di un server o di un cloud. Si crea
+  con una procedura guidata (menù ⋮ → Opzioni cartella → «Sincronizza questa cartella…», oppure
+  Opzioni per Remoto → «Sincronizzazioni…»): direzione ed eliminazioni si scelgono per ognuna
+- Avviene solo con RooTree aperta: all'apertura, quando un file della cartella cambia, e con
+  «Sincronizza ora»; se il remoto non risponde compare un avviso e si riprova al giro dopo
+- Salvaguardie: ciò che si elimina va sempre in un cestino; oltre 50 eliminazioni in un giro, o
+  con una cartella vuota tutta insieme, RooTree chiede prima di fare qualsiasi cosa; un file
+  cambiato dalle due parti non si perde (vince il più recente, l'altro resta)
+- Menù ⋮ più corto: «Visualizzazione» (vista e ordinamento) e «Opzioni cartella» sono tendine
+- Le nuvole di Mega e di kDrive hanno la loro lettera (M e K)
+
 * Sun Nov 15 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.4-1
 - Nuova connessione kDrive (Infomaniak), anche con kSuite gratuita: si collega con un token
   personale creato nel Manager di Infomaniak (permesso «drive») e l'indirizzo del proprio kDrive;

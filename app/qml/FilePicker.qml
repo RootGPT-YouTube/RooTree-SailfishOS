@@ -11,6 +11,9 @@ Popup {
     id: picker
     property string title: Style.t("Scegli un file", "Choose a file")
     property bool markKeys: false
+    // scegliere una cartella (le sincronizzazioni): i file si vedono ma non si
+    // toccano, in basso «Usa questa cartella»
+    property bool dirsOnly: false
     signal picked(string path)
 
     parent: Overlay.overlay
@@ -24,7 +27,7 @@ Popup {
 
     function openAt(dir) {
         fm.setSorting(0, false, true) // per nome, cartelle prima
-        fm.showHidden = true
+        fm.showHidden = !dirsOnly
         fm.path = Fs.exists(dir) ? dir : Fs.home
         open()
     }
@@ -48,12 +51,14 @@ Popup {
                 elide: Text.ElideRight
             }
             IconButton { id: hiddenBtn; anchors { right: parent.right; verticalCenter: closeBtn.verticalCenter } icon: fm.showHidden ? "shown" : "hidden"; checked: fm.showHidden; onClicked: fm.showHidden = !fm.showHidden }
-            IconButton { id: upBtn; anchors { right: hiddenBtn.left; verticalCenter: closeBtn.verticalCenter } icon: "up"; enabled: fm.path !== "/"; onClicked: fm.path = Fs.parentOf(fm.path) }
+            IconButton { id: upBtn; anchors { right: hiddenBtn.left; verticalCenter: closeBtn.verticalCenter } icon: "up"; enabled: fm.path !== "/" && !/^\/@remote\/[^\/]+$/.test(fm.path); onClicked: fm.path = Fs.parentOf(fm.path) }
             Text {
                 id: pathText
                 font.family: Style.fontFamily
                 anchors { left: parent.left; right: parent.right; top: closeBtn.bottom; leftMargin: Style.margin; rightMargin: Style.margin }
-                text: fm.path.indexOf(Fs.home) === 0 ? "~" + fm.path.substring(Fs.home.length) : fm.path
+                // su un server il percorso suo, non quello interno /@remote/<id>/…
+                text: fm.path.indexOf("/@remote/") === 0 ? (fm.path.replace(/^\/@remote\/[^\/]+/, "") || "/")
+                      : fm.path.indexOf(Fs.home) === 0 ? "~" + fm.path.substring(Fs.home.length) : fm.path
                 color: Style.dim
                 font.pixelSize: Style.fontS
                 elide: Text.ElideMiddle
@@ -61,7 +66,7 @@ Popup {
         }
         ListView {
             id: list
-            anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: parent.bottom }
+            anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: picker.dirsOnly ? useBar.top : parent.bottom }
             clip: true
             model: fm
             boundsBehavior: Flickable.StopAtBounds
@@ -70,6 +75,7 @@ Popup {
                 height: Style.row
                 color: area.pressed ? Style.pressed : "transparent"
                 readonly property bool key: picker.markKeys && !isDir && Fs.isPrivateKey(path)
+                opacity: picker.dirsOnly && !isDir ? 0.4 : 1
                 FileIcon {
                     id: icon
                     anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter }
@@ -97,6 +103,7 @@ Popup {
                 MouseArea {
                     id: area
                     anchors.fill: parent
+                    enabled: isDir || !picker.dirsOnly
                     onClicked: {
                         if (isDir) fm.path = path
                         else { picker.picked(path); picker.close() }
@@ -110,6 +117,20 @@ Popup {
                 text: fm.error ? fm.error : Style.t("Cartella vuota", "Empty folder")
                 color: Style.dim
                 font.pixelSize: Style.fontM
+            }
+        }
+        SteelPanel {
+            id: useBar
+            visible: picker.dirsOnly
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: -border.width; rightMargin: -border.width; bottomMargin: -border.width }
+            height: picker.dirsOnly ? Style.bar + 10 * Style.dp : 0
+            led: ""
+            SteelPill {
+                anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
+                role: "accept"
+                enabled: fm.error === ""
+                text: Style.t("Usa questa cartella", "Use this folder")
+                onClicked: { picker.picked(fm.path); picker.close() }
             }
         }
     }

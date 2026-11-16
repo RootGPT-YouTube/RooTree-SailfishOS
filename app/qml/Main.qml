@@ -34,6 +34,7 @@ Window {
         loadAmbience()
         Fs.trashSetDays(settings.trashDays)
         Fs.trashPurge()
+        openingSync.start()
         var s = sortOf(folder.path)
         folder.setSorting(s.k, s.d, s.f)
     }
@@ -770,6 +771,9 @@ Window {
                 toast.show(Style.t("Tolta da questo telefono, ma Mega non ha risposto: chiudi la sessione anche dal sito di Mega. ", "Removed from this phone, but Mega did not answer: close the session on the Mega site too. ") + error, true)
         }
         function onConnectFinished(id, code, message, path) {
+            // aperta per una sincronizzazione (o per sfogliarne la cartella): si resta dove si è
+            if (syncer.connectDone(id, code, message))
+                return
             var p = Remotes.get(id)
             if (code === "") {
                 win.go(path)
@@ -947,10 +951,13 @@ Window {
         property var then
         property var otherwise
         property string error
-        function ask(m, fn, fallback) {
+        // chi la chiede, se non è un collegamento fatto dall'utente (le sincronizzazioni all'apertura)
+        property string reason
+        function ask(m, fn, fallback, why) {
             mode = m
             then = fn
             otherwise = fallback || null
+            reason = why || ""
             error = ""
             vaultPass.text = ""
             vaultPass2.text = ""
@@ -961,7 +968,7 @@ Window {
         message: mode === "create"
             ? Style.t("Le password delle connessioni vengono salvate cifrate con una password principale, che scegli ora e che RooTree non salva. La chiederà una volta, quando serve, finché l'app resta aperta. Se la dimentichi, le password salvate sono perse (le connessioni restano).",
                       "Connection passwords are stored encrypted with a master password, which you choose now and RooTree does not store. It is asked once, when needed, while the app stays open. If you forget it, the saved passwords are lost (the connections stay).")
-            : Style.t("Password principale della cassaforte di RooTree.", "Master password of the RooTree vault.")
+            : (reason ? reason + "\n\n" : "") + Style.t("Password principale della cassaforte di RooTree.", "Master password of the RooTree vault.")
         buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: mode === "create" ? Style.t("Crea", "Create") : Style.t("Apri", "Open"), role: "accept" }]
         onChosen: function (role) {
             if (role !== "accept") {
@@ -1120,33 +1127,62 @@ Window {
         id: deleteConnection
         property var profile: ({})
         title: Style.t("Eliminare la connessione?", "Delete the connection?")
+        readonly property int syncCount: profile.id ? Syncs.forRemote(profile.id).length : 0
         message: Style.t("«" + (profile.name || "") + "» sparirà dal menù. I file sul server non vengono toccati.",
                          "“" + (profile.name || "") + "” will disappear from the menu. Files on the server are not touched.")
+                 + (syncCount === 1 ? Style.t(" Anche la sincronizzazione che la usa verrà eliminata.", " The sync using it will be deleted too.")
+                    : syncCount > 1 ? Style.t(" Anche le " + syncCount + " sincronizzazioni che la usano verranno eliminate.", " The " + syncCount + " syncs using it will be deleted too.") : "")
         buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Elimina", "Delete"), role: "danger" }]
-        onChosen: function (role) { if (role === "danger") Remotes.remove(profile.id) }
+        onChosen: function (role) {
+            if (role !== "danger") return
+            var l = Syncs.forRemote(profile.id)
+            for (var i = 0; i < l.length; ++i) Syncs.remove(l[i].id)
+            Remotes.remove(profile.id)
+        }
     }
 
     Sheet {
         id: mainMenu
-        MenuSection { text: Style.t("Vista", "View") }
-        MenuRow { icon: "grid"; text: Style.t("Icone", "Icons"); checkable: true; checked: settings.view === "grid"; onClicked: { settings.view = "grid"; mainMenu.close() } }
-        MenuRow { icon: "list"; text: Style.t("Dettagli", "Details"); checkable: true; checked: settings.view === "list"; onClicked: { settings.view = "list"; mainMenu.close() } }
-        MenuRow { icon: folder.showHidden ? "shown" : "hidden"; text: Style.t("Mostra i file nascosti", "Show hidden files"); checkable: true; checked: folder.showHidden; onClicked: folder.showHidden = !folder.showHidden }
-        MenuRow { icon: "image"; text: Style.t("Mostra le anteprime", "Show previews"); checkable: true; checked: settings.thumbnails; onClicked: settings.thumbnails = !settings.thumbnails }
-        MenuSection { text: Style.t("Ordina per", "Sort by") }
+        // «Vista» e «Ordina per» in una tendina sola (richiesta dell'utente del
+        // 15/11: il menù era troppo lungo), come «Opzioni per Remoto»
+        MenuRow {
+            id: viewOptions
+            property bool open: false
+            icon: settings.view === "grid" ? "grid" : "list"
+            text: Style.t("Visualizzazione", "View")
+            detail: open ? "" : (settings.view === "grid" ? Style.t("Icone", "Icons") : Style.t("Dettagli", "Details")) + " · "
+                    + [Style.t("Nome", "Name"), Style.t("Dimensione", "Size"), Style.t("Data", "Date"), Style.t("Tipo", "Type")][folder.sortKey]
+            expandable: true
+            expanded: open
+            onClicked: open = !open
+            onToggled: open = !open
+            Connections {
+                target: mainMenu
+                function onAboutToShow() { viewOptions.open = false }
+            }
+        }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: "grid"; text: Style.t("Icone", "Icons"); checkable: true; checked: settings.view === "grid"; onClicked: { settings.view = "grid"; mainMenu.close() } }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: "list"; text: Style.t("Dettagli", "Details"); checkable: true; checked: settings.view === "list"; onClicked: { settings.view = "list"; mainMenu.close() } }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: folder.showHidden ? "shown" : "hidden"; text: Style.t("Mostra i file nascosti", "Show hidden files"); checkable: true; checked: folder.showHidden; onClicked: folder.showHidden = !folder.showHidden }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: "image"; text: Style.t("Mostra le anteprime", "Show previews"); checkable: true; checked: settings.thumbnails; onClicked: settings.thumbnails = !settings.thumbnails }
+        MenuSection { visible: viewOptions.open; depth: 1; text: Style.t("Ordina per", "Sort by") }
         Repeater {
             model: [Style.t("Nome", "Name"), Style.t("Dimensione", "Size"), Style.t("Data di modifica", "Modified"), Style.t("Tipo", "Type")]
-            delegate: MenuRow { text: modelData; checkable: true; checked: folder.sortKey === index; onClicked: win.changeSort(index, folder.descending, folder.dirsFirst) }
+            delegate: MenuRow { depth: 1; visible: viewOptions.open; text: modelData; checkable: true; checked: folder.sortKey === index; onClicked: win.changeSort(index, folder.descending, folder.dirsFirst) }
         }
         MenuRow {
+            depth: 1
+            visible: viewOptions.open
             icon: "sort"
             // per data l'ordine normale è dal più recente: l'inverso lo dice
             text: folder.sortKey === 2 ? Style.t("Prima i più vecchi", "Oldest first") : Style.t("Ordine inverso", "Descending")
             checkable: true; checked: folder.descending
             onClicked: win.changeSort(folder.sortKey, !folder.descending, folder.dirsFirst)
         }
-        MenuRow { icon: "folder"; text: Style.t("Cartelle prima", "Folders first"); checkable: true; checked: folder.dirsFirst; onClicked: win.changeSort(folder.sortKey, folder.descending, !folder.dirsFirst) }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: "folder"; text: Style.t("Cartelle prima", "Folders first"); checkable: true; checked: folder.dirsFirst; onClicked: win.changeSort(folder.sortKey, folder.descending, !folder.dirsFirst) }
         MenuRow {
+            depth: 1
+            visible: viewOptions.open
             icon: "check"
             text: Style.t("Solo per questa cartella", "Only for this folder")
             checkable: true; checked: settings.sortPerFolder
@@ -1237,6 +1273,22 @@ Window {
             text: Style.t("Aggiungi una connessione…", "Add a connection…")
             onClicked: { mainMenu.close(); wizard.openNew() }
         }
+        // le sincronizzazioni (0.9.5) e la «Sync manuale» (richiesta dell'utente del 15/11)
+        MenuRow {
+            depth: 1
+            icon: "sync"
+            visible: remoteOptions.open
+            text: Style.t("Sincronizzazioni…", "Syncs…")
+            detail: Syncs.list.length > 0 ? String(Syncs.list.length) : ""
+            onClicked: { mainMenu.close(); syncSheet.open() }
+        }
+        MenuRow {
+            depth: 1
+            icon: "refresh"
+            visible: remoteOptions.open && Syncs.list.length > 0
+            text: Style.t("Sincronizza ora", "Sync now")
+            onClicked: { mainMenu.close(); syncer.runAll(false, true) }
+        }
         MenuRow {
             depth: 1
             icon: "lock"
@@ -1260,7 +1312,25 @@ Window {
         MenuRow { text: "RooTundra"; checkable: true; checked: settings.theme === "rootundra"; onClicked: settings.theme = "rootundra" }
         MenuRow { text: Style.t("SailfishOS classico", "Classic SailfishOS"); checkable: true; checked: settings.theme === "sailfish"; onClicked: settings.theme = "sailfish" }
         MenuSection { text: Style.t("Cartella", "Folder") }
+        // le azioni sulla cartella in una tendina (richiesta dell'utente del 15/11)
         MenuRow {
+            id: folderOptions
+            property bool open: false
+            icon: "folder"
+            text: Style.t("Opzioni cartella", "Folder options")
+            detail: open ? "" : (folder.path.split("/").pop() || "/")
+            expandable: true
+            expanded: open
+            onClicked: open = !open
+            onToggled: open = !open
+            Connections {
+                target: mainMenu
+                function onAboutToShow() { folderOptions.open = false }
+            }
+        }
+        MenuRow {
+            depth: 1
+            visible: folderOptions.open
             icon: "newfolder"
             text: Style.t("Nuova cartella", "New folder")
             enabled: Fs.isWritable(folder.path)
@@ -1273,6 +1343,8 @@ Window {
         }
         // «Nuovo file» subito sotto «Nuova cartella» (richiesta dell'utente del 12/11)
         MenuRow {
+            depth: 1
+            visible: folderOptions.open
             icon: "newfile"
             text: Style.t("Nuovo file", "New file")
             enabled: Fs.isWritable(folder.path)
@@ -1286,6 +1358,8 @@ Window {
         // il cestino della memoria (o della connessione) dove si è, prima di
         // «Seleziona tutto» (richiesta dell'utente del 12/11)
         MenuRow {
+            depth: 1
+            visible: folderOptions.open
             icon: "trash"
             text: Style.t("Cestino", "Trash")
             detail: win.placeName(win.place)
@@ -1295,9 +1369,16 @@ Window {
                 else trashSheet.openLocal(folder.path, win.placeName(win.place))
             }
         }
-        MenuRow { icon: "select"; text: Style.t("Seleziona tutto", "Select all"); enabled: folder.count > 0; onClicked: { mainMenu.close(); folder.selectAll() } }
-        MenuRow { icon: "info"; text: Style.t("Proprietà di questa cartella", "Folder properties"); onClicked: { mainMenu.close(); properties.openFor([folder.path]) } }
-        MenuRow { icon: "refresh"; text: Style.t("Aggiorna", "Refresh"); onClicked: { mainMenu.close(); folder.refresh() } }
+        MenuRow { depth: 1; visible: folderOptions.open; icon: "select"; text: Style.t("Seleziona tutto", "Select all"); enabled: folder.count > 0; onClicked: { mainMenu.close(); folder.selectAll() } }
+        MenuRow { depth: 1; visible: folderOptions.open; icon: "info"; text: Style.t("Proprietà di questa cartella", "Folder properties"); onClicked: { mainMenu.close(); properties.openFor([folder.path]) } }
+        MenuRow { depth: 1; visible: folderOptions.open; icon: "refresh"; text: Style.t("Aggiorna", "Refresh"); onClicked: { mainMenu.close(); folder.refresh() } }
+        MenuRow {
+            depth: 1
+            visible: folderOptions.open && folder.remote === "" && Fs.isWritable(folder.path)
+            icon: "sync"
+            text: Style.t("Sincronizza questa cartella…", "Sync this folder…")
+            onClicked: { mainMenu.close(); syncWizard.openNew(folder.path) }
+        }
         Text {
             font.family: Style.fontFamily
             x: Style.margin
@@ -1679,6 +1760,187 @@ Window {
             folder.refresh()
             win.places = Fs.places()
         }
+    }
+
+    // ── sincronizzazioni (0.9.5) ─────────────────────────────────────────────
+    // Solo con RooTree aperta (decisione dell'utente del 15/11): all'apertura,
+    // quando un file della cartella del telefono cambia (Syncs.wanted), e a
+    // mano. La connessione si apre come per un collegamento normale, ma senza
+    // entrarci; la cassaforte, se serve, si chiede (una volta per giro).
+    QtObject {
+        id: syncer
+        // connessioni in apertura per una sincronizzazione: id → [then(ok, msg, quiet)]
+        property var waiting: ({})
+        // le sincronizzazioni in fila: si aprono le connessioni una alla volta,
+        // così la cassaforte si chiede una volta sola
+        property var queue: []
+        property bool busy: false
+        // la cassaforte rifiutata: i giri automatici non la richiedono più fino alla chiusura
+        property bool vaultDeclined: false
+
+        function needsSecret(p) { return p.auth === "password" || p.auth === "token" || p.auth === "oauth" }
+        // la connessione aperta, poi then(ok, messaggio, zitto)
+        function ensure(p, interactive, then, why) {
+            if (!p || !p.id) { then(false, Style.t("la connessione non c'è più", "the connection no longer exists"), false); return }
+            if (Remotes.isConnected(p.id)) { then(true, "", false); return }
+            if (needsSecret(p) && !Remotes.hasSecret(p.id)) {
+                if (p.remember !== false && Remotes.vaultExists && !Remotes.vaultUnlocked) {
+                    if (!interactive && vaultDeclined) { then(false, Style.t("cassaforte chiusa", "vault locked"), true); return }
+                    vaultDialog.ask("unlock", function () { syncer.ensure(p, interactive, then, why) },
+                                    function () { if (!interactive) syncer.vaultDeclined = true; then(false, Style.t("cassaforte chiusa", "vault locked"), !interactive) },
+                                    why || "")
+                    return
+                }
+                then(false, Style.t("manca la password: collegati una volta a «" + p.name + "» dal menù delle memorie e salvala nella cassaforte",
+                                    "the password is missing: connect once to “" + p.name + "” from the storage menu and save it in the vault"), false)
+                return
+            }
+            var w = Object.assign({}, waiting)
+            var list = (w[p.id] || []).slice()
+            list.push(then)
+            w[p.id] = list
+            waiting = w
+            if (!Remotes.connecting(p.id)) Remotes.connect(p.id)
+        }
+        // dal collegamento: true se l'aveva chiesto una sincronizzazione
+        function connectDone(id, code, message) {
+            var list = waiting[id]
+            if (!list) return false
+            var w = Object.assign({}, waiting)
+            delete w[id]
+            waiting = w
+            var msg = code === "NET" ? Style.t("non raggiungibile", "unreachable")
+                    : code === "AUTH" || code === "LOGIN" ? Style.t("accesso rifiutato", "access refused")
+                    : code === "MFA" ? Style.t("Mega chiede il codice: collegati una volta dal menù delle memorie", "Mega asks for the code: connect once from the storage menu")
+                    : code.indexOf("HOSTKEY") === 0 ? Style.t("l'impronta del server è nuova o cambiata: collegati dal menù delle memorie", "the server fingerprint is new or changed: connect from the storage menu")
+                    : (message || code)
+            for (var i = 0; i < list.length; ++i) list[i](code === "", msg, false)
+            return true
+        }
+        function fail(s, msg, quiet) {
+            Syncs.setResult(s.id, Style.t("non riuscita: ", "failed: ") + msg, true)
+            // l'avviso volatile (5 s) chiesto dall'utente; si riprova al prossimo giro
+            if (!quiet) toast.show(Style.t("Impossibile sincronizzare «" + s.name + "»: ", "Cannot sync “" + s.name + "”: ") + msg, true)
+        }
+        function run(id, confirmed, interactive) {
+            queue = queue.concat([{ id: id, confirmed: confirmed, interactive: interactive }])
+            pump()
+        }
+        function runAll(manual, interactive) {
+            var l = Syncs.list
+            var n = 0
+            for (var i = 0; i < l.length; ++i)
+                if (manual || l[i].enabled !== false) { run(l[i].id, false, interactive); ++n }
+            if (manual && n > 0) toast.show(Style.t("Sincronizzazione avviata", "Sync started"))
+        }
+        function pump() {
+            if (busy || queue.length === 0) return
+            var item = queue[0]
+            queue = queue.slice(1)
+            var s = Syncs.get(item.id)
+            if (!s.id || Syncs.running(s.id)) { pump(); return }
+            busy = true
+            ensure(Remotes.get(s.remote), item.interactive, function (ok, msg, quiet) {
+                if (ok) Syncs.start(s.id, item.confirmed)
+                else syncer.fail(s, msg, quiet)
+                syncer.busy = false
+                syncer.pump()
+            }, Style.t("Per sincronizzare «" + s.name + "» serve la cassaforte delle password.", "To sync “" + s.name + "” the password vault is needed."))
+        }
+        function finished(jobId, state, error) {
+            var info = (Jobs.status(jobId).info) || ({})
+            Jobs.forget(jobId)
+            var s = Syncs.get(info.syncId || "")
+            if (!s.id) return
+            if (state === 6) { fail(s, error, false); return }
+            if (state === 7) { Syncs.setResult(s.id, Style.t("annullata", "cancelled"), false); return }
+            if (info.confirm) {
+                Syncs.setResult(s.id, Style.t("aspetta la tua conferma", "waiting for your confirmation"), true)
+                syncConfirm.ask(s, info)
+                return
+            }
+            var parts = []
+            if (info.uploaded) parts.push(Style.count(info.uploaded, Style.t("caricato", "uploaded"), Style.t("caricati", "uploaded")))
+            if (info.downloaded) parts.push(Style.count(info.downloaded, Style.t("scaricato", "downloaded"), Style.t("scaricati", "downloaded")))
+            if (info.deletedLocal) parts.push(Style.count(info.deletedLocal, Style.t("tolto dal telefono", "removed from the phone"), Style.t("tolti dal telefono", "removed from the phone")))
+            if (info.deletedRemote) parts.push(Style.count(info.deletedRemote, Style.t("tolto dal remoto", "removed from the remote"), Style.t("tolti dal remoto", "removed from the remote")))
+            if (info.conflicts) parts.push(Style.count(info.conflicts, Style.t("conflitto", "conflict"), Style.t("conflitti", "conflicts")))
+            var skipped = info.skipped ? info.skipped.length : 0
+            if (skipped) parts.push(Style.count(skipped, Style.t("non riuscito", "failed"), Style.t("non riusciti", "failed")))
+            var result = parts.length > 0 ? parts.join(", ") : Style.t("già allineata", "already in sync")
+            Syncs.setResult(s.id, result + (skipped ? " (" + info.skipped[0] + ")" : ""), skipped > 0)
+            if (parts.length > 0) toast.show("«" + s.name + "»: " + result, skipped > 0)
+            if (info.downloaded || info.deletedLocal || info.conflicts) {
+                folder.refresh()
+                win.places = Fs.places()
+            }
+        }
+    }
+    Connections {
+        target: Jobs
+        function onFinished(id, kind, state, error) { if (kind === 9) syncer.finished(id, state, error) }
+    }
+    Connections {
+        target: Syncs
+        function onWanted(id) { syncer.run(id, false, false) }
+    }
+    // all'apertura, dopo che la finestra si è vista
+    Timer {
+        id: openingSync
+        interval: 2500
+        onTriggered: if (Syncs.list.length > 0) syncer.runAll(false, false)
+    }
+    // le salvaguardie: troppe eliminazioni, o una parte vuota tutta insieme
+    AppDialog {
+        id: syncConfirm
+        property var sync: ({})
+        property var info: ({})
+        function ask(s, i) { sync = s; info = i; open() }
+        readonly property string connName: (Remotes.get(sync.remote || "").name || Style.t("remoto", "remote"))
+        title: Style.t("«" + (sync.name || "") + "»: confermi?", "“" + (sync.name || "") + "”: confirm?")
+        message: info.confirm === "empty-remote"
+            ? Style.t("La cartella «" + (sync.remotePath || "/") + "» su «" + connName + "» adesso è vuota, mentre l'ultima volta aveva dei file. Se li hai spostati tu (per archiviarli), conferma: " + Style.count(info.pending || 0, "file sparirà", "file spariranno") + " dal telefono, nel cestino di RooTree. Se invece il NAS è montato male o la cartella è sbagliata, annulla: non si tocca niente.",
+                      "The folder “" + (sync.remotePath || "/") + "” on “" + connName + "” is now empty, while last time it had files. If you moved them yourself (to archive them), confirm: " + (info.pending || 0) + " files will disappear from the phone, into RooTree's trash. If instead the NAS is badly mounted or the folder is wrong, cancel: nothing is touched.")
+            : info.confirm === "empty-local"
+            ? Style.t("La cartella del telefono «" + (sync.local || "").split("/").pop() + "» adesso è vuota, mentre l'ultima volta aveva dei file. Confermando, " + Style.count(info.pending || 0, "file verrà tolto", "file verranno tolti") + " anche da «" + connName + "» (nel suo cestino). Se la scheda SD è stata tolta o la cartella spostata, annulla.",
+                      "The phone folder “" + (sync.local || "").split("/").pop() + "” is now empty, while last time it had files. Confirming, " + (info.pending || 0) + " files will also be removed from “" + connName + "” (into its trash). If the SD card was removed or the folder moved, cancel.")
+            : Style.t("Questo giro eliminerebbe " + (info.pending || 0) + " file (più di 50). Finiscono nel cestino e si possono recuperare. Confermi?",
+                      "This run would delete " + (info.pending || 0) + " files (more than 50). They go to the trash and can be recovered. Confirm?")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Conferma", "Confirm"), role: "danger" }]
+        onChosen: function (role) {
+            if (role === "danger") syncer.run(sync.id, true, true)
+            else Syncs.setResult(sync.id, Style.t("eliminazioni non confermate: niente fatto", "deletions not confirmed: nothing done"), true)
+        }
+    }
+    SyncWizard {
+        id: syncWizard
+        onSaved: function (id) {
+            toast.show(Style.t("Sincronizzazione salvata: primo giro…", "Sync saved: first run…"))
+            syncer.run(id, false, true)
+        }
+        onConnectRequested: function (remoteId, then) {
+            syncer.ensure(Remotes.get(remoteId), true, function (ok, msg) {
+                if (ok) then()
+                else toast.show(Style.t("Collegamento non riuscito: ", "Connection failed: ") + msg, true)
+            })
+        }
+    }
+    SyncSheet {
+        id: syncSheet
+        onNewRequested: syncWizard.openNew(folder.remote === "" ? folder.path : "")
+        onRunRequested: function (id) { syncer.run(id, false, true) }
+        onRunAllRequested: syncer.runAll(true, true)
+        onEditRequested: function (s) { syncWizard.openFor(s) }
+        onDeleteRequested: function (s) { deleteSync.sync = s; deleteSync.open() }
+    }
+    AppDialog {
+        id: deleteSync
+        property var sync: ({})
+        title: Style.t("Eliminare la sincronizzazione?", "Delete the sync?")
+        message: Style.t("«" + (sync.name || "") + "» non sincronizzerà più. I file, sul telefono e sul remoto, restano dove sono.",
+                         "“" + (sync.name || "") + "” will stop syncing. The files, on the phone and on the remote, stay where they are.")
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Elimina", "Delete"), role: "danger" }]
+        onChosen: function (role) { if (role === "danger") Syncs.remove(sync.id) }
     }
 
     // sopra i pannelli a tutto schermo (editor, procedure) e sopra la tastiera:

@@ -21,7 +21,7 @@ class JobManager : public QObject
 
 public:
     // come in jobs.rs
-    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6, Types = 7, Check = 8 };
+    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6, Types = 7, Check = 8, Sync = 9 };
     enum State { Queued = 0, Scanning, Running, AskConflict, AskError, Done, Failed, Cancelled };
     enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry, Merge };
     Q_ENUM(Kind)
@@ -52,6 +52,8 @@ public:
     // crea l'archivio dest (il formato dal nome) con sources
     Q_INVOKABLE int compress(const QStringList &sources, const QString &dest);
     Q_INVOKABLE QVariantMap status(int id) const;
+    // un lavoro partito da fuori (Syncs): si segue come gli altri
+    int track(quint64 id) { return started(id); }
     Q_INVOKABLE void cancel(int id);
     Q_INVOKABLE void resolve(int id, int answer, bool applyAll);
     Q_INVOKABLE void forget(int id);

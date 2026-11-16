@@ -23,6 +23,7 @@ pub mod smb;
 pub mod s3;
 pub mod storage;
 pub mod kdrive;
+pub mod sync;
 
 /// Per gli esempi a mano (prova-copia): lo stato di un lavoro senza i tipi del ponte.
 pub mod ffi_status {
@@ -199,6 +200,11 @@ mod ffi {
         fn job_extract(archive: &str, dest: &str) -> u64;
         /// Crea l'archivio `dest` (formato dal nome: .zip .tar .tar.gz .tar.bz2 .tar.xz .tar.zst .7z).
         fn job_compress(sources: Vec<String>, dest: &str) -> u64;
+        /// Una sincronizzazione (sync.rs): `config_json` = la sincronizzazione,
+        /// `state_dir` = dove sta lo stato dei giri; `confirmed` = l'utente ha
+        /// confermato le eliminazioni che le salvaguardie avevano fermato.
+        fn job_sync(config_json: &str, state_dir: &str, confirmed: bool) -> u64;
+        fn sync_forget(state_dir: &str, id: &str);
         fn job_statuses() -> Vec<JobStatus>;
 
         /// Se `path` è (o sta dentro) un archivio: il file dell'archivio, altrimenti "".
@@ -485,6 +491,14 @@ fn trash_purge_local() {
 
 fn job_size(paths: Vec<String>) -> u64 {
     job_via(Request::JobSize { paths: paths.clone() }, || jobs::size(paths))
+}
+
+fn job_sync(config_json: &str, state_dir: &str, confirmed: bool) -> u64 {
+    sync::start(config_json, state_dir, confirmed)
+}
+
+fn sync_forget(state_dir: &str, id: &str) {
+    sync::forget(state_dir, id)
 }
 
 fn job_types(paths: Vec<String>) -> u64 {

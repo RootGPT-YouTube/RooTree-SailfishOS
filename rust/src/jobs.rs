@@ -36,6 +36,8 @@ pub const JOB_TRASH: u8 = 6;
 pub const JOB_TYPES: u8 = 7;
 /// il controllo di un file system smontato (fsck, storage.rs)
 pub const JOB_CHECK: u8 = 8;
+/// una sincronizzazione (sync.rs): parte subito, una alla volta fra loro
+pub const JOB_SYNC: u8 = 9;
 
 pub const ST_QUEUED: u8 = 0;
 pub const ST_SCANNING: u8 = 1;

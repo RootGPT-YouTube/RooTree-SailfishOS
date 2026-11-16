@@ -33,12 +33,17 @@ export CARGO_TARGET_${T}_LINKER=$CROSS-gcc
 B=$RUST_HOME/cross-bin/${1:-aarch64}
 mkdir -p "$B"
 for tool in as ld; do ln -sfn "$CROSS-$tool" "$B/$tool"; done
-export CARGO_TARGET_${T}_RUSTFLAGS="-C link-arg=--sysroot=$SFOS_SYSROOT -C link-arg=-B$B"
+# i percorsi di questo PC non finiscono nel binario (messaggi di panic delle
+# librerie, file!() del C): /home/<utente>/… diventa /cargo, /rustup, /rootree
+# (passata privacy del 14/11: 839 percorsi nella 0.9.1)
+MAP="--remap-path-prefix=$CARGO_HOME=/cargo --remap-path-prefix=$RUSTUP_HOME=/rustup --remap-path-prefix=$_R=/rootree"
+CMAP="-ffile-prefix-map=$CARGO_HOME=/cargo -ffile-prefix-map=$_R=/rootree"
+export CARGO_TARGET_${T}_RUSTFLAGS="-C link-arg=--sysroot=$SFOS_SYSROOT -C link-arg=-B$B $MAP"
 export CC_$t="$CROSS-gcc"
 export CXX_$t="$CROSS-g++"
 export AR_$t="$CROSS-ar"
-export CFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B"
-export CXXFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B"
+export CFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B $CMAP"
+export CXXFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B $CMAP"
 # pkg-config: SOLO per il target (variabili col suffisso del target, che il
 # crate pkg-config legge per primo). ⛔ Con quelle generiche anche i test, che
 # girano sull'host i686 del motore, cercavano OpenSSL nel sysroot aarch64
@@ -46,4 +51,4 @@ export CXXFLAGS_$t="--sysroot=$SFOS_SYSROOT -B$B"
 export PKG_CONFIG_SYSROOT_DIR_$t=$SFOS_SYSROOT
 export PKG_CONFIG_LIBDIR_$t=$SFOS_SYSROOT/usr/lib64/pkgconfig:$SFOS_SYSROOT/usr/lib/pkgconfig:$SFOS_SYSROOT/usr/share/pkgconfig
 export PKG_CONFIG_ALLOW_CROSS=1
-unset T t X B CROSS tool _R RUST_HOME
+unset T t X B CROSS tool _R RUST_HOME MAP CMAP

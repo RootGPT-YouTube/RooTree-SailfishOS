@@ -1111,3 +1111,130 @@ fn kdrive_id_dal_testo() {
     assert_eq!(drive_id("https://ksuite.infomaniak.com/9999999/kdrive"), None);
     assert_eq!(drive_id("abc"), None);
 }
+
+/// Le sincronizzazioni (sync.rs) fra due cartelle locali: una fa il telefono,
+/// l'altra il remoto. Tutto in una prova sola: XDG_DATA_HOME (il cestino) è
+/// di tutto il processo.
+#[test]
+fn sincronizzazione() {
+    use crate::sync::{run, Config, Ctl};
+    // HOME e XDG_DATA_HOME dentro la cartella di prova: il cestino resta lì
+    // (senza, nel motore finiva nel cestino del disco che contiene il repo)
+    let d = tmp(true);
+    unsafe {
+        std::env::set_var("HOME", &d);
+        std::env::set_var("XDG_DATA_HOME", d.join("xdg"));
+    }
+    let tel = d.join("Foto");
+    let nas = d.join("nas/FotoRemoto");
+    fs::create_dir_all(tel.join("Vacanze")).unwrap();
+    fs::write(tel.join("a.jpg"), b"aaaa").unwrap();
+    fs::write(tel.join("Vacanze/b.jpg"), b"bbbbbb").unwrap();
+    fs::write(tel.join(".nascosto"), b"x").unwrap();
+    let stato = d.join("stato/s1.json");
+    let ctl = Ctl { handle: None };
+    let mut cfg = Config {
+        id: "s1".into(),
+        local: tel.to_string_lossy().into(),
+        remote_path: nas.to_string_lossy().into(),
+        subdirs: true,
+        direction: "up".into(),
+        deletions: "down".into(),
+        ..Default::default()
+    };
+
+    // primo giro: la cartella remota si crea, i file salgono (il nascosto no)
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.downloaded), (2, 0));
+    assert_eq!(fs::read(nas.join("Vacanze/b.jpg")).unwrap(), b"bbbbbb");
+    assert!(!nas.join(".nascosto").exists());
+    // niente di nuovo: niente da fare
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.downloaded, r.deleted_local), (0, 0, 0));
+
+    // un file cambiato sul telefono si ricarica; uno nuovo sul NAS non scende (direzione «up»)
+    fs::write(tel.join("a.jpg"), b"aaaaaaaa").unwrap();
+    fs::write(nas.join("solo-nas.jpg"), b"n").unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.downloaded), (1, 0));
+    assert_eq!(fs::read(nas.join("a.jpg")).unwrap(), b"aaaaaaaa");
+    assert!(!tel.join("solo-nas.jpg").exists());
+
+    // il caso dell'utente: sul NAS le foto si spostano in un'altra cartella ⇒
+    // la cartella remota è vuota tutta insieme ⇒ si chiede prima
+    fs::rename(&nas, d.join("nas/FotoRemoto_OLD")).unwrap();
+    fs::create_dir_all(&nas).unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!(r.confirm, "empty-remote");
+    assert_eq!(r.pending, 2);
+    assert!(tel.join("a.jpg").exists());
+    // confermato: spariscono dal telefono, nel cestino (recuperabili)
+    let r = run(&cfg, &stato, true, &ctl).unwrap();
+    assert_eq!(r.deleted_local, 2);
+    assert!(!tel.join("a.jpg").exists() && !tel.join("Vacanze").exists());
+    assert_eq!(crate::trash::trash_for(&tel.join("a.jpg")).unwrap(), d.join("xdg/Trash"));
+    assert!(d.join("xdg/Trash/files/a.jpg").exists());
+    assert!(tel.join(".nascosto").exists());
+
+    // nei due sensi: un file nuovo da ogni parte va dall'altra
+    cfg.direction = "both".into();
+    cfg.deletions = "none".into();
+    fs::write(tel.join("nuova.jpg"), b"t").unwrap();
+    fs::create_dir_all(nas.join("Album")).unwrap();
+    fs::write(nas.join("Album/dal-nas.jpg"), b"dal nas").unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.downloaded), (1, 1));
+    assert_eq!(fs::read(tel.join("Album/dal-nas.jpg")).unwrap(), b"dal nas");
+    // le date seguono il file: un altro giro non fa niente
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.downloaded), (0, 0));
+
+    // senza ripetere le eliminazioni: cancellato sul telefono ⇒ torna dal NAS
+    fs::remove_file(tel.join("nuova.jpg")).unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!(r.downloaded, 1);
+    assert!(tel.join("nuova.jpg").exists());
+    // ripetendole verso il remoto: va nel cestino del «server»
+    cfg.deletions = "up".into();
+    fs::remove_file(tel.join("nuova.jpg")).unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!(r.deleted_remote, 1);
+    assert!(!nas.join("nuova.jpg").exists());
+
+    // cambiato dalle due parti: vince il più recente, l'altro resta come conflitto
+    let t0 = std::time::SystemTime::now();
+    fs::write(nas.join("Album/dal-nas.jpg"), b"versione nas").unwrap();
+    fs::File::options().write(true).open(nas.join("Album/dal-nas.jpg")).unwrap().set_modified(t0 - std::time::Duration::from_secs(60)).unwrap();
+    fs::write(tel.join("Album/dal-nas.jpg"), b"versione tel").unwrap();
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.uploaded, r.conflicts), (1, 1));
+    assert_eq!(fs::read(nas.join("Album/dal-nas.jpg")).unwrap(), b"versione tel");
+    let conflitti: Vec<_> = fs::read_dir(nas.join("Album")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.contains("(conflitto ")).collect();
+    assert_eq!(conflitti.len(), 1, "{conflitti:?}");
+
+    // più di 50 eliminazioni in un giro: si chiede
+    cfg.deletions = "up".into();
+    for i in 0..60 {
+        fs::write(tel.join(format!("m{i}.jpg")), b"m").unwrap();
+    }
+    run(&cfg, &stato, false, &ctl).unwrap();
+    for i in 0..60 {
+        fs::remove_file(tel.join(format!("m{i}.jpg"))).unwrap();
+    }
+    let r = run(&cfg, &stato, false, &ctl).unwrap();
+    assert_eq!((r.confirm.as_str(), r.pending), ("many", 60));
+    assert!(nas.join("m0.jpg").exists());
+
+    // sottocartelle escluse: solo i file in cima
+    fs::write(tel.join("in-cima.jpg"), b"c").unwrap();
+    let cfg2 = Config { id: "s2".into(), subdirs: false, direction: "up".into(), deletions: "none".into(),
+        remote_path: d.join("nas/Piatta").to_string_lossy().into(), ..cfg.clone() };
+    let r = run(&cfg2, &d.join("stato/s2.json"), false, &ctl).unwrap();
+    assert_eq!(r.uploaded, 1);
+    assert!(d.join("nas/Piatta/in-cima.jpg").exists() && !d.join("nas/Piatta/Album").exists());
+
+    // la cartella del telefono sparita (scheda tolta): errore, niente eliminazioni
+    let cfg3 = Config { local: d.join("non-c-e").to_string_lossy().into(), ..cfg.clone() };
+    assert!(run(&cfg3, &stato, false, &ctl).is_err());
+    let _ = fs::remove_dir_all(&d);
+}

@@ -18,6 +18,7 @@ Sheet {
         case 6: return Style.t("Nel cestino: " + what, "To trash: " + what)
         case 4: return Style.t("Estrazione di " + what + " in «" + dest + "»", "Extracting " + what + " to “" + dest + "”")
         case 5: return Style.t("Creazione di «" + j.dest.split("/").pop() + "»", "Creating “" + j.dest.split("/").pop() + "”")
+        case 9: return Style.t("Sincronizzazione di «" + (j.firstSource.split("/").pop() || "/") + "» con «" + dest + "»", "Syncing “" + (j.firstSource.split("/").pop() || "/") + "” with “" + dest + "”")
         }
         return ""
     }
@@ -57,7 +58,7 @@ Sheet {
     // rilascio, e Annulla non arrivava (visto sul POCO, 25/10)
     ListModel { id: rows }
     function sync() {
-        var list = Jobs.jobs.filter(function (j) { return j.kind !== 3 && j.kind < 7 })
+        var list = Jobs.jobs.filter(function (j) { return (j.kind !== 3 && j.kind < 7) || (j.kind === 9 && j.state < 5 && j.totalItems > 0) })
         for (var i = rows.count - 1; i >= 0; --i) {
             var id = rows.get(i).job.id
             if (!list.some(function (j) { return j.id === id }))

@@ -292,9 +292,9 @@ QVariantList Remotes::types() const
         type("s3", QStringLiteral("S3 / compatibile"), "server", "s3", 443, pw, true, false),
         type("dropbox", QStringLiteral("Dropbox"), "cloud", "dropbox", 0, {QStringLiteral("oauth")}, false, true),
         // un cloud alla volta (scelta dell'utente, 08/11): questi arrivano dopo Dropbox
-        type("mega", QStringLiteral("Mega"), "cloud", "cloud", 0, pw, false, false),
+        type("mega", QStringLiteral("Mega"), "cloud", "mega", 0, pw, false, false),
         // API REST con un token personale (kSuite gratuita: WebDAV non c'è)
-        type("kdrive", QStringLiteral("kDrive (Infomaniak)"), "cloud", "cloud", 0, {QStringLiteral("token")}, false, false),
+        type("kdrive", QStringLiteral("kDrive (Infomaniak)"), "cloud", "kdrive", 0, {QStringLiteral("token")}, false, false),
     };
 }
 

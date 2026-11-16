@@ -1,0 +1,8 @@
+module RooTree
+singleton Fs 1.0 Fs.qml
+singleton Jobs 1.0 Jobs.qml
+singleton Remotes 1.0 Remotes.qml
+singleton Syncs 1.0 Syncs.qml
+singleton Opener 1.0 Opener.qml
+FolderModel 1.0 FolderModel.qml
+SearchModel 1.0 SearchModel.qml

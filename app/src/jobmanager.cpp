@@ -125,7 +125,7 @@ void JobManager::poll()
         list << job;
         if (state < Done) {
             // quelli della pagina «i» non sono operazioni dell'utente sui file
-            if (s.kind != Size && s.kind != Types && s.kind != Check)
+            if (s.kind != Size && s.kind != Types && s.kind != Check && s.kind != Sync)
                 ++active;
         } else if (m_lastState.value(s.id, -1) != state) {
             emit finished(int(s.id), int(s.kind), state, qtrust::qs(s.error));
