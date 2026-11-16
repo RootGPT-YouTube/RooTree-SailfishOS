@@ -235,7 +235,8 @@ Popup {
         id: remotePicker
         dirsOnly: true
         title: wiz.connName
-        onPicked: function (path) { wiz.set("remotePath", wiz.serverPath(path)) }
+        // solo una cartella del server scelto: un percorso del telefono qui non ha senso
+        onPicked: function (path) { if (path.indexOf("/@remote/" + wiz.v("remote")) === 0) wiz.set("remotePath", wiz.serverPath(path)) }
     }
 
     contentItem: Item {

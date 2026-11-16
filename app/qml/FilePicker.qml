@@ -28,7 +28,10 @@ Popup {
     function openAt(dir) {
         fm.setSorting(0, false, true) // per nome, cartelle prima
         fm.showHidden = !dirsOnly
-        fm.path = Fs.exists(dir) ? dir : Fs.home
+        // su un server non si ripiega MAI sul telefono: al massimo la radice del
+        // server (se non risponde, la cartella resta vuota col perché)
+        var m = /^\/@remote\/[^\/]+/.exec(dir)
+        fm.path = Fs.exists(dir) ? dir : (m ? m[0] : Fs.home)
         open()
     }
 

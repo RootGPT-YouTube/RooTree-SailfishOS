@@ -136,6 +136,17 @@ QString FileSystem::setMode(const QString &path, int mode) const
 
 bool FileSystem::exists(const QString &path) const
 {
+    // i server (/@remote/<id>/…) non stanno sul disco del telefono: lo chiede
+    // il motore, che li sa raggiungere (16/11: prima rispondeva sempre «no» e
+    // il selettore della sincronizzazione ripiegava sulla home del telefono)
+    if (path.startsWith(QStringLiteral("/@remote/"))) {
+        try {
+            rootree::stat_path(qtrust::str(path));
+            return true;
+        } catch (const rust::Error &) {
+            return false;
+        }
+    }
     return QFileInfo::exists(path);
 }
 

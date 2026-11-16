@@ -228,6 +228,7 @@ check(val(Remotes.property("connectCalls")) == ["nas"], "collegamento chiesto a 
 check(visible("Usa questa cartella"), "si apre il selettore della cartella remota")
 shot("5-selettore")
 check(find("NAS Remoto") is not None, "il selettore porta il nome della connessione")
+check(not visible("~"), "il selettore è sul server, non nella home del telefono (16/11)")
 tap("Album")
 tap("Usa questa cartella")
 field = fields()
