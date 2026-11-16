@@ -498,3 +498,11 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Remoto coi loro nomi, verso disegnato, chi comanda e a cosa serve; riquadro «Cosa succederà» (sei casi:
   aggiungo/modifico/elimino da una parte o dall'altra) calcolato dalle stesse regole di plan() in
   sync.rs. Banco: TUTTO OK. Installata sul POCO, rpm -V vuoto.
+- **16/11 — 0.9.5-3 (5e04f23): «Sfoglia…» della cartella remota.** Segnalato dall'utente con due
+  schermate: il selettore col nome del NAS mostrava la home del telefono. Causa: Fs.exists() usava solo
+  QFileInfo, per cui /@remote/<id>/… «non esisteva» mai e FilePicker.openAt ripiegava su Fs.home; e
+  serverPath() lasciava passare un percorso del telefono come cartella remota. Cura: exists() via
+  stat_path del motore per /@remote/, ripiego sulla radice del server, la procedura accetta solo
+  cartelle del server. Il banco non l'aveva visto perché lo stub di Fs diceva sempre «sì»: ora no, e
+  col codice vecchio il controllo nuovo fallisce (provato). cargo test 55 ok; installata, rpm -V vuoto.
+  ⏳ Da provare col dito sul NAS vero.
