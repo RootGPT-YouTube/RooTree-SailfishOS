@@ -128,6 +128,14 @@ Popup {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: -border.width; rightMargin: -border.width; bottomMargin: -border.width }
             height: picker.dirsOnly ? Style.bar + 10 * Style.dp : 0
             led: ""
+            // creare la cartella mentre si sceglie (anche sul server): richiesta
+            // dell'utente del 16/11; creata, ci si entra
+            SteelPill {
+                anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter }
+                text: Style.t("Nuova cartella", "New folder")
+                enabled: fm.error === "" && Fs.isWritable(fm.path)
+                onClicked: newDir.ask()
+            }
             SteelPill {
                 anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
                 role: "accept"
@@ -136,5 +144,42 @@ Popup {
                 onClicked: { picker.picked(fm.path); picker.close() }
             }
         }
+    }
+    AppDialog {
+        id: newDir
+        property string error
+        title: Style.t("Nuova cartella", "New folder")
+        function ask() {
+            error = ""
+            dirName.text = Style.t("Nuova cartella", "New folder")
+            open()
+            dirName.forceActiveFocus()
+            dirName.selectAll()
+        }
+        buttons: [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: "OK", role: "accept" }]
+        onChosen: function (role) {
+            if (role !== "accept") return
+            var name = dirName.text.trim()
+            var err = name === "" ? Style.t("Il nome è vuoto", "The name is empty") : Fs.makeDir(fm.path, name)
+            if (err) {
+                error = err
+                open()
+                return
+            }
+            fm.path = Fs.join(fm.path, name)
+        }
+        TextField {
+            id: dirName
+            font.family: Style.fontFamily
+            width: parent.width
+            color: Style.text
+            font.pixelSize: Style.fontM
+            selectByMouse: true
+            selectionColor: Style.accent
+            inputMethodHints: Qt.ImhNoPredictiveText
+            background: Rectangle { color: Style.bg; radius: 6 * Style.dp; border.color: dirName.activeFocus ? Style.accent : Style.line; border.width: 1.5 * Style.dp }
+            onAccepted: { newDir.close(); newDir.chosen("accept") }
+        }
+        Text { font.family: Style.fontFamily; visible: newDir.error !== ""; width: parent.width; wrapMode: Text.Wrap; text: newDir.error; color: Style.danger; font.pixelSize: Style.fontS }
     }
 }

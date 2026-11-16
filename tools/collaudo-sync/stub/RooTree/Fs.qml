@@ -16,9 +16,12 @@ QtObject {
         if (p.indexOf("/@remote/") === 0) { var id = p.split("/")[2]; return Remotes.isConnected(id) }
         return p === home || p.indexOf(home + "/") === 0
     }
-    function isWritable(p) { return p.indexOf("/@remote/") !== 0 }
+    // come il vero: su un server decide il server (sì), sul telefono la home
+    function isWritable(p) { return p.indexOf("/@remote/") === 0 || p === home || p.indexOf(home + "/") === 0 }
     function parentOf(p) { var i = p.lastIndexOf("/"); return i <= 0 ? "/" : p.substring(0, i) }
     function join(d, n) { return d + "/" + n }
+    property var madeDirs: []
+    function makeDir(parent, name) { var a = madeDirs.slice(); a.push(parent + "/" + name); madeDirs = a; return "" }
     function isArchive(n) { return false }
     function archiveOf(p) { return "" }
     function trashSetDays(d) {}

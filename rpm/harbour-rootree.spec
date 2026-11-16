@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.5
-Release:    3
+Release:    4
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Mon Nov 16 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-4
+- Scelta delle cartelle per le sincronizzazioni: c'è «Nuova cartella», anche sul server
+  remoto; creata, ci si entra subito e la si può usare
+
 * Mon Nov 16 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-3
 - Sincronizzazioni: «Sfoglia…» sulla cartella remota apriva per sbaglio la memoria del telefono
   (col nome del server in alto); ora apre davvero le cartelle del server, e una cartella del

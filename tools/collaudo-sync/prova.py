@@ -41,6 +41,7 @@ dev = QTest.createTouchDevice()
 def single(name):
     return eng.singletonInstance("RooTree", name)
 Syncs, Remotes, Jobs = single("Syncs"), single("Remotes"), single("Jobs")
+Fs = single("Fs")
 
 def val(v):
     if isinstance(v, QJSValue):
@@ -229,10 +230,27 @@ check(visible("Usa questa cartella"), "si apre il selettore della cartella remot
 shot("5-selettore")
 check(find("NAS Remoto") is not None, "il selettore porta il nome della connessione")
 check(not visible("~"), "il selettore è sul server, non nella home del telefono (16/11)")
+# nuova cartella dentro il selettore (16/11): si crea sul server e ci si entra
+tap("Nuova cartella")
+wait(300)
+nd = [i for i in fields() if i.hasActiveFocus()]
+check(len(nd) == 1, "Nuova cartella: c'è il campo del nome")
+if nd:
+    nd[0].setProperty("text", "Estate")
+tap("OK")
+wait(300)
+check(val(Fs.property("madeDirs")) == ["/@remote/nas/Foto/Estate"], "creata sul server, nella cartella aperta (%s)" % val(Fs.property("madeDirs")))
+tap("Usa questa cartella")
+field = fields()
+check(field and field[0].property("text") == "/Foto/Estate", "creata ⇒ ci si entra e torna nel campo (%s)" % (field[0].property("text") if field else None))
+# di nuovo nel selettore per la cartella esistente
+tap("Sfoglia…")
+wait(300)
+check(visible("Usa questa cartella"), "il selettore si riapre")
 tap("Album")
 tap("Usa questa cartella")
 field = fields()
-check(field and field[0].property("text") == "/Foto/Album", "la cartella scelta torna nel campo (%s)" % (field[0].property("text") if field else None))
+check(field and field[0].property("text") == "/Foto/Estate/Album", "la cartella scelta torna nel campo (%s)" % (field[0].property("text") if field else None))
 check(visible("Nuova sincronizzazione"), "dopo il collegamento si resta nella procedura (non si entra nel NAS)")
 tap("Avanti")
 check(visible("DIREZIONE"), "passo 4: le regole")
@@ -269,7 +287,7 @@ tap("Salva")
 wait(400)
 lst = val(Syncs.property("list"))
 s = lst[0] if lst else {}
-check(len(lst) == 1 and s.get("local") == FOTO and s.get("remote") == "nas" and s.get("remotePath") == "/Foto/Album"
+check(len(lst) == 1 and s.get("local") == FOTO and s.get("remote") == "nas" and s.get("remotePath") == "/Foto/Estate/Album"
       and s.get("direction") == "both" and s.get("deletions") == "down" and s.get("subdirs") is True and s.get("enabled") is True,
       "salvata giusta: %s" % s)
 st = val(Syncs.property("started"))
