@@ -506,3 +506,8 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   cartelle del server. Il banco non l'aveva visto perché lo stub di Fs diceva sempre «sì»: ora no, e
   col codice vecchio il controllo nuovo fallisce (provato). cargo test 55 ok; installata, rpm -V vuoto.
   ⏳ Da provare col dito sul NAS vero.
+- **16/11 — 0.9.5-4 (0df9c6c): «Nuova cartella» nel selettore.** Richiesta dell'utente: mentre si sfoglia
+  la cartella remota non si poteva crearne una. Ora il FilePicker (server e telefono) ha «Nuova cartella»
+  in basso a sinistra: Fs.makeDir nella cartella aperta, poi ci entra. Banco: TUTTO OK (creazione sul
+  server compresa); lo stub di Fs.isWritable ora dice «sì» per i server come il vero. Installata, rpm -V
+  vuoto. ⏳ Da provare col dito sul NAS vero (insieme alla 0.9.5-3).
