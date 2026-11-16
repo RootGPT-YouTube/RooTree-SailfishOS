@@ -118,7 +118,10 @@ def drag(x, y, dy):
     QTest.touchEvent(w, dev).press(0, QPoint(x, y), w).commit(); wait(16)
     for k in range(1, 16):
         QTest.touchEvent(w, dev).move(0, QPoint(x, int(y + dy * k / 15)), w).commit(); wait(16)
-    QTest.touchEvent(w, dev).release(0, QPoint(x, int(y + dy)), w).commit(); wait(700)
+    # il dito si ferma prima di staccarsi: niente lancio, il pannello resta dov'è
+    for _ in range(4):
+        QTest.touchEvent(w, dev).move(0, QPoint(x, int(y + dy)), w).commit(); wait(60)
+    QTest.touchEvent(w, dev).release(0, QPoint(x, int(y + dy)), w).commit(); wait(500)
 
 def into_view(it):
     """come il dito: si scorre il pannello finché la riga non è dentro"""
@@ -232,8 +235,26 @@ check(field and field[0].property("text") == "/Foto/Album", "la cartella scelta 
 check(visible("Nuova sincronizzazione"), "dopo il collegamento si resta nella procedura (non si entra nel NAS)")
 tap("Avanti")
 check(visible("DIREZIONE"), "passo 4: le regole")
-tap("Nei due sensi")
+check(visible("Bivalente") and visible("Da Locale") and visible("Da Remoto"), "passo 4: le tre direzioni coi loro nomi")
+check(visible("Telefono → NAS Remoto") and visible("NAS Remoto → Telefono") and visible("Telefono ⇄ NAS Remoto"), "passo 4: il verso disegnato per ognuna")
+tap("Bivalente")
 tap("Eliminati sul remoto ⇒ anche sul telefono")
+check(visible("al giro dopo torna</b> sul telefono", exact=False), "Cosa succederà (Bivalente): eliminato dal telefono ⇒ torna dal NAS")
+check(visible("Elimini un file da «NAS Remoto»</b> → viene eliminato anche dal telefono", exact=False), "Cosa succederà: eliminato dal NAS ⇒ via anche dal telefono")
+# il caso dell'utente: Da Locale + eliminazioni dal remoto
+tap("Da Locale")
+check(visible("Aggiungi un file su «NAS Remoto»</b> → resta solo su «NAS Remoto»", exact=False), "Cosa succederà (Da Locale): un file nuovo sul NAS resta lì")
+check(visible("Modifichi un file sul telefono</b> → la nuova versione va su «NAS Remoto»", exact=False), "Cosa succederà (Da Locale): la modifica sul telefono va sul NAS")
+check(visible("Elimini un file da «NAS Remoto»</b> → viene eliminato anche dal telefono", exact=False), "Cosa succederà (Da Locale): archiviato sul NAS ⇒ sparisce dal telefono")
+shot("6b-da-locale")
+cs = find("Cosa succederà")
+if cs:
+    into_view(cs)
+    drag(225, 600, -250)
+shot("6c-cosa-succedera")
+tap("Da Remoto")
+check(visible("Aggiungi un file sul telefono</b> → resta solo sul telefono", exact=False), "Cosa succederà (Da Remoto): un file nuovo sul telefono resta lì")
+tap("Bivalente")
 shot("6-regole")
 check(visible("Salvaguardie.", exact=False), "passo 4: spiegate le salvaguardie")
 check(visible("solo con RooTree aperta", exact=False), "passo 4: spiegato che gira solo con RooTree aperta")

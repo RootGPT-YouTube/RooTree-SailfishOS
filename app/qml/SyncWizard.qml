@@ -113,6 +113,33 @@ Popup {
         close()
         saved(id)
     }
+    // «Cosa succederà»: ogni caso con la direzione e le eliminazioni scelte
+    // (le stesse regole di plan() in sync.rs: se cambiano lì, cambiano qui)
+    function outcomes() {
+        var d = v("direction"), del = v("deletions"), r = "«" + connName + "»"
+        var up = d === "up" || d === "both", down = d === "down" || d === "both"
+        var delUp = del === "up" || del === "both", delDown = del === "down" || del === "both"
+        var it = Style.italiano
+        function row(what, result) { return "• <b>" + what + "</b> → " + result }
+        var l = []
+        l.push(row(it ? "Aggiungi un file sul telefono" : "You add a file on the phone",
+                   up ? (it ? "viene copiato su " + r : "it is copied to " + r) : (it ? "resta solo sul telefono" : "it stays only on the phone")))
+        l.push(row(it ? "Aggiungi un file su " + r : "You add a file on " + r,
+                   down ? (it ? "viene copiato sul telefono" : "it is copied to the phone") : (it ? "resta solo su " + r : "it stays only on " + r)))
+        l.push(row(it ? "Modifichi un file sul telefono" : "You modify a file on the phone",
+                   up ? (it ? "la nuova versione va su " + r : "the new version goes to " + r) : (it ? "su " + r + " resta la versione vecchia" : "the old version stays on " + r)))
+        l.push(row(it ? "Modifichi un file su " + r : "You modify a file on " + r,
+                   down ? (it ? "la nuova versione arriva sul telefono" : "the new version reaches the phone") : (it ? "sul telefono resta la versione vecchia" : "the old version stays on the phone")))
+        l.push(row(it ? "Elimini un file dal telefono" : "You delete a file from the phone",
+                   delUp ? (it ? "viene eliminato anche da " + r + " (nel suo cestino)" : "it is deleted from " + r + " too (into its trash)")
+                         : down ? (it ? "<b>al giro dopo torna</b> sul telefono da " + r : "<b>at the next run it comes back</b> from " + r)
+                                : (it ? "su " + r + " resta" : "it stays on " + r)))
+        l.push(row(it ? "Elimini un file da " + r : "You delete a file from " + r,
+                   delDown ? (it ? "viene eliminato anche dal telefono (nel cestino di RooTree)" : "it is deleted from the phone too (into RooTree's trash)")
+                           : up ? (it ? "<b>al giro dopo viene ricaricato</b> su " + r + " dal telefono" : "<b>at the next run it is uploaded again</b> to " + r)
+                                : (it ? "sul telefono resta" : "it stays on the phone")))
+        return l
+    }
     // dal percorso del selettore (/@remote/<id>/…) al percorso sul server
     function serverPath(p) {
         var pre = "/@remote/" + v("remote")
@@ -154,6 +181,8 @@ Popup {
     component Choice: Rectangle {
         id: ch
         property string title
+        // il verso, in chiaro: «Telefono → NAS Remoto»
+        property string flow
         property string note
         property bool chosen: false
         signal picked()
@@ -168,7 +197,8 @@ Popup {
             anchors { left: parent.left; right: tick.left; verticalCenter: parent.verticalCenter; leftMargin: Style.margin; rightMargin: 6 * Style.dp }
             spacing: 2 * Style.dp
             Text { font.family: Style.fontFamily; width: parent.width; text: ch.title; color: Style.text; font.pixelSize: Style.fontM; font.bold: ch.chosen; wrapMode: Text.Wrap }
-            Text { font.family: Style.fontFamily; width: parent.width; visible: ch.note !== ""; text: ch.note; color: Style.dim; font.pixelSize: Style.fontS; wrapMode: Text.Wrap }
+            Text { font.family: Style.fontFamily; width: parent.width; visible: ch.flow !== ""; text: ch.flow; color: Style.accent; font.pixelSize: Style.fontM; font.bold: true; wrapMode: Text.Wrap }
+            Text { font.family: Style.fontFamily; width: parent.width; visible: ch.note !== ""; text: ch.note; textFormat: Text.StyledText; color: Style.dim; font.pixelSize: Style.fontS; wrapMode: Text.Wrap }
         }
         Icon { id: tick; anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter } name: "check"; size: 18 * Style.dp; visible: ch.chosen }
         MouseArea { id: chTap; anchors.fill: parent; onClicked: ch.picked() }
@@ -385,23 +415,40 @@ Popup {
                     width: parent.width
                     spacing: 8 * Style.dp
                     MenuSection { width: parent.width; text: Style.t("Direzione", "Direction") }
+                    Label { text: Style.t("Chi comanda fra le due cartelle: decide dove viaggiano i file nuovi e quelli modificati. Le eliminazioni si scelgono qui sotto, a parte.",
+                                          "Which of the two folders is in charge: it decides where new and modified files travel. Deletions are chosen below, separately.") }
+                    // l'ordine e i nomi li ha scelti l'utente (16/11): Bivalente, Da Locale, Da Remoto
                     Choice {
-                        title: Style.t("Dal telefono a «" + wiz.connName + "»", "From the phone to “" + wiz.connName + "”")
-                        note: Style.t("I file nuovi o cambiati sul telefono si copiano sul remoto. Quelli nuovi sul remoto restano lì.", "New or changed files on the phone are copied to the remote. New files on the remote stay there.")
+                        title: Style.t("Bivalente", "Two-way")
+                        flow: Style.t("Telefono ⇄ ", "Phone ⇄ ") + wiz.connName
+                        note: Style.t("Le due cartelle diventano <b>gemelle</b>: un file aggiunto o modificato da una parte viene copiato dall'altra, in tutti e due i versi. "
+                                      + "Se lo stesso file è stato modificato da entrambe le parti fra un giro e l'altro, vince la versione più recente e l'altra non si perde "
+                                      + "(sul telefono va nel cestino, su «" + wiz.connName + "» resta col nome «… (conflitto data ora)»).<br>Utile per lavorare sugli stessi file dal telefono e dal computer.",
+                                      "The two folders become <b>twins</b>: a file added or modified on one side is copied to the other, both ways. "
+                                      + "If the same file was modified on both sides between two runs, the newest version wins and the other is not lost "
+                                      + "(on the phone it goes to the trash, on “" + wiz.connName + "” it stays named “… (conflict date time)”).<br>Useful to work on the same files from the phone and the computer.")
+                        chosen: wiz.v("direction") === "both"
+                        onPicked: wiz.set("direction", "both")
+                    }
+                    Choice {
+                        title: Style.t("Da Locale", "From Local")
+                        flow: Style.t("Telefono → ", "Phone → ") + wiz.connName
+                        note: Style.t("<b>Comanda il telefono.</b> I file aggiunti o modificati sul telefono vengono copiati su «" + wiz.connName + "». "
+                                      + "Quello che compare o cambia su «" + wiz.connName + "» <b>non arriva mai</b> sul telefono.<br>Utile per il backup (es. le foto sul NAS).",
+                                      "<b>The phone is in charge.</b> Files added or modified on the phone are copied to “" + wiz.connName + "”. "
+                                      + "What appears or changes on “" + wiz.connName + "” <b>never reaches</b> the phone.<br>Useful for backups (e.g. photos to the NAS).")
                         chosen: wiz.v("direction") === "up"
                         onPicked: wiz.set("direction", "up")
                     }
                     Choice {
-                        title: Style.t("Da «" + wiz.connName + "» al telefono", "From “" + wiz.connName + "” to the phone")
-                        note: Style.t("I file nuovi o cambiati sul remoto si copiano sul telefono.", "New or changed files on the remote are copied to the phone.")
+                        title: Style.t("Da Remoto", "From Remote")
+                        flow: wiz.connName + Style.t(" → Telefono", " → Phone")
+                        note: Style.t("<b>Comanda «" + wiz.connName + "».</b> I file aggiunti o modificati lì vengono copiati sul telefono. "
+                                      + "Quello che aggiungi o modifichi sul telefono <b>non arriva mai</b> su «" + wiz.connName + "».<br>Utile per avere sempre sul telefono una copia di una cartella del NAS o del cloud.",
+                                      "<b>“" + wiz.connName + "” is in charge.</b> Files added or modified there are copied to the phone. "
+                                      + "What you add or modify on the phone <b>never reaches</b> “" + wiz.connName + "”.<br>Useful to always have on the phone a copy of a NAS or cloud folder.")
                         chosen: wiz.v("direction") === "down"
                         onPicked: wiz.set("direction", "down")
-                    }
-                    Choice {
-                        title: Style.t("Nei due sensi", "Both ways")
-                        note: Style.t("Ogni file nuovo o cambiato va dall'altra parte. Cambiato da tutte e due: vince il più recente, l'altro non si perde.", "Every new or changed file goes to the other side. Changed on both: the newest wins, the other is not lost.")
-                        chosen: wiz.v("direction") === "both"
-                        onPicked: wiz.set("direction", "both")
                     }
                     MenuSection { width: parent.width; text: Style.t("Eliminazioni", "Deletions") }
                     Choice {
@@ -426,6 +473,35 @@ Popup {
                         title: Style.t("In entrambi i sensi", "Both ways")
                         chosen: wiz.v("deletions") === "both"
                         onPicked: wiz.set("deletions", "both")
+                    }
+                    // in chiaro, caso per caso, con la direzione e le eliminazioni scelte:
+                    // le stesse regole di plan() in sync.rs
+                    MenuSection { width: parent.width; text: Style.t("Cosa succederà", "What will happen") }
+                    Rectangle {
+                        width: parent.width
+                        height: whatCol.implicitHeight + 2 * 10 * Style.dp
+                        radius: 10 * Style.dp
+                        color: Style.panel
+                        border.color: Style.accent
+                        border.width: 1 * Style.dp
+                        Column {
+                            id: whatCol
+                            x: Style.margin; y: 10 * Style.dp
+                            width: parent.width - 2 * Style.margin
+                            spacing: 6 * Style.dp
+                            Repeater {
+                                model: wiz.outcomes()
+                                delegate: Text {
+                                    font.family: Style.fontFamily
+                                    width: whatCol.width
+                                    wrapMode: Text.Wrap
+                                    textFormat: Text.StyledText
+                                    text: modelData
+                                    color: Style.text
+                                    font.pixelSize: Style.fontS
+                                }
+                            }
+                        }
                     }
                     Note {
                         text: Style.t("<b>Salvaguardie.</b> Ciò che si elimina va sempre in un cestino. Se in un giro le eliminazioni sono più di 50, o se una delle due cartelle si presenta vuota tutta insieme (NAS montato male, scheda tolta), RooTree non fa niente e ti chiede prima.",
@@ -476,7 +552,7 @@ Popup {
                             Text { font.family: Style.fontFamily; width: parent.width; wrapMode: Text.Wrap; color: Style.dim; font.pixelSize: Style.fontS
                                    text: wiz.connName + ": " + (wiz.v("remotePath") || "/") }
                             Text { font.family: Style.fontFamily; width: parent.width; wrapMode: Text.Wrap; color: Style.dim; font.pixelSize: Style.fontS
-                                   text: ({ up: Style.t("Dal telefono al remoto", "Phone to remote"), down: Style.t("Dal remoto al telefono", "Remote to phone"), both: Style.t("Nei due sensi", "Both ways") })[wiz.v("direction")] || "" }
+                                   text: Style.t("Direzione: ", "Direction: ") + (({ up: Style.t("Da Locale (telefono → ", "From Local (phone → ") + wiz.connName + ")", down: Style.t("Da Remoto (", "From Remote (") + wiz.connName + Style.t(" → telefono)", " → phone)"), both: Style.t("Bivalente (telefono ⇄ ", "Two-way (phone ⇄ ") + wiz.connName + ")" })[wiz.v("direction")] || "") }
                             Text { font.family: Style.fontFamily; width: parent.width; wrapMode: Text.Wrap; color: Style.dim; font.pixelSize: Style.fontS
                                    text: Style.t("Eliminazioni: ", "Deletions: ") + (({ none: Style.t("non si ripetono", "not repeated"), up: Style.t("dal telefono al remoto", "phone to remote"), down: Style.t("dal remoto al telefono", "remote to phone"), both: Style.t("in entrambi i sensi", "both ways") })[wiz.v("deletions")] || "") }
                         }
