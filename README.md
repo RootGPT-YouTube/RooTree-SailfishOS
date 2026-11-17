@@ -27,6 +27,7 @@ Prerequisite: Sailfish OS 5.1 or later · **aarch64** (armv7hl packages are buil
 Telegram Group: https://t.me/+E7V-a7x4JbY1Njhk  
 RooTree is tested on:  
 - POCO M4 Pro 4G (Sailfish OS 5.2.0.22, community port)  
+- Sony Xperia 10 III (Sailfish OS 5.2.0.22): clean install  
 
 This application was developed using artificial intelligence technologies, specifically Claude Code Opus. Therefore, if the use of an application generated via a large-scale language model (LLM) is not comfortable for the user, it is recommended to avoid its installation and use. It is specified that any negative comment regarding this circumstance will not only be ignored but will result in the immediate blocking of the user.
 
@@ -63,13 +64,21 @@ I hereby disclaim any and all responsibility for the application, its functional
 ### Install
 
 RooTree needs its Qt 6 runtime, `rootgpt-qt6-runtime`, which is published with
-each release. Copy the RPMs to the phone and install, runtime first:
+each release. Copy the RPMs for your phone (`aarch64` = 64-bit, `armv7hl` =
+32-bit) to the phone and install them **in one command**:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm
-devel-su pkcon install-local harbour-rootree-<version>.aarch64.rpm
-# optional, root mode:
-devel-su pkcon install-local harbour-rootree-root-<version>.aarch64.rpm
+devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<version>.aarch64.rpm harbour-rootree-root-<version>.aarch64.rpm
+```
+
+`harbour-rootree-root` (root mode) is optional: leave it out if you don't want it.
+
+**Updating:** the runtime only needs reinstalling when a release says so. If you
+installed root mode, update the app **and** `harbour-rootree-root` together, in
+the same command (root mode must match the app's version exactly):
+
+```sh
+devel-su pkcon install-local harbour-rootree-<new>.aarch64.rpm harbour-rootree-root-<new>.aarch64.rpm
 ```
 
 The runtime installs Qt 6.12 under `/home/rootgpt-qt6`, apart from the system,
@@ -105,6 +114,7 @@ Requisiti: Sailfish OS 5.1 o successivo · **aarch64** (i pacchetti armv7hl sono
 Gruppo Telegram: https://t.me/+E7V-a7x4JbY1Njhk  
 RooTree è testato:  
 - POCO M4 Pro 4G (Sailfish OS 5.2.0.22, port della comunità)  
+- Sony Xperia 10 III (Sailfish OS 5.2.0.22): installazione pulita  
 
 Questa applicazione è stata sviluppata utilizzando tecnologie di intelligenza artificiale, in particolare Claude Code Opus. Pertanto, se l'uso di un'applicazione generata tramite un modello linguistico su larga scala (LLM) non fosse per l'utente confortevole, si raccomanda di evitarne l'installazione e l'uso. Si specifica che qualsiasi commento negativo riguardante questa circostanza non verrà solo ignorato, ma comporterà il blocco immediato dell'utente.
 
@@ -144,13 +154,21 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
 ### Installazione
 
 RooTree ha bisogno del suo runtime Qt 6, `rootgpt-qt6-runtime`, pubblicato con
-ogni release. Copia gli RPM sul telefono e installa, prima il runtime:
+ogni release. Copia sul telefono gli RPM giusti (`aarch64` = 64 bit, `armv7hl` =
+32 bit) e installali **con un solo comando**:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm
-devel-su pkcon install-local harbour-rootree-<versione>.aarch64.rpm
-# facoltativo, modalità root:
-devel-su pkcon install-local harbour-rootree-root-<versione>.aarch64.rpm
+devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<versione>.aarch64.rpm harbour-rootree-root-<versione>.aarch64.rpm
+```
+
+`harbour-rootree-root` (modalità root) è facoltativo: se non ti serve, toglilo dal comando.
+
+**Aggiornare:** il runtime va reinstallato solo quando una release lo dice. Se hai
+installato la modalità root, aggiorna l'app **e** `harbour-rootree-root` insieme,
+nello stesso comando (la modalità root deve avere esattamente la versione dell'app):
+
+```sh
+devel-su pkcon install-local harbour-rootree-<nuova>.aarch64.rpm harbour-rootree-root-<nuova>.aarch64.rpm
 ```
 
 Il runtime installa Qt 6.12 in `/home/rootgpt-qt6`, separato dal sistema, così
