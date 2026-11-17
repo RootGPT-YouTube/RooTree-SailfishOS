@@ -519,3 +519,12 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   telefono vero). 55 test del nucleo verdi. Prima del push la storia è stata
   riscritta in locale (nome del NAS e del file di chiave tolti da questo PIANO):
   gli hash dei commit citati sopra sono quelli di prima, non esistono più.
+- **17/11 — 0.9.6-1 → 0.9.6-3 (release v0.9.6-3): un RPM solo, cestino in modalità root.**
+  Richiesta dell'utente: l'helper root è dentro l'app (Obsoletes/Provides del vecchio `-root`, niente
+  Requires di devel-su); installazione = runtime + app. Cestino in modalità root: `trash::needs_root`
+  guarda anche l'elemento e lo sticky bit (cartella di root dentro una cartella dell'utente);
+  `needs_root_to_remove` evita le cancellazioni a metà quando si svuota un cestino con dentro file di root
+  (messaggio NEEDROOT it|en, in modalità root ci pensa l'helper); l'helper (home = /root) ora riconosce il
+  cestino di ogni home. 58 test. Provato: aggiornamento col solo RPM dell'app su POCO (0.9.5-4) e Xperia
+  (0.9.5-5), il `-root` tolto da solo; col dito sul POCO senza e con root; sull'Xperia l'helper avviato da
+  root con la richiesta dell'app. Non provato: armv7hl su un telefono vero.
