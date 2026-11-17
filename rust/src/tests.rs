@@ -1310,3 +1310,23 @@ fn cestino_svuota_con_roba_non_mia() {
     fs::set_permissions(t.join("files/mia/di-root"), fs::Permissions::from_mode(0o755)).ok();
     let _ = fs::remove_dir_all(&d);
 }
+
+/// 0.9.6-3: una voce del cestino di un'altra home (come la vede l'helper root,
+/// che ha /root come home) si elimina e si ripristina per percorso.
+#[test]
+fn cestino_di_un_altra_home() {
+    let d = tmp(false);
+    let t = d.join("altra-home/.local/share/Trash");
+    fs::create_dir_all(t.join("files/x")).unwrap();
+    fs::write(t.join("files/x/f.txt"), "f").unwrap();
+    fs::create_dir_all(t.join("info")).unwrap();
+    fs::write(t.join("info/x.trashinfo"), "[Trash Info]\nPath=/tmp/x\nDeletionDate=2026-11-17T11:45:00\n").unwrap();
+    let id = t.join("files/x").to_string_lossy().into_owned();
+    crate::trash::op_in(&[], "delete", &id).unwrap();
+    assert!(!t.join("files/x").exists() && !t.join("info/x.trashinfo").exists());
+    // e un percorso qualunque resta rifiutato
+    fs::create_dir_all(d.join("non-cestino/files/y")).unwrap();
+    let e = crate::trash::op_in(&[], "delete", &d.join("non-cestino/files/y").to_string_lossy()).unwrap_err();
+    assert!(e.to_string().contains("cestino"), "{e}");
+    let _ = fs::remove_dir_all(&d);
+}

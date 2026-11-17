@@ -542,7 +542,11 @@ fn trash_of_item(id: &str) -> io::Result<(PathBuf, String)> {
         return Err(io::Error::other("voce del cestino non valida"));
     }
     let t = files.parent().ok_or_else(|| io::Error::other("voce non valida"))?.to_path_buf();
-    if !inside_trash(&t.join("files")) {
+    // ⚠️ 0.9.6-3: anche il cestino di un'ALTRA home. L'helper gira da root e la
+    //    sua home è /root: senza questo rifiutava le voci del cestino
+    //    dell'utente («non è un cestino», visto il 17/11/2026 svuotando in
+    //    modalità root un cestino con dentro file di root).
+    if !inside_trash(&t.join("files")) && !t.ends_with(".local/share/Trash") {
         return Err(io::Error::other("non è un cestino"));
     }
     Ok((t, name))
