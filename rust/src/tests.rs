@@ -1238,3 +1238,32 @@ fn sincronizzazione() {
     assert!(run(&cfg3, &stato, false, &ctl).is_err());
     let _ = fs::remove_dir_all(&d);
 }
+
+/// 0.9.6: serve root anche quando è l'ELEMENTO a non essere scrivibile, non
+/// solo la cartella che lo contiene (una cartella di root dentro la home,
+/// visto sull'Xperia il 17/11/2026). Qui una cartella 555 al posto di una
+/// cartella di root: l'effetto su rename(2) è lo stesso.
+#[test]
+fn cestino_cartella_non_scrivibile_vuole_root() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        return; // da root access(W_OK) dice sempre sì
+    }
+    let d = tmp(false);
+    let bloccata = d.join("di-root");
+    fs::create_dir_all(bloccata.join("dentro")).unwrap();
+    fs::write(d.join("libero.txt"), "x").unwrap();
+    fs::create_dir_all(d.join("libera")).unwrap();
+    fs::set_permissions(&bloccata, fs::Permissions::from_mode(0o555)).unwrap();
+    // la causa: la cartella non si sposta in un'altra cartella (il suo «..»)
+    fs::create_dir_all(d.join("altrove")).unwrap();
+    let err = fs::rename(&bloccata, d.join("altrove/di-root")).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    // e la cura: needs_root lo dice, e l'interfaccia avvisa prima
+    assert!(crate::trash::needs_root(&bloccata));
+    assert!(!crate::trash::needs_root(&d.join("libero.txt")));
+    assert!(!crate::trash::needs_root(&d.join("libera")));
+    assert!(crate::trash::hint(&[bloccata.to_string_lossy().into_owned()]).starts_with("none:"));
+    fs::set_permissions(&bloccata, fs::Permissions::from_mode(0o755)).unwrap();
+    let _ = fs::remove_dir_all(&d);
+}

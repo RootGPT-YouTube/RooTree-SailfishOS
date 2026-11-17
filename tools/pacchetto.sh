@@ -29,7 +29,7 @@ S=$R/scratch/pkg-$ARCH
 rm -rf "$S"
 mkdir -p "$S/app/qml" "$S/icons"
 cp "$R/build-$ARCH/harbour-rootree" "$S/app/"
-# l'helper della modalità root (sottopacchetto -root), compilato da build.sh con il nucleo
+# l'helper della modalità root (dentro il pacchetto dell'app dalla 0.9.6), compilato da build.sh con il nucleo
 . "$R/tools/env-rust.sh" "$ARCH" >/dev/null
 cp "$R/rust/target/$RUST_TARGET/release/rootree-helper" "$S/rootree-helper"
 sb2 -t "$SFOS_TARGET" strip "$S/rootree-helper"

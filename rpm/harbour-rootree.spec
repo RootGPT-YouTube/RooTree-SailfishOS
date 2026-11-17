@@ -12,8 +12,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.5
-Release:    5
+Version:    0.9.6
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -21,6 +21,12 @@ URL:        https://github.com/RootGPT-YouTube/RooTree-SailfishOS
 ExclusiveArch: aarch64 armv7hl
 AutoReqProv: no
 Requires:   rootgpt-qt6-runtime >= 6.12.0
+# 0.9.6: l'helper della modalità root è dentro l'app (prima era il sottopacchetto
+# -root, da aggiornare sempre insieme): chi aveva il -root lo vede tolto da solo.
+# Niente Requires di devel-su: senza modalità sviluppatore l'app lo dice quando
+# si prova ad accendere la modalità root, e RooTree si installa lo stesso.
+Obsoletes:  %{name}-root < 0.9.6-1
+Provides:   %{name}-root = %{version}-%{release}
 # anteprime (GStreamer per i video, poppler per i PDF) e «Apri con»
 # (libcontentaction): pacchetti standard di Sailfish OS. AutoReqProv è spento,
 # quindi le librerie si chiedono a mano, per soname.
@@ -51,20 +57,12 @@ Requires:   libcrypto.so.3
 Requires:   libz.so.1
 %endif
 
-%package root
-Summary:    Root mode for RooTree
-Requires:   %{name} = %{version}-%{release}
-# devel-su: la modalità sviluppatore (la sua password apre la modalità root)
-Requires:   /usr/bin/devel-su
-
-%description root
-The helper that RooTree starts with devel-su when root mode is turned on:
-it performs the file operations as root and talks only to the app over a
-private socket. The app itself never runs as root.
-
 %description
 RooTree is a file manager for Sailfish OS: internal memory, Android storage,
 SD card, cloud and remote storage, archives, and an optional root mode.
+Root mode is unlocked with the developer-mode password: a separate helper,
+started with devel-su, performs the file operations as root; the app itself
+never runs as root.
 
 %prep
 
@@ -91,13 +89,18 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
-
-%files root
-%defattr(-,root,root,-)
 %dir %{_libexecdir}/%{name}
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.6-1
+- Un pacchetto in meno: la modalità root è ora dentro l'app (prima serviva
+  anche harbour-rootree-root, da aggiornare sempre insieme). Chi l'aveva lo
+  vede tolto da solo all'aggiornamento.
+- Modalità root: una cartella di root dentro una cartella dell'utente (per
+  esempio nella home) ora va nel cestino; prima l'eliminazione veniva rifiutata.
+  Senza modalità root, RooTree avvisa prima che serve.
+
 * Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-5
 - Nessun cambiamento nell'app: il pacchetto porta gli avvisi di licenza
   completi di tutti i componenti di terze parti (NOTICE.md), comprese le

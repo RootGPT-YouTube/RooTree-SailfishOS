@@ -1450,8 +1450,8 @@ Window {
             ? Style.t("Serve la modalità sviluppatore: Impostazioni → Strumenti per sviluppatori → Modalità sviluppatore, poi imposta lì una password. Torna qui e accendi la modalità root con quella password.",
                       "Developer mode is needed: Settings → Developer tools → Developer mode, then set a password there. Come back and turn on root mode with that password.")
             : !Fs.rootHelperInstalled
-            ? Style.t("Manca il pacchetto «harbour-rootree-root», che contiene la parte che lavora da root. Installalo e riprova.",
-                      "The “harbour-rootree-root” package, which holds the part that works as root, is missing. Install it and try again.")
+            ? Style.t("Manca l'aiutante root di RooTree (/usr/libexec/harbour-rootree/rootree-helper). Reinstalla RooTree e riprova.",
+                      "RooTree's root helper (/usr/libexec/harbour-rootree/rootree-helper) is missing. Reinstall RooTree and try again.")
             : Style.t("RooTree potrà leggere e modificare tutto il sistema. L'app resta un'app normale: le operazioni da root le fa un aiutante separato, che si spegne con la modalità o chiudendo RooTree. Quando salvi un file da root, l'originale va in /home/debugging/harbour-rootree.",
                       "RooTree will be able to read and change the whole system. The app stays a normal app: root operations are done by a separate helper, which stops with the mode or when RooTree closes. When you save a file as root, the original goes to /home/debugging/harbour-rootree.")
         buttons: ready ? [{ text: Style.t("Annulla", "Cancel"), role: "reject" }, { text: Style.t("Accendi", "Turn on"), role: "accept" }]

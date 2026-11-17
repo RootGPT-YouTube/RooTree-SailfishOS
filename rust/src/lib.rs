@@ -427,13 +427,11 @@ fn job_delete(paths: Vec<String>) -> u64 {
     job_via(Request::JobDelete { paths: paths.clone() }, || jobs::delete(paths))
 }
 
-/// Nel cestino: dall'helper root solo se serve (una cartella dove l'utente
-/// non può scrivere), così i file dell'utente vanno nel SUO cestino anche
-/// con la modalità root accesa.
+/// Nel cestino: dall'helper root solo se serve (vedi trash::needs_root: la
+/// cartella che lo contiene, ma anche l'elemento stesso), così i file
+/// dell'utente vanno nel SUO cestino anche con la modalità root accesa.
 fn job_trash(paths: Vec<String>) -> u64 {
-    let needs_root = paths.iter().any(|p| {
-        remote::split(p).is_none() && !std::path::Path::new(p).parent().map(trash::writable).unwrap_or(true)
-    });
+    let needs_root = paths.iter().any(|p| remote::split(p).is_none() && trash::needs_root(std::path::Path::new(p)));
     if root::active()
         && needs_root
         && let Ok(id) = root::call_as::<u64>(&Request::JobTrash { paths: paths.clone(), days: trash::days() })

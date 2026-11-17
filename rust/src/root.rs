@@ -46,7 +46,7 @@ pub fn start(password: &str) -> Result<(), String> {
         return Err("NODEV:devel-su non c'è: la modalità sviluppatore è spenta".into());
     }
     if !Path::new(HELPER).exists() {
-        return Err("NOHELPER:manca il pacchetto harbour-rootree-root".into());
+        return Err("NOHELPER:manca l'aiutante root di RooTree: reinstalla l'app".into());
     }
     let (mine, theirs) = UnixStream::pair().map_err(|e| e.to_string())?;
     // tutto ciò che serve al figlio si prepara PRIMA della fork (dopo, in un

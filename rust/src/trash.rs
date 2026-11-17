@@ -225,12 +225,41 @@ pub fn hint(paths: &[String]) -> String {
             // il cestino si potrà creare? (scheda in sola lettura, cartella di root)
             let t = local_trash_for(path);
             let probe = if t.exists() { t.clone() } else { t.parent().map(Path::to_path_buf).unwrap_or_default() };
-            if !writable(&probe) || !path.parent().map(writable).unwrap_or(false) {
+            if !writable(&probe) || path.parent().is_none() || needs_root(path) {
                 return "none:serve la modalità root o la memoria è in sola lettura".into();
             }
         }
     }
     "trash".into()
+}
+
+/// Per mettere `p` nel cestino serve root? Non basta guardare la cartella che
+/// lo contiene (0.9.6, visto il 17/11/2026 sull'Xperia 10 III: una cartella di
+/// root dentro la home in modalità root veniva rifiutata, perché la home è
+/// scrivibile e il lavoro restava all'app):
+/// - una CARTELLA si sposta in un'altra solo se si può scriverci dentro, perché
+///   va aggiornato il suo «..» (man 2 rename: EACCES);
+/// - in una cartella con lo sticky bit (come /tmp) si sposta solo ciò che è
+///   proprio, o tutto se la cartella è nostra.
+pub fn needs_root(p: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Some(parent) = p.parent() else { return false };
+    if !writable(parent) {
+        return true;
+    }
+    let Ok(m) = fs::symlink_metadata(p) else { return false };
+    if m.is_dir() && !writable(p) {
+        return true;
+    }
+    let uid = unsafe { libc::geteuid() };
+    if let Ok(pm) = fs::metadata(parent)
+        && pm.mode() & 0o1000 != 0
+        && m.uid() != uid
+        && pm.uid() != uid
+    {
+        return true;
+    }
+    false
 }
 
 pub fn writable(p: &Path) -> bool {

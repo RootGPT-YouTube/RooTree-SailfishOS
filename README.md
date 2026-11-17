@@ -54,9 +54,10 @@ I hereby disclaim any and all responsibility for the application, its functional
 - **Synchronisation** between a local and a remote folder (two-way, local to
   remote, or remote to local), set up with a guided wizard.
 - **Open with** any Sailfish app, and **Share** through the system dialog.
-- **Root mode** (optional package `harbour-rootree-root`): unlocked with the
-  developer-mode password. A small helper does the file operations as root;
-  the app itself never runs as root.
+- **Root mode**: unlocked with the developer-mode password. A small helper
+  does the file operations as root; the app itself never runs as root.
+  Without developer mode, RooTree works normally and just tells you that root
+  mode needs it.
 - Two looks: the frozen **RooTundra** theme (default) or a plain
   **Sailfish OS** theme that follows your ambience.
 - Interface in **English** and **Italian**.
@@ -68,17 +69,15 @@ each release. Copy the RPMs for your phone (`aarch64` = 64-bit, `armv7hl` =
 32-bit) to the phone and install them **in one command**:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<version>.aarch64.rpm harbour-rootree-root-<version>.aarch64.rpm
+devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<version>.aarch64.rpm
 ```
 
-`harbour-rootree-root` (root mode) is optional: leave it out if you don't want it.
-
-**Updating:** the runtime only needs reinstalling when a release says so. If you
-installed root mode, update the app **and** `harbour-rootree-root` together, in
-the same command (root mode must match the app's version exactly):
+**Updating:** install only the new `harbour-rootree` RPM; the runtime only when
+a release says so. (Up to 0.9.5 root mode was a separate package,
+`harbour-rootree-root`: updating to 0.9.6 or later removes it by itself.)
 
 ```sh
-devel-su pkcon install-local harbour-rootree-<new>.aarch64.rpm harbour-rootree-root-<new>.aarch64.rpm
+devel-su pkcon install-local harbour-rootree-<new>.aarch64.rpm
 ```
 
 The runtime installs Qt 6.12 under `/home/rootgpt-qt6`, apart from the system,
@@ -144,9 +143,10 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
   guidata.
 - **Apri con** qualunque app di Sailfish, e **Condividi** con il dialogo di
   sistema.
-- **Modalità root** (pacchetto facoltativo `harbour-rootree-root`): si apre con
-  la password della modalità sviluppatore. Un piccolo aiutante fa le
-  operazioni come root; l'app non gira mai come root.
+- **Modalità root**: si apre con la password della modalità sviluppatore. Un
+  piccolo aiutante fa le operazioni come root; l'app non gira mai come root.
+  Senza modalità sviluppatore RooTree funziona normalmente e dice solo che la
+  modalità root ne ha bisogno.
 - Due aspetti: il tema ghiacciato **RooTundra** (predefinito) o un tema
   **Sailfish OS** semplice che segue la tua ambience.
 - Interfaccia in **italiano** e **inglese**.
@@ -158,17 +158,15 @@ ogni release. Copia sul telefono gli RPM giusti (`aarch64` = 64 bit, `armv7hl` =
 32 bit) e installali **con un solo comando**:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<versione>.aarch64.rpm harbour-rootree-root-<versione>.aarch64.rpm
+devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<versione>.aarch64.rpm
 ```
 
-`harbour-rootree-root` (modalità root) è facoltativo: se non ti serve, toglilo dal comando.
-
-**Aggiornare:** il runtime va reinstallato solo quando una release lo dice. Se hai
-installato la modalità root, aggiorna l'app **e** `harbour-rootree-root` insieme,
-nello stesso comando (la modalità root deve avere esattamente la versione dell'app):
+**Aggiornare:** installa solo il nuovo RPM `harbour-rootree`; il runtime solo
+quando una release lo dice. (Fino alla 0.9.5 la modalità root era un pacchetto a
+parte, `harbour-rootree-root`: aggiornando alla 0.9.6 o successiva si toglie da solo.)
 
 ```sh
-devel-su pkcon install-local harbour-rootree-<nuova>.aarch64.rpm harbour-rootree-root-<nuova>.aarch64.rpm
+devel-su pkcon install-local harbour-rootree-<nuova>.aarch64.rpm
 ```
 
 Il runtime installa Qt 6.12 in `/home/rootgpt-qt6`, separato dal sistema, così
