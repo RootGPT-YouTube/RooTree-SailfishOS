@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.5
-Release:    4
+Release:    5
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -98,6 +98,13 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-5
+- Nessun cambiamento nell'app: il pacchetto porta gli avvisi di licenza
+  completi di tutti i componenti di terze parti (NOTICE.md), comprese le
+  librerie libssh2 e zstd incluse nel programma.
+- Di nuovo anche il pacchetto per armv7hl (telefoni a 32 bit), non ancora
+  provato su un telefono vero.
+
 * Mon Nov 16 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.5-4
 - Scelta delle cartelle per le sincronizzazioni: c'è «Nuova cartella», anche sul server
   remoto; creata, ci si entra subito e la si può usare

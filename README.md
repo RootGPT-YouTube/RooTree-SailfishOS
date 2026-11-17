@@ -48,7 +48,8 @@ I hereby disclaim any and all responsibility for the application, its functional
   system's `bsdtar`.
 - **Search** by name, regular expression or file content.
 - **Remote and cloud storage**: SFTP, FTP/FTPS, WebDAV/Nextcloud, SMB, S3,
-  Dropbox and Mega, with the same operations as local folders.
+  Dropbox, Mega and kDrive (Infomaniak), with the same operations as local
+  folders.
 - **Synchronisation** between a local and a remote folder (two-way, local to
   remote, or remote to local), set up with a guided wizard.
 - **Open with** any Sailfish app, and **Share** through the system dialog.
@@ -126,8 +127,8 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
   archivio come una cartella; RAR, ISO e cpio si estraggono con il `bsdtar`
   di sistema.
 - **Ricerca** per nome, espressione regolare o contenuto dei file.
-- **Spazi remoti e cloud**: SFTP, FTP/FTPS, WebDAV/Nextcloud, SMB, S3, Dropbox
-  e Mega, con le stesse operazioni delle cartelle locali.
+- **Spazi remoti e cloud**: SFTP, FTP/FTPS, WebDAV/Nextcloud, SMB, S3, Dropbox,
+  Mega e kDrive (Infomaniak), con le stesse operazioni delle cartelle locali.
 - **Sincronizzazione** fra una cartella locale e una remota (nei due sensi,
   da locale a remoto o da remoto a locale), impostata con una procedura
   guidata.
