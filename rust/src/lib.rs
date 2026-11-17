@@ -468,13 +468,33 @@ fn trash_local(scope: &str, action: &str, item: &str) -> Result<String, String> 
             Ok(serde_json::Value::Array(all).to_string())
         }
         "empty" => {
-            trash::op(scope, "empty", "").map_err(|e| e.to_string())?;
+            let mine = trash::op(scope, "empty", "");
             if root::active() {
+                // le voci rimaste perché contengono file di root: dall'helper, una per una
+                if let Err(e) = &mine
+                    && e.to_string().starts_with(trash::NEEDS_ROOT)
+                {
+                    let left: Vec<serde_json::Value> = serde_json::from_str(&trash::op(scope, "list", "").map_err(|e| e.to_string())?).unwrap_or_default();
+                    for v in left {
+                        let id = v["id"].as_str().unwrap_or("").to_string();
+                        if !id.is_empty() {
+                            root::call_as::<String>(&Request::TrashOp { scope: scope.into(), action: "delete".into(), item: id, days: trash::days() })?;
+                        }
+                    }
+                } else {
+                    mine.map_err(|e| e.to_string())?;
+                }
                 via_root("")?;
+                return Ok(String::new());
             }
-            Ok(String::new())
+            mine.map(|_| String::new()).map_err(|e| e.to_string())
         }
         _ if item.contains("/.Trash-0/") && root::active() => via_root(item),
+        // una voce del cestino dell'utente con dentro file di root: in modalità root la toglie l'helper
+        "delete" => match trash::op(scope, action, item) {
+            Err(e) if e.to_string().starts_with(trash::NEEDS_ROOT) && root::active() => via_root(item),
+            r => r.map_err(|e| e.to_string()),
+        },
         _ => trash::op(scope, action, item).map_err(|e| e.to_string()),
     }
 }

@@ -13,7 +13,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.6
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+
 Group:      Applications/System
@@ -93,6 +93,12 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.6-2
+- Cestino: se un elemento contiene file di root, eliminarlo o svuotare il
+  cestino non lo cancella più a metà. Senza modalità root RooTree lo lascia
+  intero, toglie tutto il resto e dice che serve la modalità root; con la
+  modalità root lo elimina del tutto.
+
 * Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.6-1
 - Un pacchetto in meno: la modalità root è ora dentro l'app (prima serviva
   anche harbour-rootree-root, da aggiornare sempre insieme). Chi l'aveva lo

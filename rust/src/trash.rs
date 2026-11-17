@@ -262,6 +262,40 @@ pub fn needs_root(p: &Path) -> bool {
     false
 }
 
+/// Per cancellare DAVVERO `p` (dal cestino) serve root? Sì se dentro c'è una
+/// cartella dove non si può scrivere (di root, o 555): i suoi elementi non si
+/// tolgono. Si guarda PRIMA, così non si cancella a metà (0.9.6, visto il
+/// 17/11/2026: «Svuota» toglieva i file dell'utente e lasciava quelli di root).
+/// Solo percorsi locali; i link non si seguono.
+pub fn needs_root_to_remove(p: &Path) -> bool {
+    if unsafe { libc::geteuid() } == 0 || remote::split(&p.to_string_lossy()).is_some() {
+        return false;
+    }
+    let Ok(m) = fs::symlink_metadata(p) else { return false };
+    if !m.is_dir() {
+        return false;
+    }
+    if !writable(p) {
+        return true;
+    }
+    fs::read_dir(p).map(|rd| rd.flatten().any(|e| needs_root_to_remove(&e.path()))).unwrap_or(true)
+}
+
+/// L'errore di una voce che si cancella solo da root: il QML mostra il testo
+/// dopo «NEEDROOT:», lib.rs lo riconosce e in modalità root passa all'helper.
+pub const NEEDS_ROOT: &str = "NEEDROOT:";
+
+fn needs_root_error(n: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        if n <= 1 {
+            format!("{NEEDS_ROOT}dentro ci sono file di root: per eliminarli accendi la modalità root|There are root files inside: turn on root mode to delete them")
+        } else {
+            format!("{NEEDS_ROOT}{n} elementi contengono file di root: per eliminarli accendi la modalità root|{n} items contain root files: turn on root mode to delete them")
+        },
+    )
+}
+
 pub fn writable(p: &Path) -> bool {
     use std::os::unix::ffi::OsStrExt;
     let Ok(c) = std::ffi::CString::new(p.as_os_str().as_bytes()) else { return false };
@@ -516,6 +550,9 @@ fn trash_of_item(id: &str) -> io::Result<(PathBuf, String)> {
 
 fn delete_item(t: &Path, name: &str) -> io::Result<()> {
     let target = t.join("files").join(name);
+    if needs_root_to_remove(&target) {
+        return Err(needs_root_error(1));
+    }
     if vfs::lmeta(&target).is_ok() {
         vfs::remove_all(&target)?;
     }
@@ -605,16 +642,35 @@ pub fn op_in(dirs: &[PathBuf], action: &str, item: &str) -> io::Result<String> {
             delete_item(&t, &name).map(|_| String::new())
         }
         "empty" => {
+            // voce per voce: quelle con file di root restano (intere) e si
+            // contano, tutto il resto se ne va
+            let mut kept = 0;
             for t in dirs {
                 if !vfs::is_dir(&t) {
                     continue;
                 }
                 for f in vfs::read_dir(&t.join("files")).unwrap_or_default() {
-                    vfs::remove_all(&f)?;
+                    let name = f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    if name.is_empty() {
+                        continue;
+                    }
+                    match delete_item(t, &name) {
+                        Err(e) if e.to_string().starts_with(NEEDS_ROOT) => kept += 1,
+                        r => r?,
+                    }
                 }
+                // .trashinfo rimasti senza il loro file
                 for f in vfs::read_dir(&t.join("info")).unwrap_or_default() {
-                    let _ = vfs::remove_file(&f);
+                    let n = f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    if let Some(stem) = n.strip_suffix(".trashinfo")
+                        && vfs::lmeta(&t.join("files").join(stem)).is_err()
+                    {
+                        let _ = vfs::remove_file(&f);
+                    }
                 }
+            }
+            if kept > 0 {
+                return Err(needs_root_error(kept));
             }
             Ok(String::new())
         }

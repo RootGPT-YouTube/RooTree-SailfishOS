@@ -58,8 +58,12 @@ Sheet {
             sheet.busy = false
             if (err !== "") {
                 var c = err.indexOf(":")
-                sheet.error = err.indexOf("NOTCONNECTED:") === 0 ? Style.t("Apri prima la connessione.", "Open the connection first.")
-                            : /^[A-Z]+:/.test(err) ? err.substring(c + 1) : err
+                var msg = err.indexOf("NOTCONNECTED:") === 0 ? Style.t("Apri prima la connessione.", "Open the connection first.")
+                        : /^[A-Z]+:/.test(err) ? err.substring(c + 1) : err
+                // 0.9.6: il nucleo può mandare «italiano|english» (NEEDROOT: file di root nel cestino)
+                var two = msg.split("|")
+                sheet.error = two.length === 2 ? Style.t(two[0], two[1]) : msg
+                if (action !== "list") sheet.reload()
                 return
             }
             if (action === "list") {

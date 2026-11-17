@@ -1267,3 +1267,46 @@ fn cestino_cartella_non_scrivibile_vuole_root() {
     fs::set_permissions(&bloccata, fs::Permissions::from_mode(0o755)).unwrap();
     let _ = fs::remove_dir_all(&d);
 }
+
+/// Il cestino dell'utente con dentro una cartella non sua (qui 555 al posto di
+/// root): da utente la voce NON si cancella a metà, «Svuota» toglie tutto il
+/// resto e dice quante voci servono root (0.9.6; prima: errore grezzo, file
+/// dell'utente già cancellati e quelli di root rimasti).
+#[test]
+fn cestino_svuota_con_roba_non_mia() {
+    use std::os::unix::fs::PermissionsExt;
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let d = tmp(false);
+    let t = d.join(".Trash-prova");
+    let dirs = vec![t.clone()];
+    fs::create_dir_all(d.join("mia/di-root")).unwrap();
+    fs::write(d.join("mia/mio.txt"), "mio").unwrap();
+    fs::write(d.join("mia/di-root/suo.txt"), "suo").unwrap();
+    fs::write(d.join("altro.txt"), "altro").unwrap();
+    fs::create_dir_all(d.join("zeta/sotto")).unwrap();
+    fs::write(d.join("zeta/sotto/z.txt"), "z").unwrap();
+    fs::set_permissions(d.join("mia/di-root"), fs::Permissions::from_mode(0o555)).unwrap();
+    for n in ["mia", "altro.txt", "zeta"] {
+        crate::trash::move_into(&d.join(n), &t).unwrap();
+    }
+    assert!(crate::trash::needs_root_to_remove(&t.join("files/mia")));
+    assert!(!crate::trash::needs_root_to_remove(&t.join("files/zeta")));
+    // la voce da sola: rifiutata PRIMA di toccare qualcosa
+    let id = t.join("files/mia").to_string_lossy().into_owned();
+    let e = crate::trash::op_in(&dirs, "delete", &id).unwrap_err().to_string();
+    assert!(e.starts_with(crate::trash::NEEDS_ROOT) && e.contains('|'), "{e}");
+    assert!(t.join("files/mia/mio.txt").exists(), "non deve cancellare a metà");
+    // Svuota: via tutto il resto, la voce con file di root resta intera e col suo .trashinfo
+    let e = crate::trash::op_in(&dirs, "empty", "").unwrap_err().to_string();
+    assert!(e.starts_with(crate::trash::NEEDS_ROOT), "{e}");
+    assert!(!t.join("files/altro.txt").exists() && !t.join("files/zeta").exists());
+    assert!(t.join("files/mia/mio.txt").exists() && t.join("files/mia/di-root/suo.txt").exists());
+    assert!(t.join("info/mia.trashinfo").exists());
+    assert!(!t.join("info/altro.txt.trashinfo").exists() && !t.join("info/zeta.trashinfo").exists());
+    let list: serde_json::Value = serde_json::from_str(&crate::trash::op_in(&dirs, "list", "").unwrap()).unwrap();
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    fs::set_permissions(t.join("files/mia/di-root"), fs::Permissions::from_mode(0o755)).ok();
+    let _ = fs::remove_dir_all(&d);
+}
