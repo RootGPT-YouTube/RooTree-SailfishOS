@@ -511,3 +511,11 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   in basso a sinistra: Fs.makeDir nella cartella aperta, poi ci entra. Banco: TUTTO OK (creazione sul
   server compresa); lo stub di Fs.isWritable ora dice «sì» per i server come il vero. Installata, rpm -V
   vuoto. ⏳ Da provare col dito sul NAS vero (insieme alla 0.9.5-3).
+- **17/11 — 0.9.5-5: pronta per la prima release su GitHub.** Nessuna modifica al
+  codice. NOTICE completo nel pacchetto (tutti i crate diretti, libssh2 1.11.2 e zstd
+  compilate dentro il binario, verificate con `strings`); fra i 360 crate del lock
+  nessuna licenza incompatibile. README bilingue con l'avviso BETA in cima.
+  Pacchetti aarch64 e armv7hl (armv7hl di nuovo dopo la 0.3.0: non provato su un
+  telefono vero). 55 test del nucleo verdi. Prima del push la storia è stata
+  riscritta in locale (nome del NAS e del file di chiave tolti da questo PIANO):
+  gli hash dei commit citati sopra sono quelli di prima, non esistono più.
