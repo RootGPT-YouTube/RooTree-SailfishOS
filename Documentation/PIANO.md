@@ -544,3 +544,9 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   binario, QML e qt.conf in `/home/rootree/app` (16,5 MB), Qt in `/home/rootree/qt6`; sul rootfs 7,4 MB (lanciatore,
   helper root in /usr/libexec di proposito, .desktop, icone, licenze). Provato sul POCO: `rpm -U` da 0.9.7-1,
   `/usr/share/harbour-rootree` sparita, `rpm -V` vuoto, l'app parte da /home/rootree/app.
+- **18/11 — 0.9.7-3 → 0.9.7-4: Espelli dalla cartella della chiavetta** (b9b3917, 4f0333b). Prova dell'utente: con la cartella
+  della chiavetta aperta ⏏ non smontava. Causa vera: `win.go(Fs.home())` (Fs.home è un Q_PROPERTY ⇒ TypeError, la funzione
+  si fermava prima di spostarsi e di espellere). In più: espulsione 600 ms dopo il ritorno alla Memoria interna, ritentativi
+  per ~6 s su «busy», messaggio che dice chi la usa (un'altra app o RooTree con le anteprime). ✅ Provato dall'utente col
+  dito sul POCO: monta (con root, per l'ENOMEM exFAT del kernel attuale) ed espelle anche dalla cartella della chiavetta.
+  Pacchetti aarch64 e armv7hl; armv7hl mai provato su telefono vero.
