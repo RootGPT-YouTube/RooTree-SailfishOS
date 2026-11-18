@@ -734,7 +734,7 @@ Window {
             // Memoria interna e si espelle un attimo dopo, quando elenco e
             // anteprime della cartella lasciata hanno chiuso i loro file
             if (folder.path === p.path || folder.path.indexOf(p.path + "/") === 0) {
-                win.go(Fs.home())
+                win.go(Fs.home)
                 ejectLater.mount = p.path
                 ejectLater.restart()
                 return
