@@ -10,7 +10,10 @@ Column {
     property string icon
     property string text
     property int depth: 0
-    readonly property var dirs: place ? pr.owner.dirsOf(place.path) : []
+    // una chiavetta o una scheda inserita ma non montata: il tocco la monta
+    readonly property bool unmounted: place !== null && place.mounted === false
+    readonly property bool removable: place !== null && (place.kind === 2 || place.kind === 3)
+    readonly property var dirs: place && !unmounted ? pr.owner.dirsOf(place.path) : []
     readonly property bool open: place !== null && pr.owner.isOpen(place.path)
     width: parent ? parent.width : 0
     visible: place !== null
@@ -18,13 +21,18 @@ Column {
         depth: pr.depth
         icon: pr.icon
         text: pr.text
-        detail: pr.place ? pr.owner.freeText(pr.place) : ""
+        detail: !pr.place ? "" : pr.unmounted
+                ? Style.t("Tocca per montare", "Tap to mount") + (pr.place.total > 0 ? " · " + Style.size(pr.place.total) : "")
+                : pr.owner.freeText(pr.place)
         expandable: pr.dirs.length > 0
         expanded: pr.open
-        onClicked: pr.owner.go(pr.place.path)
+        reserveToggle: pr.unmounted
+        onClicked: pr.unmounted ? pr.owner.mount(pr.place) : pr.owner.go(pr.place.path)
         onToggled: pr.owner.toggle(pr.place.path)
-        infoButton: true
+        infoButton: !pr.unmounted
         onInfoClicked: pr.owner.info(pr.place)
+        ejectButton: pr.removable && !pr.unmounted
+        onEjectClicked: pr.owner.eject(pr.place)
     }
     Repeater {
         model: pr.open ? pr.dirs : []

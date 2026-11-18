@@ -22,9 +22,25 @@ Contiene o usa anche:
 | libbz2-rs-sys (porting in Rust di bzip2) | licenza bzip2 1.0.6 (stile BSD) | dipendenza di `rust/`, inclusa nel binario |
 | GStreamer 1.x (anteprime dei video) | LGPL-2.1-or-later | non incluso: librerie di sistema di Sailfish OS, collegate dinamicamente |
 | poppler (anteprime dei PDF) | GPL-2.0-or-later | non incluso: libreria di sistema di Sailfish OS, collegata dinamicamente |
-| Qt 6.12 | LGPL-3.0 | non incluso: lo fornisce il pacchetto `rootgpt-qt6-runtime` (vedi il suo NOTICE) |
+| Qt 6.12 e le librerie che gli servono | LGPL-3.0 e altre | **incluso** in `/home/rootree/qt6`: dettagli nella sezione qui sotto |
 
 Le dipendenze indirette dei crate (360 in tutto, versioni esatte in
 `rust/Cargo.lock`) sono sotto licenze permissive (MIT, Apache-2.0, BSD,
 Unicode, Zlib e simili), compatibili con la GPL-3.0. Per l'elenco completo:
 `cargo license` (o `cargo metadata`) nella cartella `rust/`.
+
+## Qt 6.12 incluso in RooTree (`/home/rootree/qt6`)
+
+Il pacchetto contiene anche librerie compilate, senza modifiche al loro codice
+salvo dove indicato, per Sailfish OS 5.1.
+
+| Componente | Licenza | Sorgenti |
+|---|---|---|
+| Qt 6.12.0 (qtbase, qtdeclarative, qtsvg, qtshadertools, qtvirtualkeyboard) | LGPL-3.0 (alcune parti GPL-3.0) | tarball ufficiali https://download.qt.io/official_releases/qt/6.12/6.12.0/submodules/ ; patch e script di build in https://github.com/RootGPT-YouTube/RooTitanium-SailfishOS (`packaging/qt612/`) |
+| Plugin Maliit per Qt (platform input context) | LGPL-2.1 | chum `qt-sfos-maliit-platforminputcontext` commit 9bb86e6 + patch `maliit-qt6.10-guiprivate.patch` (in RooTitanium-SailfishOS, `packaging/harbour-rootitanium/`) |
+| ICU 73 | Unicode-3.0 | https://github.com/unicode-org/icu |
+| HarfBuzz, FreeType, Fontconfig, Graphite2 | MIT / FTL / MIT / LGPL-2.1 | pacchetti di Sailfish OS 5.1 |
+| GLib, D-Bus, PCRE2, libxkbcommon, zlib, zstd, bzip2, libpng, libjpeg-turbo, expat | LGPL-2.1 / AFL-2.1 o GPL-2.0 / BSD / MIT / zlib / BSD / bzip2 / libpng / IJG-BSD / MIT | pacchetti di Sailfish OS 5.1 |
+
+Per l'LGPL: le librerie sono caricate dinamicamente dalle app e si possono
+sostituire con versioni proprie compatibili mettendole in `/home/rootree/qt6/lib`.

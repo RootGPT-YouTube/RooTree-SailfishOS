@@ -21,7 +21,7 @@ class JobManager : public QObject
 
 public:
     // come in jobs.rs
-    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6, Types = 7, Check = 8, Sync = 9 };
+    enum Kind { Copy = 0, Move = 1, Delete = 2, Size = 3, Extract = 4, Compress = 5, Trash = 6, Types = 7, Check = 8, Sync = 9, Mount = 10, Eject = 11 };
     enum State { Queued = 0, Scanning, Running, AskConflict, AskError, Done, Failed, Cancelled };
     enum Answer { Overwrite = 0, Skip, KeepBoth, Cancel, Retry, Merge };
     Q_ENUM(Kind)
@@ -47,6 +47,8 @@ public:
     Q_INVOKABLE int types(const QStringList &paths);
     // controlla (o ripara) la scheda montata in mount: smonta, fsck da root, rimonta
     Q_INVOKABLE int fsCheck(const QString &mount, bool repair);
+    Q_INVOKABLE int mount(const QString &device);
+    Q_INVOKABLE int eject(const QString &mount);
     // «Estrai qui»: tutto l'archivio in dest
     Q_INVOKABLE int extract(const QString &archive, const QString &dest);
     // crea l'archivio dest (il formato dal nome) con sources

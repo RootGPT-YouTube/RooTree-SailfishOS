@@ -38,6 +38,10 @@ pub const JOB_TYPES: u8 = 7;
 pub const JOB_CHECK: u8 = 8;
 /// una sincronizzazione (sync.rs): parte subito, una alla volta fra loro
 pub const JOB_SYNC: u8 = 9;
+/// montare una chiavetta o una scheda (storage.rs)
+pub const JOB_MOUNT: u8 = 10;
+/// espellere una chiavetta o una scheda: sync, smonta, spegne (storage.rs)
+pub const JOB_EJECT: u8 = 11;
 
 pub const ST_QUEUED: u8 = 0;
 pub const ST_SCANNING: u8 = 1;

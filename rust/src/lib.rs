@@ -70,6 +70,10 @@ mod ffi {
         path: String,
         total: u64,
         free: u64,
+        /// il dispositivo (/dev/sdd1) delle schede e delle chiavette
+        device: String,
+        /// false = chiavetta o scheda inserita ma non montata (path vuoto)
+        mounted: bool,
     }
 
     /// Lo stato di un'operazione (vedi le costanti in jobs.rs).
@@ -197,6 +201,10 @@ mod ffi {
         fn job_types(paths: Vec<String>) -> u64;
         fn storage_info(path: &str) -> String;
         fn job_fs_check(mount: &str, repair: bool) -> u64;
+        /// Monta una chiavetta o una scheda non montata (udisks, come l'utente).
+        fn job_mount(dev: &str) -> u64;
+        /// Espelle: sync, smonta, spegne la chiavetta USB.
+        fn job_eject(mount: &str) -> u64;
         fn job_extract(archive: &str, dest: &str) -> u64;
         /// Crea l'archivio `dest` (formato dal nome: .zip .tar .tar.gz .tar.bz2 .tar.xz .tar.zst .7z).
         fn job_compress(sources: Vec<String>, dest: &str) -> u64;
@@ -536,6 +544,14 @@ fn storage_info(path: &str) -> String {
 /// Sempre nell'app: smonta e rimonta come l'utente, il controllo lo chiede all'helper.
 fn job_fs_check(mount: &str, repair: bool) -> u64 {
     storage::check(mount.into(), repair)
+}
+
+fn job_mount(dev: &str) -> u64 {
+    storage::mount_dev(dev.into())
+}
+
+fn job_eject(mount: &str) -> u64 {
+    storage::eject(mount.into())
 }
 
 fn job_extract(archive: &str, dest: &str) -> u64 {

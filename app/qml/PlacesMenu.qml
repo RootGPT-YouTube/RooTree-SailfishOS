@@ -22,6 +22,9 @@ Popup {
     signal connectionActions(var profile)
     // la «i» di una memoria: la pagina con spazio, file system e stato
     signal placeInfo(var place)
+    // chiavette e schede (0.9.7): montare una non montata, espellerne una
+    signal mountRequested(var place)
+    signal ejectRequested(var place)
 
     parent: Overlay.overlay
     modal: true
@@ -38,12 +41,15 @@ Popup {
     onAboutToShow: {
         places = Fs.places()
         // si apre sempre tutto chiuso: le memorie e i segnalibri, il resto a richiesta
-        otherOpen = false
+        // una chiavetta appena inserita (non montata) si vede subito
+        otherOpen = places.some(function (p) { return p.mounted === false })
         openPlaces = ({})
     }
 
     function go(path) { close(); navigate(path) }
     function info(p) { close(); placeInfo(p) }
+    function mount(p) { close(); mountRequested(p) }
+    function eject(p) { close(); ejectRequested(p) }
     function freeText(p) { return p.total > 0 ? Style.freeOf(p.free, p.total) : "" }
     // le cartelle predefinite che ci sono davvero; su Android e sulle schede
     // si chiamano anche Download e Movies

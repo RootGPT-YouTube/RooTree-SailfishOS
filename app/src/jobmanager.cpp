@@ -55,6 +55,16 @@ int JobManager::fsCheck(const QString &mount, bool repair)
     return started(rootree::job_fs_check(qtrust::str(mount), repair));
 }
 
+int JobManager::mount(const QString &device)
+{
+    return started(rootree::job_mount(qtrust::str(device)));
+}
+
+int JobManager::eject(const QString &mount)
+{
+    return started(rootree::job_eject(qtrust::str(mount)));
+}
+
 int JobManager::extract(const QString &archive, const QString &dest)
 {
     return started(rootree::job_extract(qtrust::str(archive), qtrust::str(dest)));
@@ -125,7 +135,7 @@ void JobManager::poll()
         list << job;
         if (state < Done) {
             // quelli della pagina «i» non sono operazioni dell'utente sui file
-            if (s.kind != Size && s.kind != Types && s.kind != Check && s.kind != Sync)
+            if (s.kind != Size && s.kind != Types && s.kind != Check && s.kind != Sync && s.kind != Mount && s.kind != Eject)
                 ++active;
         } else if (m_lastState.value(s.id, -1) != state) {
             emit finished(int(s.id), int(s.kind), state, qtrust::qs(s.error));

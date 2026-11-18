@@ -27,7 +27,7 @@ PULSANTI = {
     "server": ("solid", "server"), "network": ("solid", "network-wired"), "root": ("solid", "hashtag"),
     "lock": ("solid", "lock"), "link": ("solid", "link"), "folder": ("solid", "folder"),
     "share": ("solid", "share-alt"), "openwith": ("solid", "external-link-alt"), "wrap": ("solid", "align-left"),
-    "image": ("regular", "image"), "sync": ("solid", "exchange-alt"),
+    "image": ("regular", "image"), "sync": ("solid", "exchange-alt"), "eject": ("solid", "eject"),
 }
 
 

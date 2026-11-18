@@ -33,6 +33,10 @@ pub enum Request {
     StorageInfo { path: String },
     /// fsck su un dispositivo smontato (il programma lo sceglie l'helper)
     JobFsck { dev: String, fstype: String, repair: bool },
+    /// libera la cache e compatta la memoria (montaggio exFAT con la memoria frammentata)
+    FreeMemory,
+    /// spegne una chiavetta USB già smontata
+    PowerOff { dev: String },
     JobStatuses,
     JobCancel { id: u64 },
     JobResolve { id: u64, action: u8, all: bool },

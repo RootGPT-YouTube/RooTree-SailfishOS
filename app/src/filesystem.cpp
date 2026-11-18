@@ -40,6 +40,8 @@ QVariantList FileSystem::places() const
             {QStringLiteral("path"), qtrust::qs(p.path)},
             {QStringLiteral("total"), qint64(p.total)},
             {QStringLiteral("free"), qint64(p.free)},
+            {QStringLiteral("device"), qtrust::qs(p.device)},
+            {QStringLiteral("mounted"), p.mounted},
         };
     }
     return out;

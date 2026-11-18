@@ -22,9 +22,12 @@ Rectangle {
     property bool reserveToggle: false
     // la «i» cerchiata prima della freccia: apre la pagina della memoria
     property bool infoButton: false
+    // ⏏ prima della «i»: espelle la scheda o la chiavetta (0.9.7)
+    property bool ejectButton: false
     signal clicked()
     signal toggled()
     signal infoClicked()
+    signal ejectClicked()
 
     width: parent ? parent.width : 0
     height: Style.row
@@ -58,7 +61,7 @@ Rectangle {
     }
     Item {
         id: right
-        anchors.right: m.infoButton ? info.left : (m.expandable ? toggle.left : parent.right)
+        anchors.right: m.ejectButton ? eject.left : (m.infoButton ? info.left : (m.expandable ? toggle.left : parent.right))
         anchors.rightMargin: (m.expandable || m.infoButton) ? 0 : (m.reserveToggle ? Style.row : Style.margin)
         anchors.verticalCenter: parent.verticalCenter
         width: m.checkable ? 22 * Style.dp : detailText.implicitWidth
@@ -106,6 +109,26 @@ Rectangle {
             id: infoArea
             anchors.fill: parent
             onClicked: m.infoClicked()
+        }
+    }
+    // ⏏ espelli, con la sua zona di tocco, subito prima della «i»
+    Rectangle {
+        id: eject
+        visible: m.ejectButton
+        anchors.right: info.left
+        width: m.ejectButton ? 34 * Style.dp : 0
+        height: parent.height
+        color: ejectArea.pressed ? Style.pressed : "transparent"
+        Icon {
+            anchors.centerIn: parent
+            name: "eject"
+            size: 16 * Style.dp
+            opacity: 0.85
+        }
+        MouseArea {
+            id: ejectArea
+            anchors.fill: parent
+            onClicked: m.ejectClicked()
         }
     }
     // la freccia ha una zona di tocco sua, larga quanto un pulsante

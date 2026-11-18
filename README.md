@@ -64,23 +64,19 @@ I hereby disclaim any and all responsibility for the application, its functional
 
 ### Install
 
-RooTree needs its Qt 6 runtime, `rootgpt-qt6-runtime`, which is published with
-each release. Copy the RPMs for your phone (`aarch64` = 64-bit, `armv7hl` =
-32-bit) to the phone and install them **in one command**:
+RooTree is **one package**, complete in itself: Qt 6.12 is inside. Copy the RPM
+for your phone (`aarch64` = 64-bit, `armv7hl` = 32-bit) to the phone and install it:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<version>.aarch64.rpm
+devel-su pkcon install-local harbour-rootree-<version>.aarch64.rpm
 ```
 
-**Updating:** install only the new `harbour-rootree` RPM; the runtime only when
-a release says so. (Up to 0.9.5 root mode was a separate package,
-`harbour-rootree-root`: updating to 0.9.6 or later removes it by itself.)
+**Updating:** the same command with the new RPM. Up to 0.9.6 RooTree also needed
+the separate `rootgpt-qt6-runtime` package (and up to 0.9.5 `harbour-rootree-root`):
+updating to 0.9.7 or later removes them by itself.
 
-```sh
-devel-su pkcon install-local harbour-rootree-<new>.aarch64.rpm
-```
-
-The runtime installs Qt 6.12 under `/home/rootgpt-qt6`, apart from the system,
+Qt 6.12 is installed under `/home/rootree/qt6` (the `/home` partition, because the
+phones' root file system is small), apart from the system,
 so it does not interfere with the platform. RooTree's `.desktop` declares
 `Sandboxing=Disabled`: a file manager needs to reach every folder.
 
@@ -153,23 +149,19 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
 
 ### Installazione
 
-RooTree ha bisogno del suo runtime Qt 6, `rootgpt-qt6-runtime`, pubblicato con
-ogni release. Copia sul telefono gli RPM giusti (`aarch64` = 64 bit, `armv7hl` =
-32 bit) e installali **con un solo comando**:
+RooTree è **un pacchetto solo**, completo in sé: Qt 6.12 è dentro. Copia sul
+telefono l'RPM giusto (`aarch64` = 64 bit, `armv7hl` = 32 bit) e installalo:
 
 ```sh
-devel-su pkcon install-local rootgpt-qt6-runtime-6.12.0-1.aarch64.rpm harbour-rootree-<versione>.aarch64.rpm
+devel-su pkcon install-local harbour-rootree-<versione>.aarch64.rpm
 ```
 
-**Aggiornare:** installa solo il nuovo RPM `harbour-rootree`; il runtime solo
-quando una release lo dice. (Fino alla 0.9.5 la modalità root era un pacchetto a
-parte, `harbour-rootree-root`: aggiornando alla 0.9.6 o successiva si toglie da solo.)
+**Aggiornare:** lo stesso comando con il nuovo RPM. Fino alla 0.9.6 serviva anche
+il pacchetto a parte `rootgpt-qt6-runtime` (e fino alla 0.9.5 `harbour-rootree-root`):
+aggiornando alla 0.9.7 o successiva si tolgono da soli.
 
-```sh
-devel-su pkcon install-local harbour-rootree-<nuova>.aarch64.rpm
-```
-
-Il runtime installa Qt 6.12 in `/home/rootgpt-qt6`, separato dal sistema, così
+Qt 6.12 si installa in `/home/rootree/qt6` (la partizione `/home`, perché il file
+system di sistema dei telefoni è piccolo), separato dal sistema, così
 non interferisce con la piattaforma. Il `.desktop` di RooTree dichiara
 `Sandboxing=Disabled`: un file manager deve poter raggiungere ogni cartella.
 

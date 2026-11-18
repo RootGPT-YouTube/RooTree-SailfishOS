@@ -1,6 +1,6 @@
-# rootgpt-qt6-runtime — componenti di terze parti
+## Qt 6.12 incluso in RooTree (`/home/rootree/qt6`)
 
-Questo pacchetto contiene librerie compilate, senza modifiche al loro codice
+Il pacchetto contiene anche librerie compilate, senza modifiche al loro codice
 salvo dove indicato, per Sailfish OS 5.1.
 
 | Componente | Licenza | Sorgenti |
@@ -12,4 +12,4 @@ salvo dove indicato, per Sailfish OS 5.1.
 | GLib, D-Bus, PCRE2, libxkbcommon, zlib, zstd, bzip2, libpng, libjpeg-turbo, expat | LGPL-2.1 / AFL-2.1 o GPL-2.0 / BSD / MIT / zlib / BSD / bzip2 / libpng / IJG-BSD / MIT | pacchetti di Sailfish OS 5.1 |
 
 Per l'LGPL: le librerie sono caricate dinamicamente dalle app e si possono
-sostituire con versioni proprie compatibili mettendole in `/home/rootgpt-qt6/lib`.
+sostituire con versioni proprie compatibili mettendole in `/home/rootree/qt6/lib`.

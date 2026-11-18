@@ -1,7 +1,11 @@
-/* Launcher ELF delle app Qt6 di RootGPT che usano rootgpt-qt6-runtime.
+/* Launcher ELF di RooTree (e delle app Qt6 di RootGPT con un Qt 6 incluso).
+ *
+ * Dalla 0.9.7 RooTree porta il suo Qt 6.12 dentro il pacchetto, in
+ * /home/rootree/qt6 (prima era il pacchetto a parte rootgpt-qt6-runtime, in
+ * /home/rootgpt-qt6): RUNTIME dice dove.
  *
  * sailjail rifiuta gli script e vuole come Exec un ELF in /usr/bin: questo
- * programma imposta l'ambiente del runtime Qt condiviso e fa execv del
+ * programma imposta l'ambiente del Qt dell'app e fa execv del
  * binario vero dell'app, con argv[0] forgiato = percorso del launcher (così
  * jolla-home aggancia la cover: cerca un processo la cui cmdline combaci con
  * la riga Exec del .desktop). È lo stesso schema di rootitanium-launch.c di
@@ -9,7 +13,7 @@
  *
  * Si compila una volta per app:
  *   gcc -O2 -DAPP_EXEC='"/usr/share/harbour-rootree/harbour-rootree"' \
- *       -DAPP_ID='"rootree"' -o harbour-rootree rootgpt-qt6-launch.c
+ *       -DAPP_ID='"rootree"' -DRUNTIME='"/home/rootree/qt6"' -o harbour-rootree launcher.c
  *
  * Diagnostica sul campo: se esiste ~/.config/rootgpt/<APP_ID>.debug, stdout e
  * stderr vanno in /tmp/<APP_ID>.log e i log Qt arrivano anche dai lanci da
@@ -28,7 +32,9 @@
 #error "definire APP_ID (nome breve dell'app, per il log)"
 #endif
 
-#define RUNTIME "/home/rootgpt-qt6"
+#ifndef RUNTIME
+#error "definire RUNTIME (cartella del Qt dell'app, es. /home/rootree/qt6)"
+#endif
 
 #if defined(__aarch64__)
 #define RT_LIB "lib64"
@@ -56,7 +62,7 @@ int main(int argc, char **argv)
         }
     }
 
-    /* prima il runtime, poi le librerie di sistema e quelle android della HAL
+    /* prima il Qt dell'app, poi le librerie di sistema e quelle android della HAL
      * grafica (senza, libhybris non trova gralloc & co.) */
     {
         const char *old = getenv("LD_LIBRARY_PATH");

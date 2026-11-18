@@ -1,10 +1,14 @@
 # harbour-rootree — file manager per Sailfish OS (OpenRepos, non Jolla Store).
 # Si impacchetta uno staging già pronto (tools/pacchetto.sh), qui non si compila.
-# Qt arriva dal runtime condiviso rootgpt-qt6-runtime (/home/rootgpt-qt6).
+# Dalla 0.9.7 un pacchetto solo, completo in sé come RooTitanium: Qt 6.12 è
+# dentro, in /home/rootree/qt6 (la partizione /home: il rootfs dei telefoni è
+# piccolo). Prima lo dava il pacchetto a parte rootgpt-qt6-runtime, che ora
+# sparisce da solo all'aggiornamento (Obsoletes: lo usava solo RooTree).
 # Launcher /usr/bin/harbour-rootree: sailjail rifiuta gli script e vuole un ELF
 # in /usr/bin; il .desktop ha [X-Sailjail] Sandboxing=Disabled, altrimenti un
 # file manager vedrebbe solo le sue cartelle.
 
+%global _apphome /home/rootree
 %global debug_package %{nil}
 %define __os_install_post %{nil}
 %define __brp_strip %{nil}
@@ -12,15 +16,15 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.6
-Release:    3
+Version:    0.9.7
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
-License:    GPLv3+
+License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
 URL:        https://github.com/RootGPT-YouTube/RooTree-SailfishOS
 ExclusiveArch: aarch64 armv7hl
 AutoReqProv: no
-Requires:   rootgpt-qt6-runtime >= 6.12.0
+Obsoletes:  rootgpt-qt6-runtime < 6.13
 # 0.9.6: l'helper della modalità root è dentro l'app (prima era il sottopacchetto
 # -root, da aggiornare sempre insieme): chi aveva il -root lo vede tolto da solo.
 # Niente Requires di devel-su: senza modalità sviluppatore l'app lo dice quando
@@ -35,7 +39,18 @@ Requires:   /usr/bin/lca-tool
 # RAR e formati rari (iso, cpio, cab...): libarchive, caricata a runtime con
 # dlopen (zip, tar.* e 7z invece sono nel binario)
 Requires:   libarchive
+# il Qt incluso: le librerie di sistema che non porta (SISTEMA in
+# packaging/qt6/assembla.py), come le chiedeva rootgpt-qt6-runtime
 %ifarch aarch64
+Requires:   libEGL.so.1()(64bit)
+Requires:   libGLESv2.so.2()(64bit)
+Requires:   libwayland-client.so.0()(64bit)
+Requires:   libwayland-cursor.so.0()(64bit)
+Requires:   libwayland-egl.so.1()(64bit)
+Requires:   libsqlite3.so.0()(64bit)
+Requires:   libsystemd.so.0()(64bit)
+Requires:   libstdc++.so.6()(64bit)
+Requires:   libgcc_s.so.1()(64bit)
 Requires:   libgstreamer-1.0.so.0()(64bit)
 Requires:   libgstbase-1.0.so.0()(64bit)
 Requires:   libgstapp-1.0.so.0()(64bit)
@@ -46,6 +61,15 @@ Requires:   libssl.so.3()(64bit)
 Requires:   libcrypto.so.3()(64bit)
 Requires:   libz.so.1()(64bit)
 %else
+Requires:   libEGL.so.1
+Requires:   libGLESv2.so.2
+Requires:   libwayland-client.so.0
+Requires:   libwayland-cursor.so.0
+Requires:   libwayland-egl.so.1
+Requires:   libsqlite3.so.0
+Requires:   libsystemd.so.0
+Requires:   libstdc++.so.6
+Requires:   libgcc_s.so.1
 Requires:   libgstreamer-1.0.so.0
 Requires:   libgstbase-1.0.so.0
 Requires:   libgstapp-1.0.so.0
@@ -70,6 +94,8 @@ never runs as root.
 rm -rf %{buildroot}
 mkdir -p %{buildroot}%{_datadir}/%{name} %{buildroot}%{_bindir}
 cp -a %{stagingdir}/app/. %{buildroot}%{_datadir}/%{name}/
+mkdir -p %{buildroot}%{_apphome}
+cp -a %{stagingdir}/qt6 %{buildroot}%{_apphome}/qt6
 install -m0755 %{stagingdir}/launcher %{buildroot}%{_bindir}/%{name}
 install -D -m0644 %{stagingdir}/%{name}.desktop %{buildroot}%{_datadir}/applications/%{name}.desktop
 for s in 86 108 128 172 256; do
@@ -87,12 +113,25 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %license %{_defaultlicensedir}/%{name}/NOTICE.md
 %{_bindir}/%{name}
 %{_datadir}/%{name}
+%{_apphome}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 %dir %{_libexecdir}/%{name}
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-1
+- Un pacchetto solo, completo in sé: Qt 6.12 è dentro RooTree (in
+  /home/rootree/qt6) e non serve più installare rootgpt-qt6-runtime, che
+  all'aggiornamento viene tolto da solo.
+- Chiavette USB: Sailfish OS non le monta da solo; ora compaiono fra le
+  Altre memorie come «Tocca per montare» e si montano con un tocco.
+- Espelli (⏏) accanto a schede e chiavette: scrive quello che resta in
+  sospeso, le smonta e spegne la chiavetta, come su Linux; se qualcosa la
+  tiene occupata, RooTree dice cosa.
+- Se il sistema non trova memoria libera per montare un exFAT, in modalità
+  root RooTree la libera da solo e riprova.
+
 * Tue Nov 17 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.6-3
 - Modalità root: svuotare il cestino o eliminare un suo elemento con dentro
   file di root dava «non è un cestino»; ora funziona.

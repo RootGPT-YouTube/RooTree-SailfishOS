@@ -5,7 +5,10 @@
 //! - `info`: i dati del file system che il QML non vede (statvfs, catena dei
 //!   dispositivi, TRIM, superblocco ext4);
 //! - `check`: il controllo (fsck) di una scheda o chiavetta, solo smontata:
-//!   l'app la smonta e la rimonta con udisks, il controllo lo fa l'helper root.
+//!   l'app la smonta e la rimonta con udisks, il controllo lo fa l'helper root;
+//! - `unmounted`, `mount_dev`, `eject` (0.9.7): Sailfish OS monta da solo solo
+//!   la microSD, le chiavette USB restano smontate; RooTree le mostra, le monta
+//!   e le espelle come su Linux (sync, smonta, spegne la chiavetta).
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet};
@@ -681,7 +684,7 @@ pub fn check(mount: String, repair: bool) -> u64 {
         udisks(&["unmount", "-b", &dev]).map_err(|e| format!("non riesco a smontare la scheda (è in uso?): {e}"))?;
         let r = run_remote_check(h, &dev, &m.fstype, repair);
         h.set(|s| s.current = "mount".into());
-        let mounted = udisks(&["mount", "-b", &dev]);
+        let mounted = udisks(&["mount", "-b", &dev, "-t", &m.fstype]);
         let mut d: Value = match &r {
             Ok(v) => v.clone(),
             Err(e) => json!({ "result": "failed", "error": e }),
@@ -724,4 +727,285 @@ fn run_remote_check(h: &Handle, dev: &str, fstype: &str, repair: bool) -> Result
         jobs::ST_CANCELLED => Err("annullato".into()),
         _ => Err(st.error),
     }
+}
+
+
+// ── chiavette e schede: monta ed espelli (0.9.7) ────────────────────────────
+
+/// Una partizione di una chiavetta o di una scheda, non montata.
+pub struct Unmounted {
+    pub dev: String,
+    pub label: String,
+    pub fstype: String,
+    /// "usb" o "sd"
+    pub bus: &'static str,
+    pub size: u64,
+}
+
+/// Le proprietà di udev di un dispositivo a blocchi (ID_FS_TYPE, ID_FS_LABEL…),
+/// dal suo database in /run/udev/data, leggibile da tutti.
+fn udev_props(majmin: &str) -> std::collections::HashMap<String, String> {
+    rd(format!("/run/udev/data/b{majmin}"))
+        .lines()
+        .filter_map(|l| l.strip_prefix("E:"))
+        .filter_map(|l| l.split_once('='))
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+}
+
+/// udev scrive i caratteri speciali dell'etichetta come \x20
+pub(crate) fn udev_unescape(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\\' && i + 3 < b.len() && b[i + 1] == b'x'
+            && let Ok(v) = u8::from_str_radix(&s[i + 2..i + 4], 16)
+        {
+            out.push(v);
+            i += 4;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Il file system che udisks conosce di un dispositivo (vuoto se non lo sa).
+pub fn fstype_of(dev: &str) -> String {
+    let name = dev.trim_start_matches("/dev/");
+    let sys = fs::read_dir("/sys/block")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|d| d.path())
+        .find_map(|d| {
+            let p = if d.file_name().is_some_and(|n| n == name) { d.clone() } else { d.join(name) };
+            p.join("dev").exists().then_some(p)
+        });
+    sys.map(|p| udev_props(&rd(p.join("dev"))).remove("ID_FS_TYPE").unwrap_or_default()).unwrap_or_default()
+}
+
+/// Le partizioni di chiavette USB e schede SD che nessuno ha montato, con un
+/// file system che si può montare (niente swap, LUKS, partizioni vuote).
+pub fn unmounted() -> Vec<Unmounted> {
+    let mounted: HashSet<String> = mounts().into_iter().map(|m| m.source).collect();
+    let mut out = Vec::new();
+    let Ok(rdir) = fs::read_dir("/sys/block") else { return out };
+    let mut disks: Vec<PathBuf> = rdir.flatten().map(|d| d.path()).collect();
+    disks.sort();
+    for disk in disks {
+        let bus = match transport(&disk).0 {
+            "usb" => "usb",
+            "sd" => "sd",
+            _ => continue,
+        };
+        let mut parts: Vec<PathBuf> = fs::read_dir(&disk)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.join("partition").exists())
+            .collect();
+        parts.sort();
+        if parts.is_empty() {
+            parts.push(disk.clone()); // file system sull'intero disco
+        }
+        for p in parts {
+            let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let dev = format!("/dev/{name}");
+            if mounted.contains(&dev) {
+                continue;
+            }
+            let props = udev_props(&rd(p.join("dev")));
+            let fstype = props.get("ID_FS_TYPE").cloned().unwrap_or_default();
+            let usage = props.get("ID_FS_USAGE").map(String::as_str).unwrap_or("");
+            if fstype.is_empty() || usage != "filesystem" || props.get("UDISKS_IGNORE").is_some_and(|v| v == "1") {
+                continue;
+            }
+            let label = props
+                .get("ID_FS_LABEL_ENC")
+                .map(|l| udev_unescape(l))
+                .or_else(|| props.get("ID_FS_LABEL").cloned())
+                .unwrap_or_default();
+            let size = rd(p.join("size")).parse::<u64>().unwrap_or(0) * 512;
+            out.push(Unmounted { dev, label, fstype, bus, size });
+        }
+    }
+    out
+}
+
+/// Il disco intero di una partizione (/dev/sdd1 → /dev/sdd), per spegnerlo.
+fn parent_disk(dev: &str) -> String {
+    let name = dev.trim_start_matches("/dev/");
+    for d in fs::read_dir("/sys/block").into_iter().flatten().flatten() {
+        let dn = d.file_name().to_string_lossy().into_owned();
+        if dn == name || d.path().join(name).exists() {
+            return format!("/dev/{dn}");
+        }
+    }
+    dev.to_string()
+}
+
+fn is_enomem(e: &str) -> bool {
+    e.contains("Cannot allocate memory")
+}
+
+/// Il testo di udisks dopo «at»: dove l'ha montata.
+fn mounted_at(t: &str) -> String {
+    t.rsplit(" at ").next().unwrap_or("").trim().trim_end_matches('.').to_string()
+}
+
+/// Monta come l'utente. Sul kernel del POCO il driver exFAT chiede 64 KiB di
+/// memoria contigua: con la memoria frammentata (dopo ore di accensione) il
+/// montaggio fallisce con «Cannot allocate memory». In modalità root l'helper
+/// libera la cache e compatta la memoria, poi si riprova.
+fn mount_now(dev: &str, fstype: &str) -> Result<String, String> {
+    let try_mount = || {
+        if fstype.is_empty() {
+            udisks(&["mount", "-b", dev])
+        } else {
+            // senza -t udisks 2.10 di Sailfish non trova il tipo di un exFAT
+            udisks(&["mount", "-b", dev, "-t", fstype])
+        }
+    };
+    match try_mount() {
+        Ok(t) => Ok(mounted_at(&t)),
+        Err(e) if is_enomem(&e) && crate::root::active() => {
+            crate::root::call(&crate::proto::Request::FreeMemory).map_err(|e| e.to_string())?;
+            try_mount().map(|t| mounted_at(&t)).map_err(|e| {
+                if is_enomem(&e) { "MEMORIA:".to_string() + &e } else { e }
+            })
+        }
+        Err(e) if is_enomem(&e) => Err("MEMORIA:".to_string() + &e),
+        Err(e) => Err(e),
+    }
+}
+
+/// Monta una partizione non montata (`dev`); a lavoro finito `detail` dice dove.
+pub fn mount_dev(dev: String) -> u64 {
+    jobs::side_job(jobs::JOB_MOUNT, vec![dev.clone()], move |h| {
+        if !unmounted().iter().any(|u| u.dev == dev) {
+            return Err("la memoria non c'è più o è già montata".into());
+        }
+        let at = mount_now(&dev, &fstype_of(&dev))?;
+        let text = json!({ "mountedAt": at }).to_string();
+        h.set(|s| s.detail = text);
+        Ok(())
+    })
+}
+
+/// I programmi (visibili all'utente) che tengono aperto qualcosa sotto `mount`.
+fn users_of(mount: &str) -> Vec<String> {
+    let inside = |p: &Path| {
+        let s = p.to_string_lossy();
+        s == mount || s.starts_with(&format!("{mount}/"))
+    };
+    let me = std::process::id().to_string();
+    let mut out = Vec::new();
+    for e in fs::read_dir("/proc").into_iter().flatten().flatten() {
+        let pid = e.file_name().to_string_lossy().into_owned();
+        if !pid.bytes().all(|c| c.is_ascii_digit()) || pid == me {
+            continue;
+        }
+        let base = e.path();
+        let mut busy = fs::read_link(base.join("cwd")).is_ok_and(|p| inside(&p));
+        if !busy {
+            busy = fs::read_dir(base.join("fd"))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .any(|f| fs::read_link(f.path()).is_ok_and(|p| inside(&p)));
+        }
+        if busy {
+            let name = rd(base.join("comm"));
+            if !name.is_empty() && !out.contains(&name) {
+                out.push(name);
+            }
+        }
+    }
+    out
+}
+
+/// Espelli: scrive quello che resta in memoria, smonta (con le altre partizioni
+/// dello stesso disco) e, per le chiavette USB, le spegne. `detail`:
+/// {"powerOff": true|false, "bus": "usb"|"sd", "powerError": "..."}.
+pub fn eject(mount: String) -> u64 {
+    jobs::side_job(jobs::JOB_EJECT, vec![mount.clone()], move |h| {
+        let all = mounts();
+        let m = all.iter().find(|m| m.mount == mount).cloned().ok_or("la memoria non è più montata")?;
+        if !(m.mount.starts_with("/run/media/") || m.mount.starts_with("/media/")) || !m.source.starts_with("/dev/") {
+            return Err("si espellono solo schede e chiavette".into());
+        }
+        let disk = parent_disk(&m.source);
+        let bus = transport(&PathBuf::from("/sys/block").join(disk.trim_start_matches("/dev/"))).0;
+        // tutte le partizioni montate dello stesso disco
+        let mut parts: Vec<Mnt> = all
+            .iter()
+            .filter(|x| x.source.starts_with("/dev/") && parent_disk(&x.source) == disk)
+            .filter(|x| x.mount.starts_with("/run/media/") || x.mount.starts_with("/media/"))
+            .cloned()
+            .collect();
+        parts.sort_by(|a, b| b.mount.len().cmp(&a.mount.len()));
+        parts.dedup_by(|a, b| a.source == b.source);
+        h.set(|s| s.current = "sync".into());
+        for p in &parts {
+            if let Ok(f) = fs::File::open(&p.mount) {
+                use std::os::fd::AsRawFd;
+                unsafe { libc::syncfs(f.as_raw_fd()) };
+            }
+        }
+        h.set(|s| s.current = "unmount".into());
+        for p in &parts {
+            if let Err(e) = udisks(&["unmount", "-b", &p.source]) {
+                let who = users_of(&p.mount);
+                return Err(if who.is_empty() {
+                    format!("non riesco a smontarla: {e}")
+                } else {
+                    format!("IN USO:{}", who.join(", "))
+                });
+            }
+        }
+        let mut d = json!({ "bus": bus, "powerOff": false });
+        if bus == "usb" {
+            h.set(|s| s.current = "power".into());
+            match udisks(&["power-off", "-b", &disk]) {
+                Ok(_) => d["powerOff"] = true.into(),
+                Err(e) if crate::root::active() => match crate::root::call(&crate::proto::Request::PowerOff { dev: disk.clone() }) {
+                    Ok(_) => d["powerOff"] = true.into(),
+                    Err(e2) => d["powerError"] = format!("{e} / {e2}").into(),
+                },
+                Err(e) => d["powerError"] = e.into(),
+            }
+        }
+        let text = d.to_string();
+        h.set(|s| s.detail = text);
+        Ok(())
+    })
+}
+
+/// Nell'helper root: libera la cache delle pagine e compatta la memoria, così
+/// il kernel trova di nuovo blocchi contigui (montaggio exFAT).
+pub fn free_memory() -> Result<(), String> {
+    unsafe { libc::sync() };
+    fs::write("/proc/sys/vm/drop_caches", "3").map_err(|e| format!("drop_caches: {e}"))?;
+    let _ = fs::write("/proc/sys/vm/compact_memory", "1");
+    std::thread::sleep(Duration::from_millis(500));
+    Ok(())
+}
+
+/// Nell'helper root: spegne una chiavetta USB già smontata (udisks da root).
+pub fn power_off(dev: &str) -> Result<(), String> {
+    if !dev.starts_with("/dev/sd") || dev.trim_start_matches("/dev/sd").chars().any(|c| !c.is_ascii_lowercase()) {
+        return Err("si spengono solo chiavette USB (/dev/sdX)".into());
+    }
+    let disk = PathBuf::from("/sys/block").join(dev.trim_start_matches("/dev/"));
+    if transport(&disk).0 != "usb" {
+        return Err("non è una chiavetta USB".into());
+    }
+    if mounts().iter().any(|m| m.source.starts_with(dev)) {
+        return Err("è ancora montata".into());
+    }
+    udisks(&["power-off", "-b", dev]).map(|_| ())
 }

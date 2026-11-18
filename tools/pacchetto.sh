@@ -1,7 +1,8 @@
 #!/bin/bash
-# RPM di RooTree e del runtime Qt condiviso per un'arch, nel raccoglitore RPMS/.
+# L'RPM di RooTree per un'arch, nel raccoglitore RPMS/: un pacchetto solo,
+# col suo Qt 6.12 dentro (/home/rootree/qt6), come RooTitanium.
 # Da lanciare DENTRO il build engine:  sfdk engine exec -- tools/pacchetto.sh aarch64|armv7hl
-# Il runtime si rifà solo se manca il suo RPM in RPMS/ o con RUNTIME=1.
+# Il Qt si riassembla solo se manca (scratch/qt6-runtime-<arch>) o con RUNTIME=1.
 set -e
 R=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${1:-aarch64}
@@ -9,18 +10,11 @@ RT=SailfishOS-5.1.0.11-$ARCH.default      # rpmbuild nel target normale, come Ro
 case $ARCH in aarch64) RPMARCH=aarch64 ;; armv7hl) RPMARCH=armv7hl ;; esac
 mkdir -p "$R/RPMS"
 
-# ── runtime Qt condiviso ─────────────────────────────────────────────────────
-P=$R/packaging/rootgpt-qt6-runtime
-V=$(sed -n 's/^Version: *//p' "$P/rootgpt-qt6-runtime.spec")-$(sed -n 's/^Release: *//p' "$P/rootgpt-qt6-runtime.spec")
-if [ "${RUNTIME:-0}" = 1 ] || [ ! -f "$R/RPMS/rootgpt-qt6-runtime-$V.$RPMARCH.rpm" ]; then
+# ── Qt 6.12 dell'app ─────────────────────────────────────────────────────────
+P=$R/packaging/qt6
+QTS=$R/scratch/qt6-runtime-$ARCH/runtime
+if [ "${RUNTIME:-0}" = 1 ] || [ ! -d "$QTS/lib" ]; then
     python3 "$P/assembla.py" --arch "$ARCH"
-    S=$R/scratch/qt6-runtime-$ARCH
-    cp "$P/NOTICE.md" "$S/"
-    rm -rf "$S/rpmbuild"
-    sb2 -t "$RT" rpmbuild -bb "$P/rootgpt-qt6-runtime.spec" \
-        --define "_topdir $S/rpmbuild" --define "stagingdir $S" > "$S/rpmbuild.log" 2>&1 \
-        || { tail -20 "$S/rpmbuild.log"; exit 1; }
-    cp "$S"/rpmbuild/RPMS/*/rootgpt-qt6-runtime-*.rpm "$R/RPMS/"
 fi
 
 # ── app ──────────────────────────────────────────────────────────────────────
@@ -28,6 +22,7 @@ fi
 S=$R/scratch/pkg-$ARCH
 rm -rf "$S"
 mkdir -p "$S/app/qml" "$S/icons"
+cp -a "$QTS" "$S/qt6"
 cp "$R/build-$ARCH/harbour-rootree" "$S/app/"
 # l'helper della modalità root (dentro il pacchetto dell'app dalla 0.9.6), compilato da build.sh con il nucleo
 . "$R/tools/env-rust.sh" "$ARCH" >/dev/null
@@ -39,14 +34,14 @@ cp -r "$R/app/qml/." "$S/app/qml/"
 # i plugin Qt6 di sistema in /usr/lib64/qt6 (lezione di RooTitanium)
 cat > "$S/app/qt.conf" <<'QTCONF'
 [Paths]
-Prefix = /home/rootgpt-qt6
+Prefix = /home/rootree/qt6
 Plugins = plugins
 Imports = qml
 Qml2Imports = qml
 Libraries = lib
 QTCONF
 sb2 -t "$RT" gcc -O2 -Wall -DAPP_EXEC='"/usr/share/harbour-rootree/harbour-rootree"' -DAPP_ID='"rootree"' \
-    -o "$S/launcher" "$R/packaging/rootgpt-qt6-runtime/rootgpt-qt6-launch.c"
+    -DRUNTIME='"/home/rootree/qt6"' -o "$S/launcher" "$R/packaging/qt6/launcher.c"
 sb2 -t "$RT" strip "$S/launcher"
 cp "$R/rpm/harbour-rootree.desktop" "$R/LICENSE" "$R/NOTICE.md" "$S/"
 for s in 86 108 128 172 256; do

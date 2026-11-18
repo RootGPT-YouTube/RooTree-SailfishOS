@@ -129,6 +129,9 @@ Window {
         var best = null
         for (var i = 0; i < places.length; ++i) {
             var p = places[i]
+            // una chiavetta non montata non ha percorso: non contiene niente
+            if (p.mounted === false)
+                continue
             var inside = folder.path === p.path || p.path === "/" || folder.path.indexOf(p.path + "/") === 0
             if (inside && (!best || p.path.length > best.path.length))
                 best = p
@@ -704,6 +707,63 @@ Window {
         onOpenConnection: function (p) { win.connectTo(p) }
         onConnectionActions: function (p) { connectionMenu.profile = p; connectionMenu.open() }
         onPlaceInfo: function (p) { storageSheet.openFor(p) }
+        onMountRequested: function (p) { media.mount(p) }
+        onEjectRequested: function (p) { media.eject(p) }
+    }
+    // ── chiavette e schede: monta ed espelli (0.9.7) ─────────────────────────
+    // Sailfish OS monta da solo solo la microSD: le chiavette USB compaiono
+    // «non montate» fra le Altre memorie e si montano al tocco.
+    QtObject {
+        id: media
+        function name(p) {
+            return p.kind === 2 ? Style.t("la scheda", "the card") : Style.t("la chiavetta", "the drive")
+        }
+        function mount(p) {
+            Jobs.mount(p.device)
+            toast.show(Style.t("Monto ", "Mounting ") + name(p) + "…")
+        }
+        function eject(p) {
+            // la cartella aperta non deve tenerla occupata
+            if (folder.path === p.path || folder.path.indexOf(p.path + "/") === 0)
+                win.go(Fs.home())
+            Jobs.eject(p.path)
+            toast.show(Style.t("Espello ", "Ejecting ") + name(p) + "…")
+        }
+        function finished(id, kind, state, error) {
+            var st = Jobs.status(id)
+            var info = (st && st.info) || {}
+            if (kind === 10) {
+                if (state === 5) {
+                    toast.show(Style.t("Montata", "Mounted"))
+                    if (info.mountedAt)
+                        win.go(info.mountedAt)
+                } else if (state === 6) {
+                    if (error.indexOf("MEMORIA:") === 0)
+                        toast.show(Fs.rootActive
+                                   ? Style.t("Il sistema non trova abbastanza memoria libera per montarla: riavvia il telefono e riprova.",
+                                             "The system cannot find enough free memory to mount it: restart the phone and try again.")
+                                   : Style.t("Il sistema non trova abbastanza memoria libera per montarla: accendi la modalità root e riprova (RooTree libera la memoria da solo), oppure riavvia il telefono.",
+                                             "The system cannot find enough free memory to mount it: turn on root mode and try again (RooTree frees the memory by itself), or restart the phone."), true)
+                    else
+                        toast.show(Style.t("Non riesco a montarla: ", "Cannot mount it: ") + error, true)
+                }
+            } else {
+                if (state === 5) {
+                    toast.show(info.bus === "usb" && info.powerOff
+                               ? Style.t("Chiavetta spenta: ora puoi toglierla", "Drive powered off: you can now remove it")
+                               : Style.t("Smontata: ora puoi toglierla", "Unmounted: you can now remove it"))
+                } else if (state === 6) {
+                    if (error.indexOf("IN USO:") === 0)
+                        toast.show(Style.t("È ancora in uso (", "Still in use (") + error.substring(7)
+                                   + Style.t("): chiudi i file aperti da lì e riprova.", "): close the files opened from it and try again."), true)
+                    else
+                        toast.show(Style.t("Non riesco a espellerla: ", "Cannot eject it: ") + error, true)
+                }
+            }
+            if (state >= 5)
+                Jobs.forget(id)
+            win.places = Fs.places()
+        }
     }
     StorageSheet {
         id: storageSheet
@@ -1741,6 +1801,10 @@ Window {
             }
         }
         function onFinished(id, kind, state, error) {
+            if (kind === 10 || kind === 11) {
+                media.finished(id, kind, state, error)
+                return
+            }
             // dimensione e pagina «i» (per tipo, controllo): li segue chi li ha chiesti
             if (kind === 3 || kind >= 7)
                 return

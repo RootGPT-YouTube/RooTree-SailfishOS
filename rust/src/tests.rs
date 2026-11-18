@@ -1330,3 +1330,12 @@ fn cestino_di_un_altra_home() {
     assert!(e.to_string().contains("cestino"), "{e}");
     let _ = fs::remove_dir_all(&d);
 }
+
+#[test]
+fn etichetta_udev_decodificata() {
+    // udev scrive gli spazi e i caratteri speciali di ID_FS_LABEL_ENC come \xNN
+    assert_eq!(crate::storage::udev_unescape(r"Chiavetta\x20Foto"), "Chiavetta Foto");
+    assert_eq!(crate::storage::udev_unescape(r"citt\xc3\xa0"), "città");
+    assert_eq!(crate::storage::udev_unescape("android"), "android");
+    assert_eq!(crate::storage::udev_unescape(r"fine\x2"), r"fine\x2");
+}

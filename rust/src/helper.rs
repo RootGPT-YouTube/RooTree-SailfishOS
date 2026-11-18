@@ -38,6 +38,8 @@ pub fn handle(req: Request) -> Response {
         JobTypes { paths } => Response::ok(crate::storage::types(paths)),
         StorageInfo { path } => Response::ok(crate::storage::info(&path)),
         JobFsck { dev, fstype, repair } => Response::ok(crate::storage::fsck(dev, fstype, repair)),
+        FreeMemory => Response::from(crate::storage::free_memory()),
+        PowerOff { dev } => Response::from(crate::storage::power_off(&dev)),
         JobStatuses => Response::ok(jobs::statuses()),
         JobCancel { id } => Response::ok(jobs::cancel(id)),
         JobResolve { id, action, all } => Response::ok(jobs::resolve(id, action, all)),

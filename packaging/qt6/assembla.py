@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Runtime Qt 6.12 condiviso fra le app Qt6 di RootGPT (rootgpt-qt6-runtime).
+"""Il Qt 6.12 che RooTree porta con sé (dalla 0.9.7 dentro il pacchetto
+dell'app, in /home/rootree/qt6; prima era il pacchetto a parte rootgpt-qt6-runtime).
 
 Prende lo stack Qt dal target sb2 clonato (…-qt612, costruito dagli script di
 RooTitanium/packaging/qt612) e ne tiene solo quello che serve a un'app Qt Quick
@@ -12,7 +13,7 @@ Unico pezzo non preso dal target: il plugin Maliit (tastiera di sistema),
 ricompilato per Qt 6.12 da RooTitanium (vedi RooTitanium/packaging/qt612/README.md).
 
 Da lanciare DENTRO il build engine:
-  sfdk engine exec -- python3 <repo>/packaging/rootgpt-qt6-runtime/assembla.py --arch aarch64
+  sfdk engine exec -- python3 <repo>/packaging/qt6/assembla.py --arch aarch64
 Scrive <repo>/scratch/qt6-runtime-<arch>/runtime e finisce con RUNTIME-OK
 oppure RUNTIME-INCOMPLETO (exit 1).
 """

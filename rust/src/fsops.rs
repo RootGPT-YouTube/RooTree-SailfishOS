@@ -221,7 +221,7 @@ pub const PLACE_ROOT: u8 = 4;
 
 fn place(kind: u8, label: &str, path: &Path) -> Place {
     let (total, free) = space(path).unwrap_or((0, 0));
-    Place { kind, label: label.into(), path: path.to_string_lossy().into_owned(), total, free }
+    Place { kind, label: label.into(), path: path.to_string_lossy().into_owned(), total, free, device: String::new(), mounted: true }
 }
 
 /// Le memorie locali: interna (la home), Android, le removibili montate
@@ -246,8 +246,23 @@ pub fn places(home: &str) -> Vec<Place> {
             let kind = if dev.contains("mmcblk") { PLACE_SDCARD } else { PLACE_USB };
             let p = PathBuf::from(&dir);
             let label = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            out.push(place(kind, &label, &p));
+            let mut pl = place(kind, &label, &p);
+            pl.device = dev.to_string();
+            out.push(pl);
         }
+    }
+    // chiavette e schede inserite ma non montate (Sailfish OS monta da solo
+    // solo la microSD): si mostrano con «Monta», senza percorso
+    for u in crate::storage::unmounted() {
+        out.push(Place {
+            kind: if u.bus == "sd" { PLACE_SDCARD } else { PLACE_USB },
+            label: u.label,
+            path: String::new(),
+            total: u.size,
+            free: 0,
+            device: u.dev,
+            mounted: false,
+        });
     }
     out.push(place(PLACE_ROOT, "", Path::new("/")));
     out
