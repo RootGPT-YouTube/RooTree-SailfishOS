@@ -550,3 +550,17 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   per ~6 s su «busy», messaggio che dice chi la usa (un'altra app o RooTree con le anteprime). ✅ Provato dall'utente col
   dito sul POCO: monta (con root, per l'ENOMEM exFAT del kernel attuale) ed espelle anche dalla cartella della chiavetta.
   Pacchetti aarch64 e armv7hl; armv7hl mai provato su telefono vero.
+- **18/11 — 0.9.7-5: cestino nel vassoio, tastiera, campo email di Mega** (commit `3a0b598`).
+  Segnalazione di un utente esterno (Xperia XA2, armv7hl): crash riproducibile al fuoco del campo email di Mega,
+  «Segmentation fault». ⛔ NON riprodotto né sul POCO (RooTap) né sull'Xperia 10 III (aarch64, tastiera Jolla di serie
+  + Xt9, RooTap disinstallato apposta): resta il sospetto armv7hl. Il campo era l'unico con `ImhEmailCharactersOnly`
+  da solo (predittivo acceso): ora ha anche NoPredictiveText|NoAutoUppercase (il layout email resta, Maliit guarda
+  solo i flag esclusivi); tentativo, ⏳ esito dal segnalatore. Plugin Maliit armv7hl verificato: compilato per Qt 6.12
+  (simboli Qt_6.12_PRIVATE_API), non quello di chum.
+  Tastiera: sull'Xperia lipstick restringe già la finestra (2520 → 1660) e RooTree toglieva un altro 37 % ⇒ pulsanti a
+  mezz'aria; ora `Style.keyboardHeight` stima la tastiera sul lato corto (0,82 in verticale, 0,62 in orizzontale) e
+  conta solo la parte che copre la finestra. Provato con scatti su Xperia (pulsanti subito sopra) e POCO (886 come prima);
+  ⏳ orizzontale e tablet non provati.
+  Vassoio: riga «Cestino» sotto ogni memoria montata, con le cartelle predefinite; provata coi tocchi sul POCO
+  (interna, Android, SD aprono ciascuna il proprio cestino); ⏳ chiavetta USB non provata (stesso meccanismo della SD).
+  Installata su POCO e Xperia (`rpm -V` vuoti, avvio dal lanciatore pulito salvo l'avviso NaN già noto di Main.qml:39).
