@@ -597,7 +597,7 @@ Popup {
                             visible: wiz.v("auth") !== "token"
                             text: wiz.info.type === "s3" ? "Access key ID" : wiz.info.type === "mega" ? "Email" : Style.t("Utente", "User")
                         }
-                        Field { visible: wiz.v("auth") !== "token"; key: "user"; inputMethodHints: wiz.info.type === "mega" ? Qt.ImhEmailCharactersOnly : (Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText) }
+                        Field { visible: wiz.v("auth") !== "token"; key: "user"; inputMethodHints: (wiz.info.type === "mega" ? Qt.ImhEmailCharactersOnly : 0) | Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText }
                         Label {
                             visible: wiz.v("auth") === "key"
                             text: Style.t("Chiave privata", "Private key")

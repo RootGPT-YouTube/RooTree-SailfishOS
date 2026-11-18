@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.7
-Release:    4
+Release:    5
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,14 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-5
+- Cestino in ogni memoria del vassoio: sotto Memoria interna, Memoria Android,
+  scheda SD e chiavette, insieme a Documents, Downloads e le altre cartelle.
+- Tastiera: i pulsanti delle procedure non restano più a mezz'aria sui
+  telefoni dove il sistema fa già spazio alla tastiera (Xperia e simili).
+- Campo email di Mega senza testo predittivo né maiuscola automatica, come
+  gli altri campi (possibile cura del crash segnalato sullo Xperia XA2).
+
 * Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-4
 - Espelli dalla cartella della chiavetta: ora torna davvero alla Memoria
   interna ed espelle (nella 0.9.7-3 restava fermo dopo «Espello la chiavetta…»).

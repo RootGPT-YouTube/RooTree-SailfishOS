@@ -709,6 +709,7 @@ Window {
         onPlaceInfo: function (p) { storageSheet.openFor(p) }
         onMountRequested: function (p) { media.mount(p) }
         onEjectRequested: function (p) { media.eject(p) }
+        onTrashRequested: function (path, name) { trashSheet.openLocal(path, name) }
     }
     // ── chiavette e schede: monta ed espelli (0.9.7) ─────────────────────────
     Timer {

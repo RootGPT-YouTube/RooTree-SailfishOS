@@ -25,6 +25,8 @@ Popup {
     // chiavette e schede (0.9.7): montare una non montata, espellerne una
     signal mountRequested(var place)
     signal ejectRequested(var place)
+    // il cestino di una memoria, dalla riga sotto le sue cartelle
+    signal trashRequested(string path, string name)
 
     parent: Overlay.overlay
     modal: true
@@ -50,6 +52,7 @@ Popup {
     function info(p) { close(); placeInfo(p) }
     function mount(p) { close(); mountRequested(p) }
     function eject(p) { close(); ejectRequested(p) }
+    function trash(p, name) { close(); trashRequested(p.path, name) }
     function freeText(p) { return p.total > 0 ? Style.freeOf(p.free, p.total) : "" }
     // le cartelle predefinite che ci sono davvero; su Android e sulle schede
     // si chiamano anche Download e Movies

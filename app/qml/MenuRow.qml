@@ -15,6 +15,8 @@ Rectangle {
     property int depth: indent ? 1 : 0
     // un'immagine di icons/ (es. "tipi/folder-music.png") al posto del simbolo
     property string image
+    // in dp; 24 come le immagini anche per un simbolo in mezzo a delle cartelle
+    property real iconSize: m.image ? 24 : 20
     property bool expandable: false
     property bool expanded: false
     // senza freccia ma con lo spazio della freccia, per allineare il dettaglio
@@ -43,7 +45,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         name: m.image ? "" : m.icon
         source: m.image ? Qt.resolvedUrl("icons/" + m.image) : (name ? Qt.resolvedUrl("icons/" + name + ".svg") : "")
-        size: (m.image ? 24 : 20) * Style.dp
+        size: m.iconSize * Style.dp
         // le cartelle (immagini) come nella griglia: del colore di evidenziazione
         tint: m.image ? Style.sfHighlight : Style.iconTint
     }

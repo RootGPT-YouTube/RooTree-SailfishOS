@@ -24,7 +24,8 @@ Column {
         detail: !pr.place ? "" : pr.unmounted
                 ? Style.t("Tocca per montare", "Tap to mount") + (pr.place.total > 0 ? " · " + Style.size(pr.place.total) : "")
                 : pr.owner.freeText(pr.place)
-        expandable: pr.dirs.length > 0
+        // si apre sempre: sotto ci sono almeno il cestino della memoria
+        expandable: pr.place !== null && !pr.unmounted
         expanded: pr.open
         reserveToggle: pr.unmounted
         onClicked: pr.unmounted ? pr.owner.mount(pr.place) : pr.owner.go(pr.place.path)
@@ -42,5 +43,14 @@ Column {
             text: modelData.name
             onClicked: pr.owner.go(modelData.path)
         }
+    }
+    // il cestino di questa memoria, insieme alle sue cartelle
+    MenuRow {
+        visible: pr.open
+        depth: pr.depth + 1
+        icon: "trash"
+        iconSize: 24
+        text: Style.t("Cestino", "Trash")
+        onClicked: pr.owner.trash(pr.place, pr.text)
     }
 }
