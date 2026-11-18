@@ -40,7 +40,7 @@ Imports = qml
 Qml2Imports = qml
 Libraries = lib
 QTCONF
-sb2 -t "$RT" gcc -O2 -Wall -DAPP_EXEC='"/usr/share/harbour-rootree/harbour-rootree"' -DAPP_ID='"rootree"' \
+sb2 -t "$RT" gcc -O2 -Wall -DAPP_EXEC='"/home/rootree/app/harbour-rootree"' -DAPP_ID='"rootree"' \
     -DRUNTIME='"/home/rootree/qt6"' -o "$S/launcher" "$R/packaging/qt6/launcher.c"
 sb2 -t "$RT" strip "$S/launcher"
 cp "$R/rpm/harbour-rootree.desktop" "$R/LICENSE" "$R/NOTICE.md" "$S/"

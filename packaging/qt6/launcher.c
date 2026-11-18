@@ -12,7 +12,7 @@
  * RooTitanium, senza la parte del motore web.
  *
  * Si compila una volta per app:
- *   gcc -O2 -DAPP_EXEC='"/usr/share/harbour-rootree/harbour-rootree"' \
+ *   gcc -O2 -DAPP_EXEC='"/home/rootree/app/harbour-rootree"' \
  *       -DAPP_ID='"rootree"' -DRUNTIME='"/home/rootree/qt6"' -o harbour-rootree launcher.c
  *
  * Diagnostica sul campo: se esiste ~/.config/rootgpt/<APP_ID>.debug, stdout e

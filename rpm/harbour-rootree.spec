@@ -1,7 +1,7 @@
 # harbour-rootree — file manager per Sailfish OS (OpenRepos, non Jolla Store).
 # Si impacchetta uno staging già pronto (tools/pacchetto.sh), qui non si compila.
 # Dalla 0.9.7 un pacchetto solo, completo in sé come RooTitanium: Qt 6.12 è
-# dentro, in /home/rootree/qt6 (la partizione /home: il rootfs dei telefoni è
+# dentro, in /home/rootree/qt6, e dalla 0.9.7-2 anche il programma (/home/rootree/app) (la partizione /home: il rootfs dei telefoni è
 # piccolo). Prima lo dava il pacchetto a parte rootgpt-qt6-runtime, che ora
 # sparisce da solo all'aggiornamento (Obsoletes: lo usava solo RooTree).
 # Launcher /usr/bin/harbour-rootree: sailjail rifiuta gli script e vuole un ELF
@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.7
-Release:    1
+Release:    2
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -92,9 +92,10 @@ never runs as root.
 
 %install
 rm -rf %{buildroot}
-mkdir -p %{buildroot}%{_datadir}/%{name} %{buildroot}%{_bindir}
-cp -a %{stagingdir}/app/. %{buildroot}%{_datadir}/%{name}/
-mkdir -p %{buildroot}%{_apphome}
+# 0.9.7-2: anche il programma e il QML stanno in /home/rootree/app, come
+# RooTitanium: sul rootfs restano solo lanciatore, helper root, .desktop e icone
+mkdir -p %{buildroot}%{_apphome} %{buildroot}%{_bindir}
+cp -a %{stagingdir}/app %{buildroot}%{_apphome}/app
 cp -a %{stagingdir}/qt6 %{buildroot}%{_apphome}/qt6
 install -m0755 %{stagingdir}/launcher %{buildroot}%{_bindir}/%{name}
 install -D -m0644 %{stagingdir}/%{name}.desktop %{buildroot}%{_datadir}/applications/%{name}.desktop
@@ -112,7 +113,6 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %license %{_defaultlicensedir}/%{name}/LICENSE
 %license %{_defaultlicensedir}/%{name}/NOTICE.md
 %{_bindir}/%{name}
-%{_datadir}/%{name}
 %{_apphome}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
@@ -120,6 +120,11 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-2
+- Anche il programma si installa in /home/rootree, insieme al suo Qt: sulla
+  partizione di sistema, che sui telefoni è piccola, restano meno di 8 MB
+  (avvio, modalità root, icona).
+
 * Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-1
 - Un pacchetto solo, completo in sé: Qt 6.12 è dentro RooTree (in
   /home/rootree/qt6) e non serve più installare rootgpt-qt6-runtime, che

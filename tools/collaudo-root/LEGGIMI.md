@@ -7,7 +7,7 @@ gruppo, copia da root nella cartella di lavoro (deve restare dell'utente),
 spegnimento. Si usa col binario vero:
 
 1. sul telefono, in una cartella di lavoro `/home/debugging/AAAA-MM-GG-…`:
-   `harbour-rootree` e `qt.conf` copiati da `/usr/share/harbour-rootree/`,
+   `harbour-rootree` e `qt.conf` copiati da `/home/rootree/app/ (fino alla 0.9.7-1: /usr/share/harbour-rootree/)`,
    accanto a questa `qml/`; `/etc/rootree-prova.conf` creato con sudo;
 2. la password di sviluppatore in `pw` (umask 077), da togliere subito dopo;
 3. ambiente della sessione (`systemctl --user show-environment`) più quello

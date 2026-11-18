@@ -1,6 +1,6 @@
 # Collaudo del cestino senza toccare lo schermo
 
-Come `tools/collaudo-root`: binario vero copiato da `/usr/share/harbour-rootree/`
+Come `tools/collaudo-root`: binario vero copiato da `/home/rootree/app/ (fino alla 0.9.7-1: /usr/share/harbour-rootree/)`
 (con `qt.conf`) in una cartella di lavoro `/home/debugging/AAAA-MM-GG-…`,
 accanto alla `qml/` di prova, con l'ambiente della sessione e del launcher.
 
