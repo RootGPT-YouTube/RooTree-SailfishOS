@@ -528,3 +528,15 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   cestino di ogni home. 58 test. Provato: aggiornamento col solo RPM dell'app su POCO (0.9.5-4) e Xperia
   (0.9.5-5), il `-root` tolto da solo; col dito sul POCO senza e con root; sull'Xperia l'helper avviato da
   root con la richiesta dell'app. Non provato: armv7hl su un telefono vero.
+- **18/11 — 0.9.7-1: un pacchetto solo con Qt dentro, Monta ed Espelli** (commit `a304513`, sessione del porting POCO).
+  Decisione dell'utente: RooTree completo in sé come RooTitanium. Qt 6.12 dentro l'RPM in `/home/rootree/qt6`
+  (`packaging/qt6/`: assembla.py, launcher.c con `-DRUNTIME`, NOTICE unito); `Obsoletes: rootgpt-qt6-runtime < 6.13`
+  (lo usava solo RooTree). RPM 41,8 MB. Chiavette: Sailfish OS automonta solo `^mmcblk` ⇒ `places()` elenca anche le
+  partizioni USB/SD non montate (database di udev in /run/udev/data, `ID_FS_*`), «Tocca per montare» (udisks come
+  l'utente, sempre con `-t`: senza, udisks 2.10 dice «type (null)» per exFAT); ENOMEM del driver exFAT del kernel
+  (order 4) ⇒ in modalità root l'helper fa drop_caches + compact_memory e riprova (`Request::FreeMemory`). ⏏ Espelli:
+  syncfs, smonta tutte le partizioni del disco, `udisksctl power-off` (polkit: solo sessione attiva; da root se
+  rifiutato, `Request::PowerOff`), «in uso da …» leggendo /proc/*/fd e cwd. 59 test (nuovo: etichette udev).
+  Provato sul POCO: aggiornamento da 0.9.6-3 con `rpm -U` (runtime tolto da solo, `rpm -V` vuoto), l'app parte e
+  carica 204 librerie solo da /home/rootree/qt6. ⏳ NON ancora provato: Monta/Espelli col dito e con una chiavetta
+  vera (la chiavetta era stata tolta), armv7hl.
