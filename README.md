@@ -36,7 +36,9 @@ I hereby disclaim any and all responsibility for the application, its functional
 ### What it does
 
 - **Local storage**: internal memory, Android storage, SD card and USB drives,
-  with their standard folders one tap away; bookmarks, breadcrumbs,
+  with their standard folders one tap away; USB drives that Sailfish OS leaves
+  unmounted are mounted with a tap, and ⏏ ejects a card or a drive safely
+  (pending writes, unmount, power off); bookmarks, breadcrumbs,
   back/forward/up, icon and detail views, sorting, hidden files.
 - **File operations** in a queue, with progress and **Cancel**: copy, move,
   delete, rename, new folder, permissions. Conflicts and errors are asked
@@ -118,7 +120,9 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
 ### Cosa fa
 
 - **Memorie locali**: memoria interna, memoria Android, scheda SD e chiavette
-  USB, con le loro cartelle predefinite a portata di tocco; segnalibri,
+  USB, con le loro cartelle predefinite a portata di tocco; le chiavette che
+  Sailfish OS lascia smontate si montano con un tocco, e ⏏ espelle in sicurezza
+  una scheda o una chiavetta (scritture in sospeso, smonta, spegne); segnalibri,
   briciole, indietro/avanti/su, vista a icone o dettagli, ordinamento, file
   nascosti.
 - **Operazioni sui file** in coda, con avanzamento e **Annulla**: copia,
