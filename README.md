@@ -77,8 +77,9 @@ devel-su pkcon install-local harbour-rootree-<version>.aarch64.rpm
 the separate `rootgpt-qt6-runtime` package (and up to 0.9.5 `harbour-rootree-root`):
 updating to 0.9.7 or later removes them by itself.
 
-Qt 6.12 is installed under `/home/rootree/qt6` (the `/home` partition, because the
-phones' root file system is small), apart from the system,
+RooTree and its Qt 6.12 are installed under `/home/rootree` (the `/home` partition,
+because the phones' root file system is small; only the launcher, the root helper
+and the icon stay there), apart from the system,
 so it does not interfere with the platform. RooTree's `.desktop` declares
 `Sandboxing=Disabled`: a file manager needs to reach every folder.
 
@@ -164,8 +165,9 @@ devel-su pkcon install-local harbour-rootree-<versione>.aarch64.rpm
 il pacchetto a parte `rootgpt-qt6-runtime` (e fino alla 0.9.5 `harbour-rootree-root`):
 aggiornando alla 0.9.7 o successiva si tolgono da soli.
 
-Qt 6.12 si installa in `/home/rootree/qt6` (la partizione `/home`, perché il file
-system di sistema dei telefoni è piccolo), separato dal sistema, così
+RooTree e il suo Qt 6.12 si installano in `/home/rootree` (la partizione `/home`,
+perché il file system di sistema dei telefoni è piccolo; lì restano solo l'avvio,
+l'helper root e l'icona), separato dal sistema, così
 non interferisce con la piattaforma. Il `.desktop` di RooTree dichiara
 `Sandboxing=Disabled`: un file manager deve poter raggiungere ogni cartella.
 

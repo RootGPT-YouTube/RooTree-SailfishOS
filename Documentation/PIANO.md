@@ -540,3 +540,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Provato sul POCO: aggiornamento da 0.9.6-3 con `rpm -U` (runtime tolto da solo, `rpm -V` vuoto), l'app parte e
   carica 204 librerie solo da /home/rootree/qt6. ⏳ NON ancora provato: Monta/Espelli col dito e con una chiavetta
   vera (la chiavetta era stata tolta), armv7hl.
+- **18/11 — 0.9.7-2: anche il programma in /home/rootree** (commit `cc16150`), richiesta dell'utente («come RooTitanium»):
+  binario, QML e qt.conf in `/home/rootree/app` (16,5 MB), Qt in `/home/rootree/qt6`; sul rootfs 7,4 MB (lanciatore,
+  helper root in /usr/libexec di proposito, .desktop, icone, licenze). Provato sul POCO: `rpm -U` da 0.9.7-1,
+  `/usr/share/harbour-rootree` sparita, `rpm -V` vuoto, l'app parte da /home/rootree/app.
