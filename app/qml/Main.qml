@@ -711,6 +711,12 @@ Window {
         onEjectRequested: function (p) { media.eject(p) }
     }
     // ── chiavette e schede: monta ed espelli (0.9.7) ─────────────────────────
+    Timer {
+        id: ejectLater
+        property string mount
+        interval: 600
+        onTriggered: Jobs.eject(mount)
+    }
     // Sailfish OS monta da solo solo la microSD: le chiavette USB compaiono
     // «non montate» fra le Altre memorie e si montano al tocco.
     QtObject {
@@ -723,11 +729,17 @@ Window {
             toast.show(Style.t("Monto ", "Mounting ") + name(p) + "…")
         }
         function eject(p) {
-            // la cartella aperta non deve tenerla occupata
-            if (folder.path === p.path || folder.path.indexOf(p.path + "/") === 0)
-                win.go(Fs.home())
-            Jobs.eject(p.path)
             toast.show(Style.t("Espello ", "Ejecting ") + name(p) + "…")
+            // la cartella aperta non deve tenerla occupata: si torna alla
+            // Memoria interna e si espelle un attimo dopo, quando elenco e
+            // anteprime della cartella lasciata hanno chiuso i loro file
+            if (folder.path === p.path || folder.path.indexOf(p.path + "/") === 0) {
+                win.go(Fs.home())
+                ejectLater.mount = p.path
+                ejectLater.restart()
+                return
+            }
+            Jobs.eject(p.path)
         }
         function finished(id, kind, state, error) {
             var st = Jobs.status(id)
@@ -753,9 +765,15 @@ Window {
                                ? Style.t("Chiavetta spenta: ora puoi toglierla", "Drive powered off: you can now remove it")
                                : Style.t("Smontata: ora puoi toglierla", "Unmounted: you can now remove it"))
                 } else if (state === 6) {
-                    if (error.indexOf("IN USO:") === 0)
-                        toast.show(Style.t("È ancora in uso (", "Still in use (") + error.substring(7)
-                                   + Style.t("): chiudi i file aperti da lì e riprova.", "): close the files opened from it and try again."), true)
+                    if (error.indexOf("IN USO:") === 0) {
+                        var who = error.substring(7)
+                        if (who === "RooTree")
+                            toast.show(Style.t("RooTree sta ancora leggendo dalla chiavetta (anteprime): riprova tra qualche secondo.",
+                                               "RooTree is still reading from the drive (previews): try again in a few seconds."), true)
+                        else
+                            toast.show(Style.t("Non si può espellere: la sta usando " + who + ". Chiudi i file aperti dalla chiavetta e riprova.",
+                                               "Cannot eject: " + who + " is using it. Close the files opened from the drive and try again."), true)
+                    }
                     else
                         toast.show(Style.t("Non riesco a espellerla: ", "Cannot eject it: ") + error, true)
                 }

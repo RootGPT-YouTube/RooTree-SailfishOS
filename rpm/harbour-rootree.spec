@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.7
-Release:    2
+Release:    3
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,13 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-3
+- Espelli funziona anche con la cartella della chiavetta aperta: RooTree torna
+  alla Memoria interna e la espelle un attimo dopo, quando ha finito di leggerla
+  (prima diceva che era occupata e non si capiva perché).
+- Se la chiavetta è davvero in uso, il messaggio dice chi la usa: un'altra app
+  (da chiudere) oppure RooTree stessa che sta ancora preparando le anteprime.
+
 * Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-2
 - Anche il programma si installa in /home/rootree, insieme al suo Qt: sulla
   partizione di sistema, che sui telefoni è piccola, restano meno di 8 MB

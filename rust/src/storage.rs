@@ -897,6 +897,7 @@ pub fn mount_dev(dev: String) -> u64 {
 }
 
 /// I programmi (visibili all'utente) che tengono aperto qualcosa sotto `mount`.
+/// RooTree stessa compare come «RooTree» (anteprime o elenchi ancora in corso).
 fn users_of(mount: &str) -> Vec<String> {
     let inside = |p: &Path| {
         let s = p.to_string_lossy();
@@ -906,7 +907,7 @@ fn users_of(mount: &str) -> Vec<String> {
     let mut out = Vec::new();
     for e in fs::read_dir("/proc").into_iter().flatten().flatten() {
         let pid = e.file_name().to_string_lossy().into_owned();
-        if !pid.bytes().all(|c| c.is_ascii_digit()) || pid == me {
+        if !pid.bytes().all(|c| c.is_ascii_digit()) {
             continue;
         }
         let base = e.path();
@@ -919,7 +920,7 @@ fn users_of(mount: &str) -> Vec<String> {
                 .any(|f| fs::read_link(f.path()).is_ok_and(|p| inside(&p)));
         }
         if busy {
-            let name = rd(base.join("comm"));
+            let name = if pid == me { "RooTree".to_string() } else { rd(base.join("comm")) };
             if !name.is_empty() && !out.contains(&name) {
                 out.push(name);
             }
@@ -958,13 +959,27 @@ pub fn eject(mount: String) -> u64 {
         }
         h.set(|s| s.current = "unmount".into());
         for p in &parts {
-            if let Err(e) = udisks(&["unmount", "-b", &p.source]) {
-                let who = users_of(&p.mount);
-                return Err(if who.is_empty() {
-                    format!("non riesco a smontarla: {e}")
-                } else {
-                    format!("IN USO:{}", who.join(", "))
-                });
+            // «occupata» è spesso solo un attimo: anteprime ed elenchi della
+            // cartella appena lasciata finiscono da soli. Si riprova per ~6 s.
+            let mut tries = 0;
+            loop {
+                match udisks(&["unmount", "-b", &p.source]) {
+                    Ok(_) => break,
+                    Err(e) => {
+                        let busy = e.contains("busy") || e.contains("occupat");
+                        tries += 1;
+                        if busy && tries < 20 && !h.cancelled() {
+                            std::thread::sleep(Duration::from_millis(300));
+                            continue;
+                        }
+                        let who = users_of(&p.mount);
+                        return Err(if who.is_empty() {
+                            format!("non riesco a smontarla: {e}")
+                        } else {
+                            format!("IN USO:{}", who.join(", "))
+                        });
+                    }
+                }
             }
         }
         let mut d = json!({ "bus": bus, "powerOff": false });
