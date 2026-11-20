@@ -1,0 +1,16 @@
+diff --git a/input-context/minputcontext.h b/input-context/minputcontext.h
+index 89106c7..da272b7 100644
+--- a/input-context/minputcontext.h
++++ b/input-context/minputcontext.h
+@@ -156,7 +156,10 @@ private:
+     QLocale inputLocale;
+     bool currentFocusAcceptsInput;
+ 
+-    QDBusInterface *containerConnectionInterface; // connection to Flatpak container
++    // RooTree 20/11/2026: inizializzato. Veniva assegnato SOLO con FLATPAK_MALIIT_CONTAINER_DBUS;
++    // fuori da Flatpak restava un valore a caso e updateInputMethodArea() faceva ->isValid() su
++    // memoria qualunque: SIGSEGV su Xperia XA2 (armv7hl) al tocco di un campo di testo.
++    QDBusInterface *containerConnectionInterface = nullptr; // connection to Flatpak container
+     bool containerActive=true;
+     int containerOrientation=0;
+ };

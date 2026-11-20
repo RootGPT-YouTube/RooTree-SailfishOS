@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.7
-Release:    5
+Release:    6
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,11 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Fri Nov 20 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-6
+- Corretto il crash al tocco dei campi di testo (password, email…) sui telefoni a
+  32 bit come lo Xperia XA2: il difetto era nel collegamento con la tastiera di
+  sistema (plugin Maliit per Qt 6), che ora è corretto.
+
 * Wed Nov 18 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-5
 - Cestino in ogni memoria del vassoio: sotto Memoria interna, Memoria Android,
   scheda SD e chiavette, insieme a Documents, Downloads e le altre cartelle.

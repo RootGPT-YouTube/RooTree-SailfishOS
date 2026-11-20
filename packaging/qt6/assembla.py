@@ -21,7 +21,7 @@ import argparse, os, shutil, subprocess, sys
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--arch", default="aarch64", choices=["aarch64", "armv7hl"])
-ap.add_argument("--maliit", help="plugin Maliit per Qt 6.12 (predefinito: quello dello staging di RooTitanium)")
+ap.add_argument("--maliit", help="plugin Maliit per Qt 6.12 (predefinito: scratch/maliit-<arch>, poi lo staging di RooTitanium)")
 a = ap.parse_args()
 
 R = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,8 +30,13 @@ T = f"SailfishOS-5.1.0.11-{a.arch}-qt612"
 TGT = f"/srv/mer/targets/{T}"
 QT = f"{TGT}/usr/{L}/qt6"
 DST = f"{R}/scratch/qt6-runtime-{a.arch}/runtime"
-MALIIT = a.maliit or (f"{os.path.dirname(R)}/RooTitanium/scratch/pkg-staging-qt612-{a.arch}"
-                      "/bundle/plugins/platforminputcontexts/libmaliitplatforminputcontextplugin.so")
+# Dalla 0.9.7-6 il plugin Maliit è quello ricompilato con packaging/qt6/maliit-container-nullptr.patch
+# (crash al tocco dei campi di testo su armv7hl) e strippato in scratch/maliit-<arch>/; senza, quello
+# dello staging di RooTitanium (SENZA la patch).
+MALIIT = a.maliit or next((f for f in (
+    f"{R}/scratch/maliit-{a.arch}/libmaliitplatforminputcontextplugin.so",
+    f"{os.path.dirname(R)}/RooTitanium/scratch/pkg-staging-qt612-{a.arch}"
+    "/bundle/plugins/platforminputcontexts/libmaliitplatforminputcontextplugin.so") if os.path.isfile(f)), "")
 ENV = dict(os.environ, LC_ALL="C", LANG="C")
 
 # Di serie su Sailfish OS 5.1: il runtime non le porta e lo spec le chiede per
