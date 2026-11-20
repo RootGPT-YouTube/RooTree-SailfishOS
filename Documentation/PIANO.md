@@ -564,3 +564,13 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Vassoio: riga «Cestino» sotto ogni memoria montata, con le cartelle predefinite; provata coi tocchi sul POCO
   (interna, Android, SD aprono ciascuna il proprio cestino); ⏳ chiavetta USB non provata (stesso meccanismo della SD).
   Installata su POCO e Xperia (`rpm -V` vuoti, avvio dal lanciatore pulito salvo l'avviso NaN già noto di Main.qml:39).
+- **20/11 — 0.9.7-6: crash al tocco dei campi di testo su armv7hl, CAUSA TROVATA** (commit `ae6777f`).
+  Il segnalatore (XA2) ha mandato il backtrace gdb: crash anche al campo password, SIGSEGV in
+  `QDBusAbstractInterface::isValid()` da `MInputContext::updateInputMethodArea()` (plugin Maliit, chiamata D-Bus della
+  tastiera). Nel plugin `containerConnectionInterface` si assegna solo dentro Flatpak: fuori resta NON inizializzato
+  (su aarch64 per caso a zero). Patch `packaging/qt6/maliit-container-nullptr.patch` (nullptr, LGPL: sta nel repo),
+  plugin ricompilato nei target qt612 (build di RooTitanium, `scratch/qt612/build-<arch>/maliit`) e strippato in
+  `scratch/maliit-<arch>/`, che `assembla.py` ora preferisce. Verificato: plugin nei due RPM = quello nuovo; installata sul
+  POCO (`rpm -V` vuoto). ⏳ Prova vera sul XA2 dal segnalatore (armv7hl mai provato da noi su un telefono).
+  ⚠️ La stessa riga è nel plugin di RooTitanium: lì non crasha perché RooTitanium imposta FLATPAK_MALIIT_CONTAINER_DBUS
+  (container interno), ma la patch va portata nella sua prossima build del plugin.
