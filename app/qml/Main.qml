@@ -35,8 +35,16 @@ Window {
         Fs.trashSetDays(settings.trashDays)
         Fs.trashPurge()
         openingSync.start()
-        var s = sortOf(folder.path)
-        folder.setSorting(s.k, s.d, s.f)
+        var s = sortOf(folderA.path)
+        folderA.setSorting(s.k, s.d, s.f)
+        // la scheda B riparte dov'era rimasta (solo sul telefono: un server
+        // all'avvio non è ancora collegato)
+        var b = settings.tabB
+        if (b === "" || b.indexOf("/@remote/") === 0 || !Fs.exists(b))
+            b = Fs.home
+        s = sortOf(b)
+        folderB.setSorting(s.k, s.d, s.f)
+        folderB.path = b
     }
     onWidthChanged: updateDp()
     onHeightChanged: updateDp()
@@ -45,7 +53,9 @@ Window {
         id: settings
         property string view: "grid"
         property bool thumbnails: true
-        property alias showHidden: folder.showHidden
+        property bool showHidden: false
+        // la cartella della scheda B, per riaprirla lì (0.9.8)
+        property string tabB: ""
         // l'ordinamento di tutto il sistema; per data, dal più recente
         property int sortKey: 2
         property bool descending: false
@@ -107,24 +117,37 @@ Window {
         function onStateChanged() { if (Qt.application.state === Qt.ApplicationActive) win.loadAmbience() }
     }
 
-    FolderModel {
-        id: folder
-        path: startPath
+    // ── due schede, A e B (0.9.8): ognuna con la sua cartella, la sua
+    // selezione e la sua cronologia. `folder` è sempre quella in vista.
+    FolderModel { id: folderA; path: startPath; showHidden: settings.showHidden }
+    FolderModel { id: folderB; showHidden: settings.showHidden }
+    QtObject { id: histA; property var back: []; property var forward: [] }
+    QtObject { id: histB; property var back: []; property var forward: [] }
+    property int tab: 0
+    readonly property FolderModel folder: tab === 0 ? folderA : folderB
+    readonly property QtObject hist: tab === 0 ? histA : histB
+    function modelOf(t) { return t === 0 ? folderA : folderB }
+    function histOf(t) { return t === 0 ? histA : histB }
+    function refreshAll() { folderA.refresh(); folderB.refresh() }
+    Connections {
+        target: folderB
+        function onPathChanged() { if (folderB.path !== "") settings.tabB = folderB.path }
     }
 
     readonly property bool selecting: folder.selectedCount > 0
     property var places: Fs.places()
-    property var back: []
-    property var forward: []
+    readonly property var back: hist.back
+    readonly property var forward: hist.forward
 
     // la memoria che contiene `path`: quella col percorso più lungo che lo
     // contiene (la radice vale solo se non c'è altro)
-    readonly property var place: {
+    readonly property var place: placeOf(folder)
+    function placeOf(f) {
         // su un server: la «memoria» è la connessione (la barra del percorso
         // parte dal suo nome)
-        if (folder.remote !== "") {
-            var rp = Remotes.get(folder.remote)
-            return { kind: 5, path: "/@remote/" + folder.remote, label: rp.name || "?", icon: Remotes.typeInfo(rp.type).icon || "cloud", total: 0, free: 0 }
+        if (f.remote !== "") {
+            var rp = Remotes.get(f.remote)
+            return { kind: 5, path: "/@remote/" + f.remote, label: rp.name || "?", icon: Remotes.typeInfo(rp.type).icon || "cloud", total: 0, free: 0 }
         }
         var best = null
         for (var i = 0; i < places.length; ++i) {
@@ -132,7 +155,7 @@ Window {
             // una chiavetta non montata non ha percorso: non contiene niente
             if (p.mounted === false)
                 continue
-            var inside = folder.path === p.path || p.path === "/" || folder.path.indexOf(p.path + "/") === 0
+            var inside = f.path === p.path || p.path === "/" || f.path.indexOf(p.path + "/") === 0
             if (inside && (!best || p.path.length > best.path.length))
                 best = p
         }
@@ -149,28 +172,42 @@ Window {
         return "/"
     }
     function placeIcon(p) { return p.kind === 5 ? p.icon : ["internal", "android", "sdcard", "usb", "root"][p.kind] }
-
-    function go(path) {
-        if (path === folder.path)
-            return
-        back = back.concat([folder.path])
-        forward = []
-        folder.clearSelection()
-        setPath(path)
+    // il nome sulla linguetta: la cartella, o la memoria se si è alla sua radice
+    function tabLabel(f) {
+        var pl = placeOf(f)
+        if (f.path === pl.path || f.path === "")
+            return placeName(pl)
+        return f.path.split("/").pop()
     }
+
+    // cambiare cartella nella scheda t (di solito quella in vista)
+    function goIn(t, path) {
+        var f = modelOf(t), h = histOf(t)
+        if (path === f.path)
+            return
+        h.back = h.back.concat([f.path])
+        h.forward = []
+        f.clearSelection()
+        var s = sortOf(path)
+        f.setSorting(s.k, s.d, s.f)
+        f.path = path
+    }
+    function go(path) { goIn(tab, path) }
     function goBack() {
-        if (back.length === 0) return
-        forward = [folder.path].concat(forward)
+        var h = hist
+        if (h.back.length === 0) return
+        h.forward = [folder.path].concat(h.forward)
         folder.clearSelection()
-        setPath(back[back.length - 1])
-        back = back.slice(0, -1)
+        setPath(h.back[h.back.length - 1])
+        h.back = h.back.slice(0, -1)
     }
     function goForward() {
-        if (forward.length === 0) return
-        back = back.concat([folder.path])
+        var h = hist
+        if (h.forward.length === 0) return
+        h.back = h.back.concat([folder.path])
         folder.clearSelection()
-        setPath(forward[0])
-        forward = forward.slice(1)
+        setPath(h.forward[0])
+        h.forward = h.forward.slice(1)
     }
     // su un server non si sale oltre la sua radice
     readonly property bool canGoUp: folder.path !== "/" && !(folder.remote !== "" && folder.path === win.place.path)
@@ -299,10 +336,21 @@ Window {
         confirm.open()
     }
 
+    // ── in cima: le due schede, come le linguette di due cartellette ────────
+    TabStrip {
+        id: tabStrip
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        z: 3
+        current: win.tab
+        labels: [win.tabLabel(folderA), win.tabLabel(folderB)]
+        icons: [win.placeIcon(win.placeOf(folderA)), win.placeIcon(win.placeOf(folderB))]
+        onPicked: function (i) { win.tab = i }
+    }
+
     // ── in alto: memoria + percorso ─────────────────────────────────────────
     SteelPanel {
         id: header
-        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: -border.width; rightMargin: -border.width; topMargin: -border.width }
+        anchors { left: parent.left; right: parent.right; top: tabStrip.bottom; leftMargin: -border.width; rightMargin: -border.width }
         height: Style.bar + 4 * Style.dp
         // il filo LED in basso solo in selezione (altrimenti c'è già quello
         // della briciola dove si è)
@@ -389,7 +437,7 @@ Window {
     }
     function rootOff() {
         Fs.rootStop()
-        folder.refresh()
+        win.refreshAll()
         toast.show(Style.t("Modalità root spenta", "Root mode off"))
     }
     Connections {
@@ -397,7 +445,7 @@ Window {
         function onRootFinished(code, message) {
             if (code === "") {
                 rootDialog.close()
-                folder.refresh()
+                win.refreshAll()
                 toast.show(Style.t("Modalità root accesa", "Root mode on"))
             } else {
                 rootDialog.error = code === "AUTH"
@@ -409,160 +457,176 @@ Window {
         }
     }
 
-    // ── la cartella ─────────────────────────────────────────────────────────
-    Item {
+    // ── la cartella: due pagine, una per scheda; si passa con uno swipe ──────
+    // (ognuna tiene il suo scorrimento: le pagine restano vive, cacheBuffer)
+    ListView {
         id: content
         anchors { left: parent.left; right: parent.right; top: rootBand.bottom; bottom: status.top }
         clip: true
+        orientation: ListView.Horizontal
+        snapMode: ListView.SnapOneItem
+        highlightRangeMode: ListView.StrictlyEnforceRange
+        highlightMoveDuration: 220
+        boundsBehavior: Flickable.StopAtBounds
+        cacheBuffer: width * 2
+        model: 2
+        currentIndex: win.tab
+        onCurrentIndexChanged: if (win.tab !== currentIndex) win.tab = currentIndex
+        delegate: Item {
+            id: pane
+            width: content.width
+            height: content.height
+            readonly property FolderModel fm: index === 0 ? folderA : folderB
 
-        GridView {
-            id: grid
-            visible: settings.view === "grid"
-            anchors.fill: parent
-            anchors.margins: 4 * Style.dp
-            model: visible ? folder : null
-            readonly property int columns: Math.max(3, Math.floor(width / (92 * Style.dp)))
-            cellWidth: width / columns
-            cellHeight: cellWidth * 0.72 + 50 * Style.dp
-            boundsBehavior: Flickable.StopAtBounds
-            delegate: Item {
-                width: grid.cellWidth
-                height: grid.cellHeight
-                // la selezione: un riquadro col bordo LED, come l'evidenziazione di Dolphin
-                Rectangle {
+                GridView {
+                    id: grid
+                    visible: settings.view === "grid"
                     anchors.fill: parent
-                    anchors.margins: 3 * Style.dp
-                    radius: 10 * Style.dp
-                    visible: selected || gridArea.pressed
-                    color: selected ? Style.selected : Style.pressed
-                    border.color: selected ? Style.accent : "transparent"
-                    border.width: 2 * Style.dp
+                    anchors.margins: 4 * Style.dp
+                    model: visible ? pane.fm : null
+                    readonly property int columns: Math.max(3, Math.floor(width / (92 * Style.dp)))
+                    cellWidth: width / columns
+                    cellHeight: cellWidth * 0.72 + 50 * Style.dp
+                    boundsBehavior: Flickable.StopAtBounds
+                    delegate: Item {
+                        width: grid.cellWidth
+                        height: grid.cellHeight
+                        // la selezione: un riquadro col bordo LED, come l'evidenziazione di Dolphin
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 3 * Style.dp
+                            radius: 10 * Style.dp
+                            visible: selected || gridArea.pressed
+                            color: selected ? Style.selected : Style.pressed
+                            border.color: selected ? Style.accent : "transparent"
+                            border.width: 2 * Style.dp
+                        }
+                        FileIcon {
+                            id: gi
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            y: 6 * Style.dp
+                            width: grid.cellWidth * 0.72
+                            height: width
+                            path: model.path
+                            category: model.category
+                            thumbnails: settings.thumbnails && !pane.fm.readOnly && pane.fm.remote === ""
+                            opacity: hidden ? 0.5 : 1
+                            scale: gridArea.pressed ? 0.94 : 1
+                            Behavior on scale { NumberAnimation { duration: 80 } }
+                        }
+                        Icon {
+                            visible: isLink
+                            anchors { right: gi.right; bottom: gi.bottom }
+                            name: "link"
+                            size: gi.size * 0.32
+                        }
+                        Text {
+                            font.family: Style.fontFamily
+                            anchors { top: gi.bottom; topMargin: 4 * Style.dp; left: parent.left; right: parent.right; margins: 4 * Style.dp }
+                            horizontalAlignment: Text.AlignHCenter
+                            text: name
+                            color: selected ? Style.text : (hidden ? Style.dim : Style.text)
+                            font.pixelSize: 13 * Style.dp
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                            maximumLineCount: 2
+                            elide: Text.ElideMiddle
+                        }
+                        MouseArea {
+                            id: gridArea
+                            anchors.fill: parent
+                            onClicked: win.activate(index)
+                            onPressAndHold: pane.fm.toggleSelected(index)
+                        }
+                    }
                 }
-                FileIcon {
-                    id: gi
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    y: 6 * Style.dp
-                    width: grid.cellWidth * 0.72
-                    height: width
-                    path: model.path
-                    category: model.category
-                    thumbnails: settings.thumbnails && !folder.readOnly && folder.remote === ""
-                    opacity: hidden ? 0.5 : 1
-                    scale: gridArea.pressed ? 0.94 : 1
-                    Behavior on scale { NumberAnimation { duration: 80 } }
-                }
-                Icon {
-                    visible: isLink
-                    anchors { right: gi.right; bottom: gi.bottom }
-                    name: "link"
-                    size: gi.size * 0.32
-                }
-                Text {
-                    font.family: Style.fontFamily
-                    anchors { top: gi.bottom; topMargin: 4 * Style.dp; left: parent.left; right: parent.right; margins: 4 * Style.dp }
-                    horizontalAlignment: Text.AlignHCenter
-                    text: name
-                    color: selected ? Style.text : (hidden ? Style.dim : Style.text)
-                    font.pixelSize: 13 * Style.dp
-                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    maximumLineCount: 2
-                    elide: Text.ElideMiddle
-                }
-                MouseArea {
-                    id: gridArea
-                    anchors.fill: parent
-                    onClicked: win.activate(index)
-                    onPressAndHold: folder.toggleSelected(index)
-                }
-            }
-        }
 
-        ListView {
-            id: list
-            visible: settings.view === "list"
-            anchors.fill: parent
-            model: visible ? folder : null
-            boundsBehavior: Flickable.StopAtBounds
-            delegate: Rectangle {
-                width: list.width
-                height: Style.row
-                color: selected ? Style.selected : (listArea.pressed ? Style.pressed : "transparent")
-                FileIcon {
-                    id: li
-                    anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter }
-                    width: 44 * Style.dp
-                    height: width
-                    small: true
-                    path: model.path
-                    category: model.category
-                    thumbnails: settings.thumbnails && !folder.readOnly && folder.remote === ""
-                    opacity: hidden ? 0.5 : 1
+                ListView {
+                    id: list
+                    visible: settings.view === "list"
+                    anchors.fill: parent
+                    model: visible ? pane.fm : null
+                    boundsBehavior: Flickable.StopAtBounds
+                    delegate: Rectangle {
+                        width: list.width
+                        height: Style.row
+                        color: selected ? Style.selected : (listArea.pressed ? Style.pressed : "transparent")
+                        FileIcon {
+                            id: li
+                            anchors { left: parent.left; leftMargin: Style.margin; verticalCenter: parent.verticalCenter }
+                            width: 44 * Style.dp
+                            height: width
+                            small: true
+                            path: model.path
+                            category: model.category
+                            thumbnails: settings.thumbnails && !pane.fm.readOnly && pane.fm.remote === ""
+                            opacity: hidden ? 0.5 : 1
+                        }
+                        Icon {
+                            visible: isLink
+                            anchors { right: li.right; bottom: li.bottom }
+                            name: "link"
+                            size: 13 * Style.dp
+                        }
+                        Column {
+                            anchors { left: li.right; leftMargin: Style.margin; right: sizeText.left; rightMargin: 8 * Style.dp; verticalCenter: parent.verticalCenter }
+                            Text { font.family: Style.fontFamily; width: parent.width; text: name; color: hidden ? Style.dim : Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
+                            Text { font.family: Style.fontFamily; width: parent.width; text: Style.date(mtime); color: Style.dim; font.pixelSize: Style.fontS }
+                        }
+                        Text {
+                            font.family: Style.fontFamily
+                            id: sizeText
+                            anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
+                            text: isDir ? "" : Style.size(size)
+                            color: Style.dim
+                            font.pixelSize: Style.fontS
+                        }
+                        Rectangle { anchors { left: li.right; right: parent.right; bottom: parent.bottom } height: 1; color: Style.line; opacity: 0.6 }
+                        MouseArea {
+                            id: listArea
+                            anchors.fill: parent
+                            onClicked: win.activate(index)
+                            onPressAndHold: pane.fm.toggleSelected(index)
+                        }
+                    }
                 }
-                Icon {
-                    visible: isLink
-                    anchors { right: li.right; bottom: li.bottom }
-                    name: "link"
-                    size: 13 * Style.dp
-                }
+
+                // vuota o non leggibile
                 Column {
-                    anchors { left: li.right; leftMargin: Style.margin; right: sizeText.left; rightMargin: 8 * Style.dp; verticalCenter: parent.verticalCenter }
-                    Text { font.family: Style.fontFamily; width: parent.width; text: name; color: hidden ? Style.dim : Style.text; font.pixelSize: Style.fontM; elide: Text.ElideMiddle }
-                    Text { font.family: Style.fontFamily; width: parent.width; text: Style.date(mtime); color: Style.dim; font.pixelSize: Style.fontS }
+                    anchors.centerIn: parent
+                    width: parent.width * 0.8
+                    spacing: 8 * Style.dp
+                    visible: pane.fm.count === 0
+                    Image {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 76 * Style.dp; height: width
+                        source: pane.fm.error ? "" : "icons/tipi/pane.fm.png"
+                        sourceSize: Qt.size(width, height)
+                        opacity: 0.45
+                        layer.enabled: Style.sailfish
+                        layer.effect: MultiEffect { colorization: 1; colorizationColor: Style.sfHighlight }
+                        Icon { visible: pane.fm.error !== ""; anchors.centerIn: parent; name: "lock"; size: 48 * Style.dp }
+                    }
+                    Text {
+                        font.family: Style.fontFamily
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        text: pane.fm.error ? Style.t("Impossibile aprire questa cartella", "Cannot open this folder") : Style.t("Cartella vuota", "Empty folder")
+                        color: Style.text
+                        font.pixelSize: Style.fontL
+                    }
+                    Text {
+                        font.family: Style.fontFamily
+                        visible: pane.fm.error !== ""
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        text: pane.fm.error + (pane.fm.error.indexOf("ermission") >= 0
+                              ? "\n" + Style.t("Per le cartelle di sistema c'è la modalità root, nel menù ⋮.", "For system folders there is root mode, in the ⋮ menu.") : "")
+                        color: Style.dim
+                        font.pixelSize: Style.fontS
+                    }
                 }
-                Text {
-                    font.family: Style.fontFamily
-                    id: sizeText
-                    anchors { right: parent.right; rightMargin: Style.margin; verticalCenter: parent.verticalCenter }
-                    text: isDir ? "" : Style.size(size)
-                    color: Style.dim
-                    font.pixelSize: Style.fontS
-                }
-                Rectangle { anchors { left: li.right; right: parent.right; bottom: parent.bottom } height: 1; color: Style.line; opacity: 0.6 }
-                MouseArea {
-                    id: listArea
-                    anchors.fill: parent
-                    onClicked: win.activate(index)
-                    onPressAndHold: folder.toggleSelected(index)
-                }
-            }
-        }
-
-        // vuota o non leggibile
-        Column {
-            anchors.centerIn: parent
-            width: parent.width * 0.8
-            spacing: 8 * Style.dp
-            visible: folder.count === 0
-            Image {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 76 * Style.dp; height: width
-                source: folder.error ? "" : "icons/tipi/folder.png"
-                sourceSize: Qt.size(width, height)
-                opacity: 0.45
-                layer.enabled: Style.sailfish
-                layer.effect: MultiEffect { colorization: 1; colorizationColor: Style.sfHighlight }
-                Icon { visible: folder.error !== ""; anchors.centerIn: parent; name: "lock"; size: 48 * Style.dp }
-            }
-            Text {
-                font.family: Style.fontFamily
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                text: folder.error ? Style.t("Impossibile aprire questa cartella", "Cannot open this folder") : Style.t("Cartella vuota", "Empty folder")
-                color: Style.text
-                font.pixelSize: Style.fontL
-            }
-            Text {
-                font.family: Style.fontFamily
-                visible: folder.error !== ""
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                text: folder.error + (folder.error.indexOf("ermission") >= 0
-                      ? "\n" + Style.t("Per le cartelle di sistema c'è la modalità root, nel menù ⋮.", "For system folders there is root mode, in the ⋮ menu.") : "")
-                color: Style.dim
-                font.pixelSize: Style.fontS
-            }
         }
     }
 
@@ -734,8 +798,15 @@ Window {
             // la cartella aperta non deve tenerla occupata: si torna alla
             // Memoria interna e si espelle un attimo dopo, quando elenco e
             // anteprime della cartella lasciata hanno chiuso i loro file
-            if (folder.path === p.path || folder.path.indexOf(p.path + "/") === 0) {
-                win.go(Fs.home)
+            var busy = false
+            for (var t = 0; t < 2; ++t) {
+                var f = win.modelOf(t)
+                if (f.path === p.path || f.path.indexOf(p.path + "/") === 0) {
+                    win.goIn(t, Fs.home)
+                    busy = true
+                }
+            }
+            if (busy) {
                 ejectLater.mount = p.path
                 ejectLater.restart()
                 return
@@ -1242,7 +1313,7 @@ Window {
         }
         MenuRow { depth: 1; visible: viewOptions.open; icon: "grid"; text: Style.t("Icone", "Icons"); checkable: true; checked: settings.view === "grid"; onClicked: { settings.view = "grid"; mainMenu.close() } }
         MenuRow { depth: 1; visible: viewOptions.open; icon: "list"; text: Style.t("Dettagli", "Details"); checkable: true; checked: settings.view === "list"; onClicked: { settings.view = "list"; mainMenu.close() } }
-        MenuRow { depth: 1; visible: viewOptions.open; icon: folder.showHidden ? "shown" : "hidden"; text: Style.t("Mostra i file nascosti", "Show hidden files"); checkable: true; checked: folder.showHidden; onClicked: folder.showHidden = !folder.showHidden }
+        MenuRow { depth: 1; visible: viewOptions.open; icon: settings.showHidden ? "shown" : "hidden"; text: Style.t("Mostra i file nascosti", "Show hidden files"); checkable: true; checked: settings.showHidden; onClicked: settings.showHidden = !settings.showHidden }
         MenuRow { depth: 1; visible: viewOptions.open; icon: "image"; text: Style.t("Mostra le anteprime", "Show previews"); checkable: true; checked: settings.thumbnails; onClicked: settings.thumbnails = !settings.thumbnails }
         MenuSection { visible: viewOptions.open; depth: 1; text: Style.t("Ordina per", "Sort by") }
         Repeater {
@@ -1636,7 +1707,7 @@ Window {
     }
 
     OpenWithSheet { id: openWith }
-    TrashSheet { id: trashSheet; store: settings; onRestored: folder.refresh() }
+    TrashSheet { id: trashSheet; store: settings; onRestored: win.refreshAll() }
     ImageViewer {
         id: imageViewer
         onOpenWithRequested: function (p) { openWith.openFor(p) }
@@ -1840,7 +1911,7 @@ Window {
             } else if (state === 7) {
                 Jobs.forget(id)
             }
-            folder.refresh()
+            win.refreshAll()
             win.places = Fs.places()
         }
     }
@@ -1954,7 +2025,7 @@ Window {
             Syncs.setResult(s.id, result + (skipped ? " (" + info.skipped[0] + ")" : ""), skipped > 0)
             if (parts.length > 0) toast.show("«" + s.name + "»: " + result, skipped > 0)
             if (info.downloaded || info.deletedLocal || info.conflicts) {
-                folder.refresh()
+                win.refreshAll()
                 win.places = Fs.places()
             }
         }

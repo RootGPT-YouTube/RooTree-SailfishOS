@@ -16,8 +16,8 @@
 %define __brp_strip_comment_note %{nil}
 
 Name:       harbour-rootree
-Version:    0.9.7
-Release:    6
+Version:    0.9.8
+Release:    1
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,14 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 22 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.8-1
+- Due schede, A e B: due linguette in cima, come quelle di due cartellette.
+  In ognuna si apre una memoria o una cartella diversa (per esempio Memoria
+  interna in A e Scheda SD in B), con la sua cronologia Indietro/Avanti.
+  Si passa dall'una all'altra toccando la linguetta o con uno swipe a destra o
+  a sinistra sulla cartella. La scheda B si riapre dove l'avevi lasciata.
+- Copia o taglia in una scheda e incolla nell'altra: gli appunti sono in comune.
+
 * Fri Nov 20 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.7-6
 - Corretto il crash al tocco dei campi di testo (password, email…) sui telefoni a
   32 bit come lo Xperia XA2: il difetto era nel collegamento con la tastiera di
