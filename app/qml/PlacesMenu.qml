@@ -4,8 +4,8 @@ import RooTree
 import "."
 
 // Il menù a tendina delle memorie (al posto del pannello «Risorse» di
-// Dolphin): Memoria interna, Memoria Android, Altre memorie (scheda SD, USB,
-// file system), Rete e cloud (le connessioni remote salvate), poi i segnalibri.
+// Dolphin): Memoria interna, Memoria Android, Scheda SD (se c'è), Altre memorie
+// (USB, file system), Rete e cloud (le connessioni remote salvate), poi i segnalibri.
 // Ogni memoria si apre con la sua freccia sulle cartelle predefinite che ha
 // (Documents, Downloads, Pictures, Music, Videos).
 Popup {
@@ -44,7 +44,7 @@ Popup {
         places = Fs.places()
         // si apre sempre tutto chiuso: le memorie e i segnalibri, il resto a richiesta
         // una chiavetta appena inserita (non montata) si vede subito
-        otherOpen = places.some(function (p) { return p.mounted === false })
+        otherOpen = places.some(function (p) { return p.mounted === false && p.kind === 3 })
         openPlaces = ({})
     }
 
@@ -104,6 +104,18 @@ Popup {
                 icon: "android"
                 text: Style.t("Memoria Android", "Android storage")
             }
+            // la microSD allo stesso livello (scelta dell'utente del 22/11: dentro
+            // «Altre memorie» non si trovava); solo se è inserita
+            Repeater {
+                model: menu.places.filter(function (p) { return p.kind === 2 })
+                delegate: PlaceRow {
+                    owner: menu
+                    place: modelData
+                    icon: "sdcard"
+                    // il codice della scheda (UUID) non si mostra qui: è nella pagina della «i»
+                    text: Style.t("Scheda SD", "SD card")
+                }
+            }
             MenuRow {
                 icon: "disk"
                 text: Style.t("Altre memorie", "Other storage")
@@ -116,14 +128,13 @@ Popup {
                 width: parent.width
                 visible: menu.otherOpen
                 Repeater {
-                    model: menu.places.filter(function (p) { return p.kind === 2 || p.kind === 3 })
+                    model: menu.places.filter(function (p) { return p.kind === 3 })
                     delegate: PlaceRow {
                         owner: menu
                         depth: 1
                         place: modelData
-                        icon: modelData.kind === 2 ? "sdcard" : "usb"
-                        // il codice della scheda (UUID) non si mostra qui: è nella pagina della «i»
-                        text: modelData.kind === 2 ? Style.t("Scheda SD", "SD card") : "USB" + (modelData.label ? " · " + modelData.label : "")
+                        icon: "usb"
+                        text: "USB" + (modelData.label ? " · " + modelData.label : "")
                     }
                 }
                 MenuRow {
