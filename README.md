@@ -40,6 +40,10 @@ I hereby disclaim any and all responsibility for the application, its functional
   unmounted are mounted with a tap, and ⏏ ejects a card or a drive safely
   (pending writes, unmount, power off); bookmarks, breadcrumbs,
   back/forward/up, icon and detail views, sorting, hidden files.
+- **Two tabs, A and B**: two folder tabs at the top, each with its own
+  storage, folder and history (for example internal memory in A and the SD
+  card in B); switch with a tap on the tab or a left/right swipe. Copy in one
+  tab and paste in the other.
 - **File operations** in a queue, with progress and **Cancel**: copy, move,
   delete, rename, new folder, permissions. Conflicts and errors are asked
   about, never silently overwritten; copies go through a temporary file.
@@ -126,6 +130,10 @@ Con la presente declino ogni responsabilità relativa all'applicazione, al suo f
   una scheda o una chiavetta (scritture in sospeso, smonta, spegne); segnalibri,
   briciole, indietro/avanti/su, vista a icone o dettagli, ordinamento, file
   nascosti.
+- **Due schede, A e B**: due linguette in cima, ognuna con la sua memoria,
+  la sua cartella e la sua cronologia (per esempio memoria interna in A e
+  scheda SD in B); si passa con un tocco sulla linguetta o con uno swipe a
+  destra o a sinistra. Copia in una scheda e incolla nell'altra.
 - **Operazioni sui file** in coda, con avanzamento e **Annulla**: copia,
   sposta, elimina, rinomina, nuova cartella, permessi. Conflitti ed errori
   vengono chiesti, mai sovrascritti in silenzio; le copie passano da un file
