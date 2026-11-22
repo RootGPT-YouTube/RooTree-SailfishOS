@@ -574,3 +574,10 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   POCO (`rpm -V` vuoto). ⏳ Prova vera sul XA2 dal segnalatore (armv7hl mai provato da noi su un telefono).
   ⚠️ La stessa riga è nel plugin di RooTitanium: lì non crasha perché RooTitanium imposta FLATPAK_MALIIT_CONTAINER_DBUS
   (container interno), ma la patch va portata nella sua prossima build del plugin.
+- **22/11 — punto della situazione con l'utente** (nessun codice cambiato):
+  ✅ crash armv7hl dei campi di testo (0.9.7-6) RISOLTO, confermato dal segnalatore (XA2).
+  ✅ prove col dito fatte: sincronizzazione col NAS dal telefono, cestino della chiavetta USB, tastiera in orizzontale/tablet.
+  ✅ «cartella piena eliminata non nel cestino» (16/11): errore dell'utente, non un difetto; chiuso.
+  ✅ Fase 6: RooTree è già pubblico.
+  ⏳ Solo la patch `maliit-container-nullptr.patch` nel plugin di RooTitanium: già passata al suo agente, entra
+  nel prossimo aggiornamento di RooTitanium.
