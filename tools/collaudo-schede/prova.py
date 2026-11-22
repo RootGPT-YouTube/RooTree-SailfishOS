@@ -191,9 +191,29 @@ cx = lv.property("contentX")
 check(0 < cx < lv.width(), "a metà swipe le due pagine sono in vista insieme (contentX %d)" % cx)
 shot("05-meta-swipe")
 QTest.touchEvent(w, dev).release(0, QPoint(200, mid), w).commit(); wait(800)
-# SnapOneItem di Qt: al rilascio va alla pagina nella direzione del dito, anche
-# sotto metà (verificato 22/11 anche senza divisore: era così già nella 0.9.8-1)
-check(w.property("tab") == 1, "lasciato al 40%%: passa a B, nella direzione del dito (tab %s)" % w.property("tab"))
+# lasciato piano a meno di metà si torna indietro (scelta dell'utente del 22/11:
+# con SnapOneItem andava avanti; ora SnapToItem). ⚠️ NON si verifica qui: i tocchi di
+# QTest hanno orari finti e Flickable ne ricava una velocità di lancio che non c'è.
+# Verificato sul POCO col dito sintetico (scratch/collaudo/meta-swipe.py 900 470 1500 1).
+print("ℹ lasciato piano al 40%%: sul banco tab %s (vale solo la prova sul POCO)" % w.property("tab"))
+if w.property("tab") != 0:
+    tap_at(*tab_center(0)); wait(300)
+
+# oltre metà, piano: passa a B
+QTest.touchEvent(w, dev).press(0, QPoint(420, mid), w).commit(); wait(16)
+for k in range(1, 21):
+    QTest.touchEvent(w, dev).move(0, QPoint(420 - 14 * k, mid), w).commit(); wait(30)
+for _ in range(4):
+    QTest.touchEvent(w, dev).move(0, QPoint(140, mid), w).commit(); wait(60)
+QTest.touchEvent(w, dev).release(0, QPoint(140, mid), w).commit(); wait(800)
+check(w.property("tab") == 1, "lasciato piano al 62%%: passa a B (tab %s)" % w.property("tab"))
+
+# corto ma svelto (un colpo di pollice): passa ad A
+QTest.touchEvent(w, dev).press(0, QPoint(150, mid), w).commit(); wait(16)
+for k in range(1, 6):
+    QTest.touchEvent(w, dev).move(0, QPoint(150 + 24 * k, mid), w).commit(); wait(12)
+QTest.touchEvent(w, dev).release(0, QPoint(270, mid), w).commit(); wait(800)
+check(w.property("tab") == 0, "colpo corto e svelto (120 px): passa ad A (tab %s)" % w.property("tab"))
 
 # toccare due volte la stessa linguetta non fa niente di strano
 tap_at(*tab_center(0)); tap_at(*tab_center(0))

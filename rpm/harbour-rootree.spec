@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.8
-Release:    3
+Release:    4
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 22 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.8-4
+- Swipe fra le schede: se lasci il dito prima di metà schermo, si torna alla
+  scheda di partenza; oltre metà, o con un colpo svelto, si passa all'altra.
+
 * Sun Nov 22 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.8-3
 - Mentre scorri da una scheda all'altra, fra le due cartelle compare un
   divisore d'acciaio col filo blu: si vede che si passa all'altra scheda.

@@ -464,7 +464,7 @@ Window {
         anchors { left: parent.left; right: parent.right; top: rootBand.bottom; bottom: status.top }
         clip: true
         orientation: ListView.Horizontal
-        snapMode: ListView.SnapOneItem
+        snapMode: ListView.SnapToItem
         highlightRangeMode: ListView.StrictlyEnforceRange
         highlightMoveDuration: 220
         boundsBehavior: Flickable.StopAtBounds
