@@ -591,3 +591,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   TUTTO OK), banco sync ancora TUTTO OK, cargo test 59 ok, installata sul POCO (`rpm -V` vuoto).
   ⏳ Prova col dito dell'utente; non provati: tema Sailfish (linguette senza «aggancio»), orizzontale, swipe durante
   una selezione.
+- **22/11 — 0.9.8-2: Scheda SD fuori da «Altre memorie»** (commit `ca2f3ae`). L'utente non la trovava (tendina chiusa).
+  Ora è al primo livello dopo Memoria Android, solo se inserita (montata o con «Monta»: `fsops::places` elenca solo
+  quelle); le USB restano in «Altre memorie», che si apre da sola solo per una chiavetta da montare. Provata coi tocchi
+  sintetici sul POCO (menù, «Altre memorie» col solo File system, SD aperta dal primo livello), banchi PC ancora OK.
