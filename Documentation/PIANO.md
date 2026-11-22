@@ -581,3 +581,13 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   ✅ Fase 6: RooTree è già pubblico.
   ⏳ Solo la patch `maliit-container-nullptr.patch` nel plugin di RooTitanium: già passata al suo agente, entra
   nel prossimo aggiornamento di RooTitanium.
+- **22/11 — 0.9.8-1: due schede A/B** (commit `f90d2d7`). Richiesta dell'utente: due memorie insieme, come in altri
+  file manager. Due linguette a cartelletta in cima (`TabStrip.qml`), ognuna con la sua cartella, selezione e
+  cronologia; cambio col tocco sulla linguetta o con lo swipe orizzontale sulla cartella (ListView a due pagine,
+  cacheBuffer: ciascuna tiene lo scorrimento). `folder` = scheda in vista (`folderA`/`folderB`); B si riapre dov'era
+  (impostazione `tabB`, solo percorsi locali esistenti, altrimenti home); l'app riparte sempre su A; nascosti e vista
+  comuni; appunti comuni (copia in A, incolla in B); refresh di entrambe dopo operazioni/root/sync; Espelli porta
+  fuori dalla chiavetta tutte e due. Verificato: banco `tools/collaudo-schede` (tocchi e swipe veri sul Main.qml vero,
+  TUTTO OK), banco sync ancora TUTTO OK, cargo test 59 ok, installata sul POCO (`rpm -V` vuoto).
+  ⏳ Prova col dito dell'utente; non provati: tema Sailfish (linguette senza «aggancio»), orizzontale, swipe durante
+  una selezione.
