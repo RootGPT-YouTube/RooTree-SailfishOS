@@ -599,3 +599,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   sembravano un ripiano solo. ListView `spacing` 16 dp con fascia d'acciaio e filo LED (a riposo fuori vista). Provata sul
   POCO con un mezzo swipe tenuto (`scratch/collaudo/meta-swipe.py`) e scatto in contemporanea; banchi PC OK. Nota:
   SnapOneItem al rilascio va nella direzione del dito anche sotto metà (già così prima; l'utente: «funziona benissimo»).
+- **22/11 — 0.9.8-4: sotto metà lo swipe torna indietro** (commit `611abb1`). Scelta dell'utente. `SnapOneItem` andava
+  sempre avanti nella direzione del dito; `SnapToItem` torna alla pagina più vicina e un colpo svelto passa comunque.
+  Provato sul POCO col dito sintetico (lento 40% resta, lento 60% passa, veloce passa; prima lento 37% passava); sul banco
+  PC il caso lento non è verificabile (orari finti di QTest ⇒ Flickable vede un lancio). Installata, `rpm -V` vuoto.
