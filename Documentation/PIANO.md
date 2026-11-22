@@ -595,3 +595,7 @@ Dopo ogni fase ci si ferma e si avvisa l'utente (25/10).
   Ora è al primo livello dopo Memoria Android, solo se inserita (montata o con «Monta»: `fsops::places` elenca solo
   quelle); le USB restano in «Altre memorie», che si apre da sola solo per una chiavetta da montare. Provata coi tocchi
   sintetici sul POCO (menù, «Altre memorie» col solo File system, SD aperta dal primo livello), banchi PC ancora OK.
+- **22/11 — 0.9.8-3: divisore fra le schede durante lo swipe** (commit `ad09f7e`). L'utente: scorrendo, le due cartelle
+  sembravano un ripiano solo. ListView `spacing` 16 dp con fascia d'acciaio e filo LED (a riposo fuori vista). Provata sul
+  POCO con un mezzo swipe tenuto (`scratch/collaudo/meta-swipe.py`) e scatto in contemporanea; banchi PC OK. Nota:
+  SnapOneItem al rilascio va nella direzione del dito anche sotto metà (già così prima; l'utente: «funziona benissimo»).
