@@ -181,6 +181,20 @@ check(folder_path() == FOTO, "Indietro in A: Foto")
 
 # la cartella di B si ricorda (impostazioni)
 
+# a metà swipe, col dito fermo: si vede il divisore fra le due pagine
+QTest.touchEvent(w, dev).press(0, QPoint(380, mid), w).commit(); wait(16)
+for k in range(1, 13):
+    QTest.touchEvent(w, dev).move(0, QPoint(380 - 15 * k, mid), w).commit(); wait(30)
+for _ in range(4):
+    QTest.touchEvent(w, dev).move(0, QPoint(200, mid), w).commit(); wait(60)
+cx = lv.property("contentX")
+check(0 < cx < lv.width(), "a metà swipe le due pagine sono in vista insieme (contentX %d)" % cx)
+shot("05-meta-swipe")
+QTest.touchEvent(w, dev).release(0, QPoint(200, mid), w).commit(); wait(800)
+# SnapOneItem di Qt: al rilascio va alla pagina nella direzione del dito, anche
+# sotto metà (verificato 22/11 anche senza divisore: era così già nella 0.9.8-1)
+check(w.property("tab") == 1, "lasciato al 40%%: passa a B, nella direzione del dito (tab %s)" % w.property("tab"))
+
 # toccare due volte la stessa linguetta non fa niente di strano
 tap_at(*tab_center(0)); tap_at(*tab_center(0))
 check(w.property("tab") == 0, "doppio tocco sulla linguetta in vista: resta A")

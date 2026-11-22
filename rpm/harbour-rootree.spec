@@ -17,7 +17,7 @@
 
 Name:       harbour-rootree
 Version:    0.9.8
-Release:    2
+Release:    3
 Summary:    RooTree — file manager for Sailfish OS
 License:    GPLv3+ and LGPLv3 and BSD and MIT
 Group:      Applications/System
@@ -120,6 +120,10 @@ install -D -m0755 %{stagingdir}/rootree-helper %{buildroot}%{_libexecdir}/%{name
 %{_libexecdir}/%{name}/rootree-helper
 
 %changelog
+* Sun Nov 22 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.8-3
+- Mentre scorri da una scheda all'altra, fra le due cartelle compare un
+  divisore d'acciaio col filo blu: si vede che si passa all'altra scheda.
+
 * Sun Nov 22 2026 RootGPT <166707820+RootGPT-YouTube@users.noreply.github.com> - 0.9.8-2
 - La scheda SD ora sta nel menù delle memorie accanto a Memoria interna e
   Memoria Android (prima era nascosta dentro «Altre memorie»). Compare solo se

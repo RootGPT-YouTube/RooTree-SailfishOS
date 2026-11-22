@@ -469,6 +469,9 @@ Window {
         highlightMoveDuration: 220
         boundsBehavior: Flickable.StopAtBounds
         cacheBuffer: width * 2
+        // fra le due pagine un divisore d'acciaio (richiesta dell'utente del
+        // 22/11: scorrendo sembravano un ripiano solo); a riposo è fuori vista
+        spacing: 16 * Style.dp
         model: 2
         currentIndex: win.tab
         onCurrentIndexChanged: if (win.tab !== currentIndex) win.tab = currentIndex
@@ -477,6 +480,28 @@ Window {
             width: content.width
             height: content.height
             readonly property FolderModel fm: index === 0 ? folderA : folderB
+            // il divisore sta nello spazio a destra della pagina A
+            Rectangle {
+                visible: index === 0
+                x: parent.width
+                width: content.spacing
+                height: parent.height
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: Style.sailfish ? Style.bg : "#14181d" }
+                    GradientStop { position: 0.5; color: Style.sailfish ? Style.alpha(Style.sfHighlight, 0.25) : "#3c4651" }
+                    GradientStop { position: 1; color: Style.sailfish ? Style.bg : "#14181d" }
+                }
+                // il filo LED, come sui bordi delle barre
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: Math.max(2, 2.2 * Style.dp)
+                    height: parent.height * 0.7
+                    radius: width / 2
+                    color: Style.accent
+                    opacity: 0.8
+                }
+            }
 
                 GridView {
                     id: grid
